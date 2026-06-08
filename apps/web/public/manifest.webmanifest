@@ -1,0 +1,18 @@
+{
+  "name": "Eco-Sense Cồn Hô",
+  "short_name": "Eco-Sense",
+  "description": "Farmer dashboard for brackish-water monitoring in Cồn Hô",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#071014",
+  "theme_color": "#071014",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

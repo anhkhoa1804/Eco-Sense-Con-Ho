@@ -1,0 +1,37 @@
+[
+  {
+    "id": "STATION_01",
+    "name": "Con Ho North",
+    "lat": 10.245,
+    "lng": 105.82,
+    "status": "active"
+  },
+  {
+    "id": "STATION_02",
+    "name": "Con Ho South",
+    "lat": 10.2385,
+    "lng": 105.826,
+    "status": "active"
+  },
+  {
+    "id": "STATION_03",
+    "name": "Canal Gate West",
+    "lat": 10.2421,
+    "lng": 105.832,
+    "status": "active"
+  },
+  {
+    "id": "STATION_04",
+    "name": "Brackish Edge",
+    "lat": 10.2362,
+    "lng": 105.8145,
+    "status": "maintenance"
+  },
+  {
+    "id": "STATION_05",
+    "name": "Mangrove Spur",
+    "lat": 10.2492,
+    "lng": 105.8362,
+    "status": "active"
+  }
+]

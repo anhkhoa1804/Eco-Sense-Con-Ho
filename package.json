@@ -1,0 +1,27 @@
+{
+  "name": "eco-sense-con-ho",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Eco-Sense Con Ho monorepo scaffold",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "infra/supabase"
+  ],
+  "scripts": {
+    "check": "npm run check -w @eco-sense/edge-ingestion && npm run check -w @eco-sense/web",
+    "test": "npm run test -w @eco-sense/edge-ingestion",
+    "test:integration": "npm run test:integration -w @eco-sense/edge-ingestion",
+    "test:web": "npm run test -w @eco-sense/web",
+    "test:rls": "npm run test:rls -w @eco-sense/supabase-infra",
+    "test:all": "npm run test:all -w @eco-sense/edge-ingestion",
+    "build:edge": "npm run build:edge -w @eco-sense/edge-ingestion",
+    "db:migrate": "npm run migrate -w @eco-sense/supabase-infra",
+    "db:deploy": "npm run deploy -w @eco-sense/supabase-infra",
+    "verify:deploy": "node infra/supabase/verify-deploy.mjs",
+    "mock:ingest": "npm run mock:ingest -w @eco-sense/edge-ingestion",
+    "simulator": "npm run simulator -w @eco-sense/edge-ingestion",
+    "dashboard": "npm run dev -w @eco-sense/web",
+    "qa:vertical-slice": "npm run check && npm run test && npm run test:web && npm run build:edge && npm run build -w @eco-sense/web && npm run simulator && npm run mock:ingest"
+  }
+}

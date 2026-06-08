@@ -1,0 +1,42 @@
+name: CI Validate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck edge-ingestion
+        run: npm run check -w @eco-sense/edge-ingestion
+
+      - name: Typecheck web
+        run: npm run check -w @eco-sense/web
+
+      - name: Ingestion contract tests
+        run: npm run test -w @eco-sense/edge-ingestion
+
+      - name: Web unit tests
+        run: npm run test:web
+
+      - name: Build edge bundle
+        run: npm run build:edge
+
+      - name: Build Next.js PWA
+        run: npm run build -w @eco-sense/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key

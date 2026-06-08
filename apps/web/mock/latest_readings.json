@@ -1,0 +1,54 @@
+[
+  {
+    "station_id": "STATION_01",
+    "timestamp": "2026-06-08T13:27:07.000Z",
+    "salinity": 0.94,
+    "water_level": 51.8,
+    "fault_flags": 0,
+    "sensor_status": {
+      "ec_probe": "ok",
+      "ultrasonic": "ok"
+    },
+    "battery_voltage": 3.98,
+    "signal_strength_dbm": -82
+  },
+  {
+    "station_id": "STATION_02",
+    "timestamp": "2026-06-08T13:27:08.000Z",
+    "salinity": 1.15,
+    "water_level": 50.8,
+    "fault_flags": 0,
+    "sensor_status": {
+      "ec_probe": "ok",
+      "ultrasonic": "ok"
+    },
+    "battery_voltage": 3.89,
+    "signal_strength_dbm": -86
+  },
+  {
+    "station_id": "STATION_03",
+    "timestamp": "2026-06-08T13:27:09.000Z",
+    "salinity": 1.4,
+    "water_level": 50.9,
+    "fault_flags": 0,
+    "sensor_status": {
+      "ec_probe": "ok",
+      "ultrasonic": "ok"
+    },
+    "battery_voltage": 3.8,
+    "signal_strength_dbm": -90
+  },
+  {
+    "station_id": "STATION_05",
+    "timestamp": "2026-06-08T13:27:11.000Z",
+    "salinity": 1.81,
+    "water_level": 48.8,
+    "fault_flags": 0,
+    "sensor_status": {
+      "ec_probe": "ok",
+      "ultrasonic": "ok"
+    },
+    "battery_voltage": 3.62,
+    "signal_strength_dbm": -98
+  }
+]
