@@ -245,6 +245,10 @@ Example failure:
 
 `Access-Control-Allow-Origin: *` on responses. OPTIONS preflight supported.
 
+## Public web access (not anon PostgREST)
+
+The Next.js app serves public telemetry via **server-only** `SUPABASE_SERVICE_ROLE_KEY` and existing repositories. Browser clients do not use anon SELECT on telemetry tables. Community reports use `POST /api/public/reports`. See [`AUTHORIZATION_MODEL.md`](AUTHORIZATION_MODEL.md).
+
 ## Reference implementation
 
 - Canonical + sign: [`services/edge-ingestion/src/canonical.ts`](../services/edge-ingestion/src/canonical.ts)

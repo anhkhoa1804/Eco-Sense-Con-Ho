@@ -18,9 +18,3 @@ create table if not exists public.firmware_updates (
   created_at timestamptz not null default now(),
   active boolean not null default false
 );
-
--- Seed devices if necessary
-insert into public.devices (device_id, station_id, device_secret)
-values
-  ('STATION_01', 'STATION_01', 'station-secret-01')
-on conflict (device_id) do nothing;

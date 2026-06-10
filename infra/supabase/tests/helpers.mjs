@@ -22,8 +22,12 @@ export function loadEnv() {
   }
 }
 
+function resolveDatabaseUrl() {
+  return process.env.DATABASE_URL ?? process.env.DATABASE_POOLER_URL ?? null;
+}
+
 export async function withClient(fn) {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = resolveDatabaseUrl();
   if (!databaseUrl) {
     return { skipped: true, reason: "DATABASE_URL not set" };
   }
@@ -61,6 +65,9 @@ export async function asAuthenticatedUser(client, userId, fn) {
 }
 
 export async function createAuthUser(client, { id, email }) {
+  await client.query(`delete from public.users where id = $1`, [id]).catch(() => undefined);
+  await client.query(`delete from auth.users where id = $1`, [id]).catch(() => undefined);
+
   await client.query(
     `
     insert into auth.users (
@@ -93,13 +100,31 @@ export async function createAuthUser(client, { id, email }) {
 
 export async function createAppUser(client, { id, email, role = "farmer" }) {
   await createAuthUser(client, { id, email });
+
+  if (role === "admin") {
+    await client.query("alter table public.users disable trigger users_prevent_role_escalation");
+    try {
+      await client.query(
+        `
+        insert into public.users (id, email, role)
+        values ($1, $2, 'admin')
+        on conflict (id) do update set email = excluded.email, role = 'admin'
+        `,
+        [id, email],
+      );
+    } finally {
+      await client.query("alter table public.users enable trigger users_prevent_role_escalation");
+    }
+    return;
+  }
+
   await client.query(
     `
     insert into public.users (id, email, role)
-    values ($1, $2, $3)
-    on conflict (id) do update set email = excluded.email, role = excluded.role
+    values ($1, $2, 'farmer')
+    on conflict (id) do update set email = excluded.email, role = 'farmer'
     `,
-    [id, email, role],
+    [id, email],
   );
 }
 

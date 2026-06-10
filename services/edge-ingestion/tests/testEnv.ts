@@ -24,10 +24,11 @@ function parseEnvFile(content: string): Record<string, string> {
 export function loadSupabaseEnv(): Record<string, string> {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
   const envPath = path.resolve(testDir, "../../../infra/supabase/.env.supabase");
-  const merged = { ...process.env } as Record<string, string>;
+  const fromFile = existsSync(envPath) ? parseEnvFile(readFileSync(envPath, "utf8")) : {};
+  const merged = { ...fromFile, ...process.env } as Record<string, string>;
 
-  if (existsSync(envPath)) {
-    Object.assign(merged, parseEnvFile(readFileSync(envPath, "utf8")));
+  if (!merged.DATABASE_URL && merged.DATABASE_POOLER_URL) {
+    merged.DATABASE_URL = merged.DATABASE_POOLER_URL;
   }
 
   if (!merged.SUPABASE_PROJECT_REF && merged.SUPABASE_URL) {

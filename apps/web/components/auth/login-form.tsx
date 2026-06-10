@@ -30,25 +30,25 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
 
     setLoading(false);
     if (signInError) {
-      setError(signInError.message);
+      setError("Không thể gửi liên kết đăng nhập. Vui lòng thử lại sau.");
       return;
     }
 
-    setMessage("Check your email for the magic link.");
+    setMessage("Đã gửi liên kết đăng nhập đến email của bạn.");
   }
 
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
-        <CardTitle>Farmer sign in</CardTitle>
+        <CardTitle>Đăng nhập quản trị</CardTitle>
         <CardDescription>
-          Email magic link today. Phone OTP can be added later without changing this screen.
+          Dành cho người vận hành. Hệ thống sẽ gửi liên kết một lần đến email của bạn.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Địa chỉ email</Label>
             <Input
               id="email"
               type="email"
@@ -56,13 +56,21 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="farmer@example.com"
+              placeholder="vd@coquan.vn"
             />
           </div>
-          {error ? <p className="text-sm text-critical" role="alert">{error}</p> : null}
-          {message ? <p className="text-sm text-accent" role="status">{message}</p> : null}
+          {error ? (
+            <p className="text-sm text-critical" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {message ? (
+            <p className="text-sm text-accent" role="status">
+              {message}
+            </p>
+          ) : null}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Sending link..." : "Send magic link"}
+            {loading ? "Đang gửi..." : "Gửi liên kết đăng nhập"}
           </Button>
         </form>
       </CardContent>

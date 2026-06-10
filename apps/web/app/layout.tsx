@@ -4,17 +4,17 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Eco-Sense Cồn Hô",
-  description: "Farmer dashboard for brackish-water monitoring in Cồn Hô",
+  description: "Cổng quan trắc khí hậu và môi trường công khai tại Cồn Hô",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Eco-Sense",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#071014",
+  themeColor: "#fafaf8",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

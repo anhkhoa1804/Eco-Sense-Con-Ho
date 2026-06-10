@@ -20,6 +20,15 @@ function loadLocalEnv() {
   return env;
 }
 
+function jwtRole(jwt) {
+  try {
+    const payload = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString("utf8"));
+    return payload.role ?? "unknown";
+  } catch {
+    return "invalid";
+  }
+}
+
 const env = { ...loadLocalEnv(), ...process.env };
 const databaseUrl = env.DATABASE_URL ?? env.DATABASE_POOLER_URL;
 
@@ -49,6 +58,25 @@ if (!databaseUrl) {
 
 if (!env.SUPABASE_ACCESS_TOKEN) {
   console.log("WARN    SUPABASE_ACCESS_TOKEN not set (run: npx supabase login)");
+}
+
+if (env.SUPABASE_ANON_KEY) {
+  const anonRole = jwtRole(env.SUPABASE_ANON_KEY);
+  if (anonRole === "anon") {
+    console.log("OK      SUPABASE_ANON_KEY role=anon");
+  } else {
+    console.log(`FAIL    SUPABASE_ANON_KEY must be the anon JWT (got role=${anonRole})`);
+    ok = false;
+  }
+}
+
+if (env.SUPABASE_SERVICE_ROLE_KEY) {
+  const serviceRole = jwtRole(env.SUPABASE_SERVICE_ROLE_KEY);
+  if (serviceRole === "service_role") {
+    console.log("OK      SUPABASE_SERVICE_ROLE_KEY role=service_role");
+  } else {
+    console.log(`WARN    SUPABASE_SERVICE_ROLE_KEY expected service_role (got ${serviceRole})`);
+  }
 }
 
 if (databaseUrl) {

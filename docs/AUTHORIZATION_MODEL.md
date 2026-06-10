@@ -1,79 +1,64 @@
 # Authorization Model
 
-Eco-Sense uses **Supabase Auth** for identity and **PostgreSQL RLS** for data access. The Next.js dashboard adds a **repository scope layer** that mirrors RLS in application queries.
+Eco-Sense uses **Supabase Auth** for operator identity, **PostgreSQL RLS** for direct database access, and a **Next.js server layer** for public read paths.
 
-## Identity
+## Public web access (MVP)
+
+Visitors do **not** authenticate. Public pages (`/`, `/about`, `/dashboard`, `/s/*`, `/report`) load telemetry via:
+
+- Next.js Server Components and Route Handlers
+- `SUPABASE_SERVICE_ROLE_KEY` (server only — never `NEXT_PUBLIC_*`)
+- Existing repositories with a fixed admin-equivalent read scope
+
+Database RLS remains strict: the `anon` role cannot SELECT telemetry (`012_revoke_anon_sensitive_grants.sql`). Public reads bypass RLS only inside trusted server code.
+
+Community reports are inserted via `POST /api/public/reports` using the service role (`user_id` null). This is not exposed through anon PostgREST.
+
+## Identity (authenticated)
 
 | Layer | Source | Notes |
 |-------|--------|-------|
-| Authentication | `auth.users` | Magic-link email login |
+| Authentication | `auth.users` | Magic-link email — **admin operators only** in MVP UI |
 | Application profile | `public.users` | `id` = `auth.users.id` (FK) |
 | Role | `public.users.role` | `farmer` or `admin` |
-| Station access | `public.station_assignments` | Many-to-many user ↔ station |
+| Station access | `public.station_assignments` | Future farmer accounts; unused in public MVP |
 
 ## Roles
 
 ### Anonymous (`anon`)
 
-- No access to private telemetry, stations, profiles, or assignments.
-- RLS policies target the `authenticated` role only; with RLS enabled and no matching policy, reads are denied.
+- No direct access to telemetry, stations, profiles, or assignments via PostgREST.
+- Public website uses server-side service role, not anon queries.
 
-### Farmer (`farmer`)
+### Farmer (`farmer`) — deferred UX
 
-- Default role on first login.
-- May read only stations listed in `station_assignments`.
-- May read telemetry (`environmental_readings`, `environmental_events`, `station_health_logs`) for assigned stations only.
-- May read and update own `public.users` row (cannot change role).
-- May insert own `damage_logs`.
-- May read `crop_thresholds` (reference data).
+- Default role on first login (`ensure_user_profile`).
+- May read only assigned stations; may insert own `damage_logs`.
+- **Not used in public MVP UI.** Schema and RLS retained for future accounts.
 
 ### Admin (`admin`)
 
-- Full read access to stations, telemetry, events, health logs, devices, ingestion audit logs, firmware updates, and all user profiles.
+- Full read access to stations, telemetry, events, health logs, devices, audit logs, firmware, profiles.
 - May manage `station_assignments`.
-- Assigned manually in `public.users` (service role or SQL); farmers cannot self-promote.
-
-## First-login bootstrap
-
-1. User completes magic-link auth → `/auth/callback`.
-2. App calls `ensure_user_profile(auth.uid, email)` (RPC).
-3. DB function upserts `public.users` with `role = 'farmer'`.
-4. Idempotent on repeat logins.
-
-Farmers see an **empty dashboard** until an admin assigns stations.
+- Promoted manually in SQL; cannot self-promote.
 
 ## Application scope
 
-`RepositoryScope` is required for all farmer-facing repository queries:
+`RepositoryScope` for authenticated repository queries:
 
 ```ts
 {
   userId: string;
   role: "farmer" | "admin";
-  stationIds: string[]; // farmers: assigned IDs; admins: ignored
+  stationIds: string[];
 }
 ```
 
-- **Admin:** no station filter (full access).
-- **Farmer with assignments:** queries filter to `stationIds`.
-- **Farmer without assignments:** queries use a no-access sentinel (zero rows).
-
-There is **no fallback** to all stations.
+Public server reads use `{ role: "admin", userId: "public-read", stationIds: [] }` with the service client only.
 
 ## Ingestion (service role)
 
-Edge function `edge-ingest` uses the Supabase **service role** and bypasses RLS. Device HMAC validation remains in the ingestion service.
-
-## Assigning stations (operations)
-
-See also [`PILOT_BOOTSTRAP.md`](PILOT_BOOTSTRAP.md) for the full pilot onboarding runbook.
-
-```sql
--- As service role / SQL editor
-insert into public.station_assignments (user_id, station_id, assigned_by)
-values ('<auth-user-uuid>', 'STATION_01', '<admin-user-uuid>')
-on conflict do nothing;
-```
+Edge function `edge-ingest` uses the service role and bypasses RLS. Device HMAC validation remains in the ingestion service.
 
 ## Promoting an admin
 
@@ -81,13 +66,48 @@ on conflict do nothing;
 update public.users set role = 'admin' where email = 'ops@example.com';
 ```
 
-Must be performed with service role or superuser (farmers cannot update their own role).
+Perform after the operator has logged in once at `/admin/login`. See [`PILOT_BOOTSTRAP.md`](PILOT_BOOTSTRAP.md).
 
-## Helper functions
+## RLS policy matrix
 
-| Function | Purpose |
-|----------|---------|
-| `current_user_role()` | Returns role for `auth.uid()` |
-| `is_admin()` | True if current user is admin |
-| `has_station_access(station_id)` | Admin or assigned farmer |
-| `ensure_user_profile(user_id, email)` | Idempotent profile bootstrap |
+Policies: `infra/supabase/migrations/009_production_rls.sql`. Helpers: `008_auth_and_assignments.sql`.
+
+Legend: **✓** allowed · **✗** denied · **own** own rows · **scoped** assigned stations only
+
+### Core tables
+
+| Table | Anonymous | Farmer | Admin |
+|-------|-----------|--------|-------|
+| `users` | ✗ | **own** SELECT/UPDATE; INSERT self as `farmer` | ✓ all |
+| `station_assignments` | ✗ | **own** SELECT | ✓ all + write |
+| `stations` | ✗ | **scoped** SELECT | ✓ all |
+| `environmental_readings` | ✗ | **scoped** SELECT | ✓ all |
+| `environmental_events` | ✗ | **scoped** SELECT | ✓ all |
+| `station_health_logs` | ✗ | **scoped** SELECT | ✓ all |
+| `crop_thresholds` | ✗ | ✓ SELECT | ✓ SELECT |
+| `damage_logs` | ✗ | **own** SELECT/INSERT | ✓ SELECT all |
+
+### Admin-only tables
+
+| Table | Anonymous | Farmer | Admin |
+|-------|-----------|--------|-------|
+| `devices` | ✗ | ✗ | ✓ SELECT |
+| `ingestion_audit_logs` | ✗ | ✗ | ✓ SELECT |
+| `firmware_updates` | ✗ | ✗ | ✓ SELECT |
+
+### Write paths
+
+| Operation | Actor | Mechanism |
+|-----------|-------|-----------|
+| Telemetry INSERT | Edge function | Service role |
+| Public telemetry read | Next.js server | Service role (curated pages) |
+| Community report INSERT | Public visitor | `POST /api/public/reports` (service role) |
+| Profile bootstrap | Authenticated user | `ensure_user_profile()` |
+| Station assignment | Admin | `station_assignments_admin_write` |
+
+### Testing
+
+```bash
+RUN_RLS_TESTS=1 npm run test:rls -w @eco-sense/supabase-infra
+npm run test -w @eco-sense/web
+```

@@ -12,8 +12,8 @@ export function MetricCard({
   return (
     <Card>
       <CardContent className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.16em] text-muted">{label}</p>
-        <p className="font-serif text-3xl tracking-tight">{value}</p>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">{label}</p>
+        <p className="text-3xl font-semibold tracking-tight">{value}</p>
         <p className="text-sm text-muted">{note}</p>
       </CardContent>
     </Card>

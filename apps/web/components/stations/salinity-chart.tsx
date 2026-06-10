@@ -10,7 +10,28 @@ import {
   YAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatSalinity } from "@/lib/utils";
 import type { TrendPoint } from "@/types";
+
+function summarizeTrend(data: TrendPoint[]): string {
+  if (data.length < 2) {
+    return "Chưa đủ dữ liệu để mô tả xu hướng.";
+  }
+
+  const first = data[0].salinity;
+  const last = data[data.length - 1].salinity;
+  const delta = last - first;
+
+  if (Math.abs(delta) < 0.05) {
+    return "Độ mặn khá ổn định trong 24 giờ qua.";
+  }
+
+  if (delta > 0) {
+    return `Độ mặn tăng khoảng ${formatSalinity(delta)} trong 24 giờ qua.`;
+  }
+
+  return `Độ mặn giảm khoảng ${formatSalinity(Math.abs(delta))} trong 24 giờ qua.`;
+}
 
 export function SalinityChart({ data, stationName }: { data: TrendPoint[]; stationName: string }) {
   const chartData = data.map((point) => ({
@@ -21,22 +42,37 @@ export function SalinityChart({ data, stationName }: { data: TrendPoint[]; stati
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{stationName} — 24h salinity</CardTitle>
+        <CardTitle>Diễn biến độ mặn 24 giờ</CardTitle>
+        <p className="text-sm text-muted">{stationName}</p>
+        <p className="text-sm text-muted">{summarizeTrend(data)}</p>
       </CardHeader>
       <CardContent className="h-72">
         {chartData.length === 0 ? (
-          <p className="text-sm text-muted">No readings in the last 24 hours.</p>
+          <p className="text-sm text-muted">Chưa có dữ liệu độ mặn trong 24 giờ gần nhất.</p>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
-              <XAxis dataKey="label" stroke="#a8c1bb" fontSize={12} />
-              <YAxis stroke="#a8c1bb" fontSize={12} domain={["auto", "auto"]} />
-              <Tooltip
-                contentStyle={{ background: "#0d1a1f", border: "1px solid rgba(167,234,211,0.12)", borderRadius: 12 }}
-                labelStyle={{ color: "#effbf6" }}
+            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="#e5eaed" strokeDasharray="3 3" />
+              <XAxis dataKey="label" stroke="#66707a" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis
+                stroke="#66707a"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                domain={["auto", "auto"]}
+                tickFormatter={(value) => `${Number(value).toFixed(1)}`}
               />
-              <Line type="monotone" dataKey="salinity" stroke="#77e0b7" strokeWidth={3} dot={false} name="Salinity ‰" />
+              <Tooltip
+                contentStyle={{
+                  background: "#ffffff",
+                  border: "1px solid #dbe3e6",
+                  borderRadius: 12,
+                  boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+                }}
+                labelStyle={{ color: "#12202a", fontWeight: 600 }}
+                formatter={(value: number) => [formatSalinity(value), "Độ mặn"]}
+              />
+              <Line type="monotone" dataKey="salinity" stroke="#166534" strokeWidth={3} dot={false} name="Độ mặn" />
             </LineChart>
           </ResponsiveContainer>
         )}

@@ -1,62 +1,80 @@
 # Pilot Bootstrap Guide
 
-After ECO-009 authorization is deployed, farmers need **auth profile + station assignments** before the dashboard shows data.
+Public MVP: visitors use the site without login. Only operators authenticate at `/admin/login`.
 
-## 1. First login (automatic)
+## 1. Environment (web)
 
-1. Farmer opens `/login` and completes magic-link auth.
-2. App calls `ensure_user_profile()` → creates `public.users` row with `role = farmer`.
-3. Dashboard is **empty** until stations are assigned.
-
-## 2. Promote an admin (one-time, SQL editor / service role)
-
-Replace email with the ops account:
-
-```sql
--- After the user has logged in at least once
-update public.users
-set role = 'admin'
-where email = 'ops@example.com';
+```bash
+cp apps/web/.env.local.example apps/web/.env.local
 ```
 
-## 3. Assign stations to a farmer
+Set:
 
-Replace UUIDs with values from Supabase Auth → Users and your station IDs:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (anon JWT only)
+- `SUPABASE_SERVICE_ROLE_KEY` (server only — required for public pages and reports)
 
-```sql
-insert into public.station_assignments (user_id, station_id, assigned_by)
-values
-  ('00000000-0000-0000-0000-000000000001', 'STATION_01', '00000000-0000-0000-0000-000000000099'),
-  ('00000000-0000-0000-0000-000000000001', 'STATION_02', '00000000-0000-0000-0000-000000000099')
-on conflict do nothing;
+## 2. Deploy database and edge
+
+From repo root:
+
+```bash
+npm run db:migrate
+npm run db:deploy
+npm run verify:deploy
 ```
 
-Find farmer UUID:
+## 3. Promote an admin operator
+
+1. Operator signs in once at `/admin/login` (magic link).
+2. Promote via SQL editor (service role):
 
 ```sql
-select id, email from auth.users where email = 'farmer@example.com';
-select id, email, role from public.users where email = 'farmer@example.com';
+update public.users set role = 'admin' where email = 'ops@example.com';
 ```
+
+3. Sign in again — `/admin` console should load.
 
 ## 4. Pilot seed (stations + devices)
 
-Applied automatically by `npm run db:migrate`:
+Applied by `npm run db:migrate`:
 
-- 5 stations (`STATION_01` … `STATION_05`)
-- 5 devices with pilot secrets (development only)
+- Stations `STATION_01` … `STATION_05` and matching devices
+- Development secrets in [`infra/supabase/seed/pilot_seed.sql`](../infra/supabase/seed/pilot_seed.sql) — rotate for production
 
-See [`infra/supabase/seed/pilot_seed.sql`](../infra/supabase/seed/pilot_seed.sql).
+QR visitor URLs: `/s/STATION_01`, `/s/STATION_02`, etc.
 
-## 5. Verify access
+## 5. Verify
 
-1. Log in as farmer → dashboard shows only assigned stations.
-2. Log in as admin → all stations visible.
-3. Run RLS tests: `RUN_RLS_TESTS=1 npm run test:rls`
+1. Open `/` and `/dashboard` without login — live metrics render.
+2. Open `/s/STATION_01` — station detail and chart.
+3. Submit `/report` (text-only).
+4. Admin login → `/admin` shows station list.
+5. `RUN_RLS_TESTS=1 npm run test:rls`
+6. `LIVE_SUPABASE_INTEGRATION=1 npm run test:integration`
 
-## 6. Integration test device
+## 6. Future farmer accounts (not MVP)
 
-Use device `STATION_01` with secret `station-secret-01` (pilot seed only — rotate for production).
+`station_assignments` and farmer RLS remain in the database. When re-enabled:
 
-```bash
-LIVE_SUPABASE_INTEGRATION=1 npm run test:integration
+```sql
+insert into public.station_assignments (user_id, station_id, assigned_by)
+values ('<farmer-uuid>', 'STATION_01', '<admin-uuid>')
+on conflict do nothing;
 ```
+
+## 7. Field hardware readiness
+
+Checklist before mounting nodes at Đầu Cồn, Homestay Cô Ba, and Cuối Cồn:
+
+**Enclosure:** IP65+ target; sealed glands; anti-corrosion connectors; desiccant schedule.
+
+**Sensors:** Baseline EC calibration; day-7 and day-30 drift checks; cleaning SOP.
+
+**Power:** 7+ duty-cycle battery profile; solar recovery after cloudy days; low-battery alert path.
+
+**Connectivity:** LTE success rate per site; store-and-forward drain on reconnect; no duplicate rows on retry.
+
+**Physical:** Vandal-resistant mount; QR label with station URL; maintenance access path.
+
+**Pilot gate (per station):** 30-day uptime target; no unresolved `SENSOR_FAULT`; signal above floor; battery safe; data continuity KPI met.

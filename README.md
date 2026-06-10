@@ -1,19 +1,19 @@
 # Eco-Sense Con Ho
 
-Serverless, fault-tolerant, offline-first climate monitoring network for local agriculture.
+Serverless climate monitoring network for Cồn Hô — public information platform, citizen science, and eco-tourism.
 
 ## 1. Product Summary
 Eco-Sense Con Ho is an end-to-end system that combines:
 - Field IoT nodes (ESP32 + LTE modem) for periodic sensing.
 - Secure serverless ingestion via Supabase Edge Functions.
 - PostgreSQL time-series storage with strict access control.
-- Next.js Progressive Web App (PWA) for farmers and admins.
+- Next.js Progressive Web App (PWA) — **public climate dashboard** and **admin-only** operator access.
 
 Primary goals:
 - Reliable data collection in weak network environments.
-- Actionable salinity alerts based on threshold + trend + exposure duration.
-- Offline-first incident reporting with delayed background sync.
-- Fleet diagnostics for battery, signal, firmware, and station health.
+- Public salinity and water-level visibility for residents, visitors, and researchers.
+- Community issue reporting (citizen science).
+- Fleet diagnostics for operators (battery, signal, firmware, station health).
 
 ## 2. Core Architecture
 Data flow:
@@ -22,7 +22,7 @@ Data flow:
 3. Node sends payload to Supabase Edge Function.
 4. Edge Function validates HMAC, timestamp, idempotency.
 5. Valid records are written to PostgreSQL tables.
-6. Next.js PWA consumes data via Supabase APIs.
+6. Next.js PWA serves public pages via server-side reads; operators authenticate at `/admin/login`.
 
 Tech stack:
 - Hardware Node: ESP32 + A7670C/SIM7600
@@ -42,7 +42,7 @@ Proposed structure for implementation:
 ```text
 .
 |-- apps/
-|   |-- web/                    # Next.js PWA (farmer + admin)
+|   |-- web/                    # Next.js PWA (public + admin)
 |-- services/
 |   |-- edge-ingestion/         # Supabase Edge Functions for IoT
 |-- firmware/
@@ -86,26 +86,24 @@ Application security requirements:
 - RLS enforced on all business tables.
 - Signed upload workflows for damage image evidence.
 
-## 7. UX Scope
-Farmer-facing:
-- Live salinity/water-level overview by station.
-- Alert cards with trend and cumulative exposure context.
-- Damage report form with photo, location, and description.
-- Offline storage + background sync on reconnect.
+## 7. UX Scope (public MVP)
+Public (no login):
+- `/` Home, `/about`, `/dashboard`, `/s/[stationId]` (QR), `/report` community reports.
 
-Admin-facing:
-- Station health dashboard (battery, signal, firmware).
-- Warning markers for battery < 3.6V or signal < -95 dBm.
-- Data export tools (CSV/Excel) with station/time filters.
+Admin:
+- `/admin/login` magic link; `/admin` operations console.
+- Full fleet UI and export tools — future releases.
+
+Deferred: farmer accounts, offline report sync, photo uploads.
 
 ## 8. Delivery Roadmap
 See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for detailed phased execution.
 
-## 9. Architecture Documents (Must Read Before Coding)
-- [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md): Canonical payload schema, signature rules, and error contracts.
-- [docs/FIRMWARE_SPEC.md](docs/FIRMWARE_SPEC.md): Node state machine, retries, power budget behavior, and OTA flow.
-- [docs/DEPLOYMENT_PACKAGE.md](docs/DEPLOYMENT_PACKAGE.md): Enclosure, electrical protection, and environmental hardening.
-- [docs/FIELD_TEST_PLAN.md](docs/FIELD_TEST_PLAN.md): Field validation matrix for data reliability and survivability.
+## 9. Architecture Documents
+- [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md): IoT ingestion contract (v1).
+- [docs/AUTHORIZATION_MODEL.md](docs/AUTHORIZATION_MODEL.md): RLS, public server reads, admin auth.
+- [docs/PILOT_BOOTSTRAP.md](docs/PILOT_BOOTSTRAP.md): Deploy, admin promotion, field checklist.
+- [firmware/esp32-node/docs/FIRMWARE_SPEC.md](firmware/esp32-node/docs/FIRMWARE_SPEC.md): Node firmware lifecycle.
 
 ## 10. Success Metrics (Pragmatic)
 - 100% valid signed payloads are persisted (no data loss for accepted payloads).
@@ -117,17 +115,14 @@ See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for detailed phas
 - Offline damage reports are captured and later synced without user re-entry.
 
 ## 11. Current Status
-- PRD/TDD interpreted and converted into technical baseline docs.
-- Implementation plan drafted for staged development.
-- Architecture-level specifications added for contract, firmware lifecycle, deployment, and field tests.
-- Sensor fault model, surge hardening, retention strategy, and long-horizon readiness gates are now documented.
-- Phase 1-3 scaffold is implemented with mock data and ingestion simulation.
+- Supabase migrations 001–012 deployed; edge-ingest live; RLS and integration tests passing.
+- Public web MVP: Home, About, Dashboard, QR stations, community reports, admin login.
+- Farmer-account UX removed from MVP; schema retained for future use.
 
-## 12. Phase 1-3 Implemented Artifacts
-- Monorepo scaffold with `apps`, `services`, `infra`, `firmware`, `docs`.
-- Public dashboard mockup in `apps/web` with station map, latest readings, trend chart, and alert cards.
-- Mock-first web datasets in `apps/web/mock`.
-- Supabase migrations and seed scripts in `infra/supabase`.
+## 12. Implemented Artifacts
+- Monorepo: `apps/web`, `services/edge-ingestion`, `infra/supabase`, `firmware/esp32-node`.
+- Live telemetry dashboard via server-side service role + repository layer.
+- Supabase migrations, pilot seed, CI/CD (`verify:deploy`).
 - Edge ingestion mock service with:
 	- HMAC verification
 	- timestamp drift validation
@@ -151,6 +146,6 @@ Expected behavior:
 - Second same payload: `duplicate_ignored`
 - Faulty payload: `SENSOR_FAULT`
 
-Dashboard preview:
-- Start `npm run dashboard`
-- Open `http://localhost:4173`
+Web app:
+- `npm run dashboard` → `http://localhost:4173`
+- See [apps/web/README.md](apps/web/README.md) for routes and env vars.

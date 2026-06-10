@@ -30,20 +30,20 @@ export function InstallPrompt() {
   return (
     <Card className="mb-6 border-accent/20">
       <CardHeader>
-        <CardTitle>Install Eco-Sense</CardTitle>
-        <CardDescription>Add the farmer dashboard to your home screen for offline-ready access.</CardDescription>
+        <CardTitle>Cài ứng dụng Eco-Sense</CardTitle>
+        <CardDescription>Thêm bảng quan trắc vào màn hình chính để truy cập nhanh hơn.</CardDescription>
       </CardHeader>
-      <CardContent className="flex gap-3">
+      <CardContent className="flex flex-wrap gap-3">
         <Button
           onClick={async () => {
             await deferredPrompt.prompt();
             setDeferredPrompt(null);
           }}
         >
-          Install app
+          Cài đặt
         </Button>
         <Button variant="ghost" onClick={() => setDismissed(true)}>
-          Not now
+          Để sau
         </Button>
       </CardContent>
     </Card>

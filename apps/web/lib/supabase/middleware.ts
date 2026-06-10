@@ -1,13 +1,43 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+function isPublicPath(pathname: string): boolean {
+  if (pathname === "/" || pathname === "/about" || pathname === "/dashboard" || pathname === "/report") {
+    return true;
+  }
+  if (pathname === "/offline" || pathname === "/admin/login") {
+    return true;
+  }
+  if (pathname.startsWith("/auth")) {
+    return true;
+  }
+  if (pathname.startsWith("/s/")) {
+    return true;
+  }
+  if (pathname.startsWith("/api/public/")) {
+    return true;
+  }
+  return false;
+}
+
+function isAdminPath(pathname: string): boolean {
+  return pathname === "/admin" || (pathname.startsWith("/admin/") && pathname !== "/admin/login");
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  const pathname = request.nextUrl.pathname;
+
   if (!url || !key) {
+    if (isAdminPath(pathname)) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/admin/login";
+      return NextResponse.redirect(redirectUrl);
+    }
     return supabaseResponse;
   }
 
@@ -30,20 +60,24 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-  const isPublic = pathname === "/login" || pathname.startsWith("/auth") || pathname === "/offline";
-
-  if (!user && !isPublic && pathname !== "/") {
+  if (isAdminPath(pathname) && !user) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
+    redirectUrl.pathname = "/admin/login";
     redirectUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && pathname === "/login") {
+  if (user && pathname === "/admin/login") {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
+    redirectUrl.pathname = "/admin";
     redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (!user && !isPublicPath(pathname) && isAdminPath(pathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/admin/login";
+    redirectUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 

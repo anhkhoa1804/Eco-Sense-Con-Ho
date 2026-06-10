@@ -103,7 +103,18 @@ Acceptance criteria:
 - End-to-end send cycle < 15s under nominal LTE conditions.
 - Stable deep sleep current and expected daily budget.
 
-## 5. Phase 5 - User PWA (Farmer Experience)
+## 5. Phase 5 - Public Web Platform (MVP — implemented)
+Goal: Public climate dashboard, citizen reports, QR stations, admin-only auth.
+
+Tasks (done):
+1. Server-only service role reads via existing repositories.
+2. Public routes: `/`, `/about`, `/dashboard`, `/s/[stationId]`, `/report`.
+3. `POST /api/public/reports` for community reports (text-only).
+4. Admin at `/admin/login` and `/admin`.
+
+Deferred from this phase: map UI, photo upload, farmer login UX, offline report queue.
+
+## 5b. Phase 5 (legacy) - User PWA (Farmer Experience) — deferred
 Goal: Deliver offline-capable farmer-facing product features.
 
 Tasks:

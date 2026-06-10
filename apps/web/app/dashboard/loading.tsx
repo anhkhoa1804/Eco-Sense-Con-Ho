@@ -1,9 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { AppShell } from "@/components/layout/app-shell";
+import { PublicShell } from "@/components/layout/public-shell";
 
 export default function DashboardLoading() {
   return (
-    <AppShell activePath="/dashboard">
+    <PublicShell activePath="/dashboard">
       <div className="space-y-6">
         <Skeleton className="h-10 w-72" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -17,6 +17,6 @@ export default function DashboardLoading() {
           ))}
         </div>
       </div>
-    </AppShell>
+    </PublicShell>
   );
 }

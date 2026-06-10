@@ -5,6 +5,7 @@ import {
   asAuthenticatedUser,
   assignStation,
   createAppUser,
+  createAuthUser,
   loadEnv,
   withClient,
 } from "./helpers.mjs";
@@ -14,19 +15,31 @@ loadEnv();
 const RUN_RLS = process.env.RUN_RLS_TESTS === "1";
 
 describe("production RLS policies", { skip: !RUN_RLS }, () => {
-  it("anonymous cannot read stations", async () => {
-    const result = await withClient(async (client) => {
-      await client.query("set local role anon");
-      const { rows } = await client.query(`select count(*)::int as count from public.stations`);
-      return rows[0].count;
-    });
-
-    if (result.skipped) {
-      console.log(`skipped: ${result.reason ?? "DATABASE_URL not set"}`);
+  it("anonymous cannot read stations via PostgREST", async (t) => {
+    const url = process.env.SUPABASE_URL?.replace(/\/$/, "");
+    const key = process.env.SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      t.skip("SUPABASE_URL or SUPABASE_ANON_KEY not set");
       return;
     }
 
-    assert.equal(result.value, 0);
+    const jwtPayload = JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8"));
+    if (jwtPayload.role !== "anon") {
+      t.skip(`SUPABASE_ANON_KEY must be anon JWT (got role=${jwtPayload.role}) — fix .env.supabase`);
+      return;
+    }
+
+    const response = await fetch(`${url}/rest/v1/stations?select=id`, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        Accept: "application/json",
+      },
+    });
+
+    const body = await response.json();
+    const count = Array.isArray(body) ? body.length : 0;
+    assert.equal(count, 0);
   });
 
   it("farmer A cannot read farmer B assigned stations", async () => {
@@ -34,8 +47,8 @@ describe("production RLS policies", { skip: !RUN_RLS }, () => {
     const farmerB = randomUUID();
 
     const outcome = await withClient(async (client) => {
-      await createAppUser(client, { id: farmerA, email: "farmer-a@test.local" });
-      await createAppUser(client, { id: farmerB, email: "farmer-b@test.local" });
+      await createAppUser(client, { id: farmerA, email: `farmer-a-${farmerA}@test.local` });
+      await createAppUser(client, { id: farmerB, email: `farmer-b-${farmerB}@test.local` });
       await assignStation(client, { userId: farmerA, stationId: "STATION_01" });
       await assignStation(client, { userId: farmerB, stationId: "STATION_02" });
 
@@ -60,7 +73,7 @@ describe("production RLS policies", { skip: !RUN_RLS }, () => {
     const farmerId = randomUUID();
 
     const outcome = await withClient(async (client) => {
-      await createAppUser(client, { id: farmerId, email: "farmer-readings@test.local" });
+      await createAppUser(client, { id: farmerId, email: `farmer-readings-${farmerId}@test.local` });
       await assignStation(client, { userId: farmerId, stationId: "STATION_01" });
 
       let count = -1;
@@ -85,7 +98,7 @@ describe("production RLS policies", { skip: !RUN_RLS }, () => {
     const adminId = randomUUID();
 
     const outcome = await withClient(async (client) => {
-      await createAppUser(client, { id: adminId, email: "admin@test.local", role: "admin" });
+      await createAppUser(client, { id: adminId, email: `admin-${adminId}@test.local`, role: "admin" });
 
       let count = 0;
       await asAuthenticatedUser(client, adminId, async (scoped) => {
@@ -107,23 +120,24 @@ describe("production RLS policies", { skip: !RUN_RLS }, () => {
     const userId = randomUUID();
 
     const outcome = await withClient(async (client) => {
-      await createAuthUser(client, { id: userId, email: "bootstrap@test.local" });
+      const email = `bootstrap-${userId}@test.local`;
+      await createAuthUser(client, { id: userId, email });
 
       let firstRole;
       let secondRole;
 
       await asAuthenticatedUser(client, userId, async (scoped) => {
-        const first = await scoped.query(`select public.ensure_user_profile($1, $2) as row`, [
-          userId,
-          "bootstrap@test.local",
-        ]);
-        firstRole = first.rows[0].row.role;
+        const first = await scoped.query(
+          `select (public.ensure_user_profile($1, $2)).role as role`,
+          [userId, email],
+        );
+        firstRole = first.rows[0].role;
 
-        const second = await scoped.query(`select public.ensure_user_profile($1, $2) as row`, [
-          userId,
-          "bootstrap@test.local",
-        ]);
-        secondRole = second.rows[0].row.role;
+        const second = await scoped.query(
+          `select (public.ensure_user_profile($1, $2)).role as role`,
+          [userId, email],
+        );
+        secondRole = second.rows[0].role;
       });
 
       return { firstRole, secondRole };

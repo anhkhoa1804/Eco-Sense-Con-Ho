@@ -2,9 +2,14 @@ node_modules/
 .env
 .env.*
 !.env.example
+**/.env.supabase
 coverage/
 dist/
 .next/
 .supabase/
+infra/supabase/.temp/
+firmware/**/.pio/
+firmware/**/build/
 .DS_Store
+Thumbs.db
 *.log

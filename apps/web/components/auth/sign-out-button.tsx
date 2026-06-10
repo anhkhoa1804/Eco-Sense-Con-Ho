@@ -10,13 +10,13 @@ export function SignOutButton() {
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push("/admin/login");
     router.refresh();
   }
 
   return (
     <Button type="button" variant="outline" onClick={handleSignOut}>
-      Sign out
+      Đăng xuất
     </Button>
   );
 }
