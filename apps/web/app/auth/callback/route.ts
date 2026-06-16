@@ -9,6 +9,9 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
+    if (!supabase) {
+      return NextResponse.redirect(`${origin}/admin/login?error=auth_config_missing`);
+    }
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error && data.user) {
       await ensureUserProfile(supabase, data.user);

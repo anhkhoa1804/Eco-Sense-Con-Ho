@@ -17,19 +17,24 @@ export function createRepositories(supabase: SupabaseClient) {
 export type Repositories = ReturnType<typeof createRepositories>;
 
 export async function getDashboardMetrics(repos: Repositories, scope: RepositoryScope): Promise<DashboardMetrics> {
-  const [counts, averageSalinity, criticalAlerts, weakSignalNodes] = await Promise.all([
+  const results = await Promise.allSettled([
     repos.stations.getActiveCount(scope),
     repos.readings.getAverageSalinity(scope),
     repos.alerts.countCritical(scope),
     repos.readings.countWeakSignalNodes(scope),
   ]);
 
+  const getValue = <T>(index: number, fallback: T): T => 
+    results[index].status === 'fulfilled' ? (results[index] as PromiseFulfilledResult<T>).value : fallback;
+
+  const counts = getValue(0, { active: 0, total: 0 });
+
   return {
     activeStations: counts.active,
     totalStations: counts.total,
-    averageSalinity,
-    criticalAlerts,
-    weakSignalNodes,
+    averageSalinity: getValue(1, 0),
+    criticalAlerts: getValue(2, 0),
+    weakSignalNodes: getValue(3, 0),
   };
 }
 

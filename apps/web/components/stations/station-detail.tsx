@@ -29,7 +29,11 @@ function healthLabel(batteryVoltage?: number | null): string {
 }
 
 export async function StationDetail({ stationId }: { stationId: string }) {
-  const { repos, scope } = getPublicRepositories();
+  const context = getPublicRepositories();
+  if (!context) {
+    return <div>Dữ liệu không khả dụng.</div>;
+  }
+  const { repos, scope } = context;
 
   const [station, reading, health, trend] = await Promise.all([
     repos.stations.getById(stationId, scope),

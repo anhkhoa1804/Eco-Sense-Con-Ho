@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BookOpen, ClipboardList, Home, LayoutDashboard, Shield } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Trang chủ", icon: Home },

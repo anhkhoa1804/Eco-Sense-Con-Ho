@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils";
 
 const variants = {
   default: "border-border bg-muted/30 text-foreground",

@@ -41,6 +41,7 @@ Tasks:
 2. Add keys, indexes, and constraints:
    - unique `environmental_data.message_id`
    - foreign keys and station/time indexes
+   - Define table partitioning strategy for environmental_readings (monthly).
 3. Implement RLS policies by role:
    - farmer/user
    - admin/climate steward

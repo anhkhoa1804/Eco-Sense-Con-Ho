@@ -1,7 +1,7 @@
 import {
+  applyStationIdScope,
   applyStationScope,
   canAccessStation,
-  latestByStation,
   type AppSupabase,
 } from "./base";
 import type {
@@ -81,34 +81,65 @@ export class ReadingRepository {
 
   async getLatestForAllStations(scope: RepositoryScope): Promise<Map<string, EnvironmentalReading>> {
     const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    
+    // Use resource embedding to get the latest reading PER station.
+    // This eliminates the global 500-row truncation problem.
     let query = this.supabase
-      .from("environmental_readings")
-      .select("*")
-      .gte("timestamp", since)
-      .order("timestamp", { ascending: false })
-      .limit(500);
+      .from("stations")
+      .select(`
+        id,
+        environmental_readings (
+          *
+        )
+      `)
+      .gte("environmental_readings.timestamp", since)
+      .order("timestamp", { foreignTable: "environmental_readings", ascending: false })
+      .limit(1, { foreignTable: "environmental_readings" });
 
-    query = applyStationScope(query, scope);
+    query = applyStationIdScope(query, scope);
 
     const { data, error } = await query;
     if (error) throw error;
-    return latestByStation((data ?? []).map(mapReading));
+
+    const map = new Map<string, EnvironmentalReading>();
+    for (const row of (data ?? [])) {
+      const readings = row.environmental_readings as Record<string, unknown>[];
+      if (readings && readings.length > 0) {
+        map.set(row.id, mapReading(readings[0]));
+      }
+    }
+    return map;
   }
 
   async getLatestHealthForAllStations(scope: RepositoryScope): Promise<Map<string, StationHealthLog>> {
     const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    
+    // Use resource embedding to get the latest health log PER station.
     let query = this.supabase
-      .from("station_health_logs")
-      .select("*")
-      .gte("timestamp", since)
-      .order("timestamp", { ascending: false })
-      .limit(500);
+      .from("stations")
+      .select(`
+        id,
+        station_health_logs (
+          *
+        )
+      `)
+      .gte("station_health_logs.timestamp", since)
+      .order("timestamp", { foreignTable: "station_health_logs", ascending: false })
+      .limit(1, { foreignTable: "station_health_logs" });
 
-    query = applyStationScope(query, scope);
+    query = applyStationIdScope(query, scope);
 
     const { data, error } = await query;
     if (error) throw error;
-    return latestByStation((data ?? []).map(mapHealth));
+
+    const map = new Map<string, StationHealthLog>();
+    for (const row of (data ?? [])) {
+      const logs = row.station_health_logs as Record<string, unknown>[];
+      if (logs && logs.length > 0) {
+        map.set(row.id, mapHealth(logs[0]));
+      }
+    }
+    return map;
   }
 
   async getSnapshots(scope: RepositoryScope): Promise<StationReadingSnapshot[]> {

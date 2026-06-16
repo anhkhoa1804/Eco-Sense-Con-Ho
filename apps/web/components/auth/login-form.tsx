@@ -20,6 +20,11 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
     setMessage(null);
 
     const supabase = createClient();
+    if (!supabase) {
+      setError("Cấu hình hệ thống không hợp lệ (Supabase missing).");
+      setLoading(false);
+      return;
+    }
     const origin = window.location.origin;
     const { error: signInError } = await supabase.auth.signInWithOtp({
       email,

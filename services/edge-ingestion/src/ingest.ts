@@ -23,7 +23,12 @@ function hasRequiredFields(payload: TelemetryPayloadV1): boolean {
       Number.isFinite(payload.timestamp) &&
       payload.firmware_version &&
       payload.sensor_status?.ec_probe &&
-      payload.sensor_status?.ultrasonic,
+      payload.sensor_status?.ultrasonic &&
+      Number.isFinite(payload.salinity) &&
+      Number.isFinite(payload.water_level) &&
+      Number.isFinite(payload.fault_flags) &&
+      Number.isFinite(payload.battery_voltage) &&
+      Number.isFinite(payload.signal_strength_dbm),
   );
 }
 
@@ -132,12 +137,16 @@ export async function ingestTelemetry(
     }
 
     const headerTimestamp = Number.parseInt(request.headers["x-timestamp"], 10);
-    if (Number.isNaN(headerTimestamp) || Math.abs(nowEpochSeconds - headerTimestamp) > config.maxTimestampDriftSeconds) {
-      await db.insertAuditLog(auditRow(payload, "expired_timestamp", "timestamp is outside allowed drift window", nowEpochSeconds));
+    const isHeaderValid = !Number.isNaN(headerTimestamp) && Math.abs(nowEpochSeconds - headerTimestamp) <= config.maxTimestampDriftSeconds;
+    const isPayloadValid = Math.abs(nowEpochSeconds - payload.timestamp) <= config.maxTimestampDriftSeconds;
+
+    if (!isHeaderValid || !isPayloadValid) {
+      const reason = !isHeaderValid ? "header timestamp is outside allowed drift window" : "payload timestamp is outside allowed drift window";
+      await db.insertAuditLog(auditRow(payload, "expired_timestamp", reason, nowEpochSeconds));
       return {
         ok: false,
         error_code: "TIMESTAMP_OUT_OF_WINDOW",
-        message: "timestamp is outside allowed drift window",
+        message: reason,
         retryable: false,
       };
     }

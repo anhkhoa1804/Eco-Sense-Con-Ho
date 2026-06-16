@@ -1,151 +1,455 @@
 # Eco-Sense Con Ho
 
-Serverless climate monitoring network for Cồn Hô — public information platform, citizen science, and eco-tourism.
+Serverless climate monitoring network for Cồn Hô — public climate information platform, citizen science initiative, and eco-tourism support system.
 
-## 1. Product Summary
-Eco-Sense Con Ho is an end-to-end system that combines:
-- Field IoT nodes (ESP32 + LTE modem) for periodic sensing.
-- Secure serverless ingestion via Supabase Edge Functions.
-- PostgreSQL time-series storage with strict access control.
-- Next.js Progressive Web App (PWA) — **public climate dashboard** and **admin-only** operator access.
+> ⚠️ **Development Status**
+>
+> Eco-Sense Con Ho is currently under active development.
+>
+> The public deployment is intended for demonstration, evaluation, and project showcase purposes only. Features, APIs, database schemas, and user interfaces may change without notice during development and testing.
 
-Primary goals:
-- Reliable data collection in weak network environments.
-- Public salinity and water-level visibility for residents, visitors, and researchers.
-- Community issue reporting (citizen science).
-- Fleet diagnostics for operators (battery, signal, firmware, station health).
+## Live Demo
 
-## 2. Core Architecture
-Data flow:
-1. ESP32 wakes on duty cycle (every 30 min).
-2. Node powers LTE, reads sensors, signs payload.
-3. Node sends payload to Supabase Edge Function.
-4. Edge Function validates HMAC, timestamp, idempotency.
-5. Valid records are written to PostgreSQL tables.
-6. Next.js PWA serves public pages via server-side reads; operators authenticate at `/admin/login`.
+**Demo Website:** https://eco-sense-con-ho.vercel.app/
 
-Tech stack:
-- Hardware Node: ESP32 + A7670C/SIM7600
-- Ingestion: Supabase Edge Functions
-- Data + Auth: Supabase PostgreSQL, RLS, Storage
-- Frontend: Next.js (React) + PWA
+### Available Public Pages
 
-## 3. System Design Principles
-- Serverless-first: Minimize always-on backend services.
-- Fault-tolerant in field: Handle LTE retries, packet drops, and power constraints.
-- Offline-first UX: Store report drafts and media in IndexedDB, sync later.
-- Security by design: Signed payloads, replay protection, role-based data access.
+* `/` — Home
+* `/about` — Project Overview
+* `/dashboard` — Climate Dashboard
+* `/s/[stationId]` — Station Information Page (QR Access)
+* `/report` — Community Environmental Reporting
 
-## 4. Planned Repository Structure
-Proposed structure for implementation:
+### Administrative Pages
+
+* `/admin/login` — Operator Authentication
+* `/admin` — Operations Console
+
+---
+
+# 1. Product Summary
+
+Eco-Sense Con Ho is an end-to-end environmental monitoring system designed to support climate resilience, citizen science, and sustainable community development on Cồn Hô.
+
+The platform combines:
+
+* Field IoT monitoring stations (ESP32 + LTE modem)
+* Secure serverless telemetry ingestion
+* PostgreSQL time-series data storage
+* Progressive Web Application (PWA)
+* Community reporting workflows
+* Administrative fleet management tools
+
+Primary goals include:
+
+* Reliable environmental data collection in remote environments
+* Public visibility of salinity and water-level conditions
+* Climate awareness and citizen science participation
+* Long-term environmental monitoring
+* Fleet diagnostics and maintenance support
+* Research and educational use of climate data
+
+---
+
+# 2. Core Architecture
+
+## Data Flow
+
+1. ESP32 node wakes according to a predefined duty cycle (every 30 minutes).
+2. Sensors collect environmental measurements.
+3. The node powers the LTE modem and prepares telemetry payloads.
+4. Payloads are cryptographically signed.
+5. Data is transmitted to Supabase Edge Functions.
+6. Edge Functions validate:
+
+   * Device signature
+   * Timestamp validity
+   * Idempotency constraints
+7. Valid records are stored in PostgreSQL.
+8. Next.js PWA retrieves and visualizes data for public and administrative users.
+
+## Technology Stack
+
+### Hardware
+
+* ESP32
+* A7670C LTE Modem
+* SIM7600 LTE Modem
+
+### Backend
+
+* Supabase Edge Functions
+* PostgreSQL
+* Row Level Security (RLS)
+* Supabase Authentication
+* Supabase Storage
+
+### Frontend
+
+* Next.js 15
+* React 19
+* Progressive Web App (PWA)
+* TanStack Query
+* Tailwind CSS
+
+---
+
+# 3. System Design Principles
+
+## Serverless-First
+
+The platform minimizes always-on infrastructure by leveraging serverless components wherever possible.
+
+Benefits:
+
+* Reduced operational cost
+* Simplified deployment
+* Improved scalability
+* Minimal infrastructure maintenance
+
+## Fault-Tolerant Field Operations
+
+The system is designed for challenging environmental conditions.
+
+Key considerations:
+
+* LTE retry handling
+* Packet-loss tolerance
+* Sensor fault isolation
+* Low-power operation
+* Long-duration autonomous deployment
+
+## Offline-First User Experience
+
+Community reporting workflows are designed to operate under unstable connectivity conditions.
+
+Features include:
+
+* Local draft storage
+* IndexedDB persistence
+* Deferred synchronization
+* Future background-sync support
+
+## Security by Design
+
+Security mechanisms are integrated throughout the platform.
+
+Examples:
+
+* Signed telemetry payloads
+* Replay attack protection
+* Timestamp validation
+* Role-based access control
+* Database Row Level Security
+
+---
+
+# 4. Repository Structure
 
 ```text
 .
-|-- apps/
-|   |-- web/                    # Next.js PWA (public + admin)
-|-- services/
-|   |-- edge-ingestion/         # Supabase Edge Functions for IoT
-|-- firmware/
-|   |-- esp32-node/             # ESP32 source, OTA, calibration portal
-|-- infra/
-|   |-- supabase/               # SQL migrations, RLS policies, seed data
-|-- docs/
-|   |-- IMPLEMENTATION_PLAN.md  # Phase-by-phase delivery plan
-|   |-- API_CONTRACTS.md        # ESP32 <-> Backend data contract (v1)
-|   |-- FIRMWARE_SPEC.md        # Firmware lifecycle (in firmware/esp32-node/docs/)
-|   |-- DEPLOYMENT_PACKAGE.md   # Mechanical/electrical/env deployment spec
-|   |-- FIELD_TEST_PLAN.md      # Field reliability test checklist
-|   |-- RUNBOOKS.md             # Ops/calibration/maintenance (to be added)
+├── apps/
+│   └── web/
+│       └── Next.js PWA (Public + Admin)
+│
+├── services/
+│   └── edge-ingestion/
+│       └── Supabase Edge Functions
+│
+├── firmware/
+│   └── esp32-node/
+│       └── ESP32 Firmware
+│
+├── infra/
+│   └── supabase/
+│       ├── SQL Migrations
+│       ├── RLS Policies
+│       └── Seed Data
+│
+└── docs/
+    ├── IMPLEMENTATION_PLAN.md
+    ├── API_CONTRACTS.md
+    ├── AUTHORIZATION_MODEL.md
+    ├── PILOT_BOOTSTRAP.md
+    ├── DEPLOYMENT_PACKAGE.md
+    ├── FIELD_TEST_PLAN.md
+    └── RUNBOOKS.md
 ```
 
-## 5. Data Domains
+---
+
+# 5. Data Domains
+
 Main entities:
-- users
-- stations
-- station_assignments
-- environmental_readings (primary telemetry)
-- environmental_events
-- station_health_logs
-- damage_logs
-- crop_thresholds
 
-Key constraints:
-- environmental_readings.message_id is unique for idempotency.
-- station_health_logs is isolated from environmental measurements for diagnostics.
-- Role-based access via Supabase RLS.
+* users
+* stations
+* station_assignments
+* environmental_readings
+* environmental_events
+* station_health_logs
+* damage_logs
+* crop_thresholds
 
-## 6. Security Model
-IoT ingestion security requirements:
-- HMAC-SHA256 signature over canonical payload + timestamp.
-- Timestamp drift window <= 5 minutes.
-- Unique message_id per wake cycle.
-- Duplicate message_id requests are acknowledged but dropped from insertion.
+## Key Constraints
 
-Application security requirements:
-- Supabase Auth for user/admin sessions.
-- RLS enforced on all business tables.
-- Signed upload workflows for damage image evidence.
+### Environmental Readings
 
-## 7. UX Scope (public MVP)
-Public (no login):
-- `/` Home, `/about`, `/dashboard`, `/s/[stationId]` (QR), `/report` community reports.
+* `message_id` must be unique.
+* Used for ingestion idempotency.
 
-Admin:
-- `/admin/login` magic link; `/admin` operations console.
-- Full fleet UI and export tools — future releases.
+### Health Logs
 
-Deferred: farmer accounts, offline report sync, photo uploads.
+* Operational diagnostics are separated from environmental measurements.
+* Enables independent analysis of station performance.
 
-## 8. Delivery Roadmap
-See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for detailed phased execution.
+### Access Control
 
-## 9. Architecture Documents
-- [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md): IoT ingestion contract (v1).
-- [docs/AUTHORIZATION_MODEL.md](docs/AUTHORIZATION_MODEL.md): RLS, public server reads, admin auth.
-- [docs/PILOT_BOOTSTRAP.md](docs/PILOT_BOOTSTRAP.md): Deploy, admin promotion, field checklist.
-- [firmware/esp32-node/docs/FIRMWARE_SPEC.md](firmware/esp32-node/docs/FIRMWARE_SPEC.md): Node firmware lifecycle.
+* All business data is protected using Supabase RLS policies.
 
-## 10. Success Metrics (Pragmatic)
-- 100% valid signed payloads are persisted (no data loss for accepted payloads).
-- Duplicate LTE retries do not create duplicate records.
-- Sensor failures are explicit (fault flags/status), never silently coerced to normal values.
-- Store-and-forward queue preserves telemetry during temporary network outage.
-- Node remains operational through adverse weather windows with expected duty cycle.
-- 30 days technical pilot + 90 days production-readiness validation.
-- Offline damage reports are captured and later synced without user re-entry.
+---
 
-## 11. Current Status
-- Supabase migrations 001–012 deployed; edge-ingest live; RLS and integration tests passing.
-- Public web MVP: Home, About, Dashboard, QR stations, community reports, admin login.
-- Farmer-account UX removed from MVP; schema retained for future use.
+# 6. Security Model
 
-## 12. Implemented Artifacts
-- Monorepo: `apps/web`, `services/edge-ingestion`, `infra/supabase`, `firmware/esp32-node`.
-- Live telemetry dashboard via server-side service role + repository layer.
-- Supabase migrations, pilot seed, CI/CD (`verify:deploy`).
-- Edge ingestion mock service with:
-	- HMAC verification
-	- timestamp drift validation
-	- idempotency by message_id
-	- sensor fault handling (`fault_flags`, `sensor_status`)
-	- ingestion audit logging and split telemetry events/readings
+## IoT Ingestion Security
 
-## 13. Run Mock Ingestion Locally
-From repository root:
+Requirements:
+
+* HMAC-SHA256 payload signatures
+* Timestamp validation window ≤ 5 minutes
+* Unique message identifiers
+* Replay protection
+* Duplicate request suppression
+
+## Application Security
+
+Requirements:
+
+* Supabase Auth
+* Role-based access control
+* Row Level Security
+* Signed upload workflows
+* Protected administrative routes
+
+---
+
+# 7. User Experience Scope (Public MVP)
+
+## Public Access (No Login Required)
+
+### Home
+
+`/`
+
+Project introduction and community overview.
+
+### About
+
+`/about`
+
+Background information about Cồn Hô and the monitoring initiative.
+
+### Dashboard
+
+`/dashboard`
+
+Public climate monitoring dashboard displaying environmental telemetry.
+
+### Station Page
+
+`/s/[stationId]`
+
+QR-accessible station information and measurements.
+
+### Community Reports
+
+`/report`
+
+Citizen science and environmental issue reporting.
+
+---
+
+## Administrative Access
+
+### Admin Login
+
+`/admin/login`
+
+Magic-link based authentication.
+
+### Operations Console
+
+`/admin`
+
+Fleet diagnostics and operational management.
+
+---
+
+## Deferred Features
+
+Planned for future releases:
+
+* Farmer accounts
+* Advanced analytics
+* Offline report synchronization
+* Photo uploads
+* Automated alert subscriptions
+
+---
+
+# 8. Documentation
+
+Project documentation includes:
+
+* `docs/API_CONTRACTS.md`
+
+  * IoT ingestion specification
+
+* `docs/AUTHORIZATION_MODEL.md`
+
+  * Authentication and authorization model
+
+* `docs/PILOT_BOOTSTRAP.md`
+
+  * Deployment and pilot setup procedures
+
+* `docs/IMPLEMENTATION_PLAN.md`
+
+  * Development roadmap
+
+* `firmware/esp32-node/docs/FIRMWARE_SPEC.md`
+
+  * Firmware lifecycle specification
+
+---
+
+# 9. Success Metrics
+
+The project is considered successful when:
+
+* Accepted telemetry payloads are persisted without data loss.
+* Duplicate LTE retries do not create duplicate records.
+* Sensor failures are explicitly reported.
+* Store-and-forward mechanisms preserve data during outages.
+* Nodes remain operational during adverse weather conditions.
+* Pilot deployments achieve stable operation over extended periods.
+* Community reports can be captured and synchronized successfully.
+
+---
+
+# 10. Current Status
+
+## Backend
+
+* Supabase migrations 001–012 deployed
+* Edge ingestion service operational
+* Row Level Security configured
+* Integration tests passing
+
+## Frontend
+
+Public MVP available:
+
+* Home
+* About
+* Dashboard
+* QR Station Pages
+* Community Reports
+* Admin Login
+
+## Firmware
+
+* Telemetry ingestion contract implemented
+* Sensor fault reporting implemented
+* HMAC validation supported
+* Store-and-forward workflow under development
+
+---
+
+# 11. Implemented Artifacts
+
+## Monorepo Components
+
+* `apps/web`
+* `services/edge-ingestion`
+* `infra/supabase`
+* `firmware/esp32-node`
+
+## Implemented Features
+
+* Server-side telemetry dashboard
+* Repository abstraction layer
+* Supabase migrations
+* Pilot seed data
+* CI/CD verification pipeline
+
+### Edge Ingestion Features
+
+* HMAC verification
+* Timestamp drift validation
+* Idempotent ingestion
+* Sensor fault handling
+* Audit logging
+* Telemetry/event separation
+
+---
+
+# 12. Local Development
+
+## Install Dependencies
 
 ```bash
 npm install
+```
+
+## Run Validation
+
+```bash
 npm run check
+```
+
+## Run Mock Ingestion
+
+```bash
 npm run mock:ingest
+```
+
+## Run Simulator
+
+```bash
 npm run simulator
+```
+
+## Start Dashboard
+
+```bash
 npm run dashboard
 ```
 
-Expected behavior:
-- First payload: `inserted`
-- Second same payload: `duplicate_ignored`
-- Faulty payload: `SENSOR_FAULT`
+Open:
 
-Web app:
-- `npm run dashboard` → `http://localhost:4173`
-- See [apps/web/README.md](apps/web/README.md) for routes and env vars.
+```text
+http://localhost:4173
+```
+
+---
+
+# 13. Environment Variables
+
+Required variables for local development:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+Additional deployment-specific variables may be required depending on infrastructure configuration.
+
+---
+
+# 14. License
+
+This repository is currently maintained as part of the Eco-Sense Con Ho climate monitoring initiative.
+
+All rights reserved unless otherwise specified.

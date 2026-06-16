@@ -12,16 +12,18 @@ import { formatSalinity, formatWaterLevel } from "@/lib/utils";
 export const revalidate = 60;
 
 async function LiveSummary() {
-  const { repos, scope } = getPublicRepositories();
+  const context = getPublicRepositories();
+  if (!context) return null;
+  const { repos, scope } = context;
   const [metrics, snapshots] = await Promise.all([
     getDashboardMetrics(repos, scope),
     repos.readings.getSnapshots(scope),
   ]);
 
-  const readingValues = snapshots.flatMap((snapshot) => (snapshot.reading ? [snapshot.reading] : []));
+  const readingValues = snapshots.flatMap((snapshot: any) => (snapshot.reading ? [snapshot.reading] : []));
   const averageWaterLevel =
     readingValues.length > 0
-      ? readingValues.reduce((sum, reading) => sum + reading.water_level, 0) / readingValues.length
+      ? readingValues.reduce((sum: number, reading: any) => sum + reading.water_level, 0) / readingValues.length
       : 0;
 
   return (

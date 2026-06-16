@@ -31,6 +31,9 @@ export default async function AdminPage() {
   }
 
   const supabase = await createClient();
+  if (!supabase) {
+    redirect("/admin/login?error=unauthorized");
+  }
   const repos = createRepositories(supabase);
   const [stations, metrics] = await Promise.all([
     repos.stations.getAll(scope),

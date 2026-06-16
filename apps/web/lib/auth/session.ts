@@ -9,6 +9,9 @@ export async function getSessionContext(): Promise<{
   scope: RepositoryScope | null;
 }> {
   const supabase = await createClient();
+  if (!supabase) {
+    return { user: null, profile: null, scope: null };
+  }
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -15,19 +15,21 @@ function fmtNumber(value) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 function buildCanonicalString(payload) {
+  const str = (v) => v !== void 0 && v !== null ? String(v) : "";
+  const num = (v) => typeof v === "number" ? fmtNumber(v) : "";
   return [
-    payload.device_id,
-    payload.message_id,
-    payload.timestamp.toString(),
-    fmtNumber(payload.salinity),
-    fmtNumber(payload.water_level),
-    payload.fault_flags.toString(),
-    payload.sensor_status.ec_probe,
-    payload.sensor_status.ultrasonic,
-    fmtNumber(payload.battery_voltage),
-    payload.signal_strength_dbm.toString(),
-    payload.firmware_version,
-    payload.contract_version
+    str(payload.device_id),
+    str(payload.message_id),
+    str(payload.timestamp),
+    num(payload.salinity),
+    num(payload.water_level),
+    str(payload.fault_flags),
+    str(payload.sensor_status?.ec_probe),
+    str(payload.sensor_status?.ultrasonic),
+    num(payload.battery_voltage),
+    str(payload.signal_strength_dbm),
+    str(payload.firmware_version),
+    str(payload.contract_version)
   ].join("|");
 }
 async function signPayload(payload, deviceSecret) {
@@ -50,7 +52,7 @@ function inRange(value, min, max) {
 }
 function hasRequiredFields(payload) {
   return Boolean(
-    payload.contract_version && payload.device_id && payload.message_id && Number.isFinite(payload.timestamp) && payload.firmware_version && payload.sensor_status?.ec_probe && payload.sensor_status?.ultrasonic
+    payload.contract_version && payload.device_id && payload.message_id && Number.isFinite(payload.timestamp) && payload.firmware_version && payload.sensor_status?.ec_probe && payload.sensor_status?.ultrasonic && Number.isFinite(payload.salinity) && Number.isFinite(payload.water_level) && Number.isFinite(payload.fault_flags) && Number.isFinite(payload.battery_voltage) && Number.isFinite(payload.signal_strength_dbm)
   );
 }
 function isFaulty(payload) {
@@ -139,12 +141,15 @@ async function ingestTelemetry(request, db, config, nowEpochSeconds = Math.floor
       return { ok: false, error_code: "INVALID_SIGNATURE", message: "signature verification failed", retryable: false };
     }
     const headerTimestamp = Number.parseInt(request.headers["x-timestamp"], 10);
-    if (Number.isNaN(headerTimestamp) || Math.abs(nowEpochSeconds - headerTimestamp) > config.maxTimestampDriftSeconds) {
-      await db.insertAuditLog(auditRow(payload, "expired_timestamp", "timestamp is outside allowed drift window", nowEpochSeconds));
+    const isHeaderValid = !Number.isNaN(headerTimestamp) && Math.abs(nowEpochSeconds - headerTimestamp) <= config.maxTimestampDriftSeconds;
+    const isPayloadValid = Math.abs(nowEpochSeconds - payload.timestamp) <= config.maxTimestampDriftSeconds;
+    if (!isHeaderValid || !isPayloadValid) {
+      const reason = !isHeaderValid ? "header timestamp is outside allowed drift window" : "payload timestamp is outside allowed drift window";
+      await db.insertAuditLog(auditRow(payload, "expired_timestamp", reason, nowEpochSeconds));
       return {
         ok: false,
         error_code: "TIMESTAMP_OUT_OF_WINDOW",
-        message: "timestamp is outside allowed drift window",
+        message: reason,
         retryable: false
       };
     }

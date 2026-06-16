@@ -5,19 +5,22 @@ function fmtNumber(value: number): string {
 }
 
 export function buildCanonicalString(payload: TelemetryPayloadV1): string {
+  const str = (v: any) => (v !== undefined && v !== null ? String(v) : "");
+  const num = (v: any) => (typeof v === "number" ? fmtNumber(v) : "");
+
   return [
-    payload.device_id,
-    payload.message_id,
-    payload.timestamp.toString(),
-    fmtNumber(payload.salinity),
-    fmtNumber(payload.water_level),
-    payload.fault_flags.toString(),
-    payload.sensor_status.ec_probe,
-    payload.sensor_status.ultrasonic,
-    fmtNumber(payload.battery_voltage),
-    payload.signal_strength_dbm.toString(),
-    payload.firmware_version,
-    payload.contract_version,
+    str(payload.device_id),
+    str(payload.message_id),
+    str(payload.timestamp),
+    num(payload.salinity),
+    num(payload.water_level),
+    str(payload.fault_flags),
+    str(payload.sensor_status?.ec_probe),
+    str(payload.sensor_status?.ultrasonic),
+    num(payload.battery_voltage),
+    str(payload.signal_strength_dbm),
+    str(payload.firmware_version),
+    str(payload.contract_version),
   ].join("|");
 }
 

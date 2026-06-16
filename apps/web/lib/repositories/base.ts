@@ -47,15 +47,4 @@ export function applyStationIdScope<T extends { in: (col: string, vals: string[]
   return query;
 }
 
-export function latestByStation<T extends { station_id: string; timestamp: string }>(rows: T[]): Map<string, T> {
-  const map = new Map<string, T>();
-  for (const row of rows) {
-    const existing = map.get(row.station_id);
-    if (!existing || new Date(row.timestamp) > new Date(existing.timestamp)) {
-      map.set(row.station_id, row);
-    }
-  }
-  return map;
-}
-
 export type AppSupabase = SupabaseClient;
