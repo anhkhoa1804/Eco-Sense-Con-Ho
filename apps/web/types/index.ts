@@ -82,6 +82,12 @@ export interface TrendPoint {
   water_level: number;
 }
 
+export interface SalinityThreshold {
+  cropName: string;
+  warningLevel: number;
+  criticalLevel: number;
+}
+
 export type UserRole = "farmer" | "admin";
 
 export interface RepositoryScope {

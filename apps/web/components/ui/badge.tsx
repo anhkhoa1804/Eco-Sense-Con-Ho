@@ -2,10 +2,16 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const variants = {
-  default: "border-border bg-muted/30 text-foreground",
-  success: "border-accent/30 bg-accent/10 text-accent",
-  warning: "border-warning/30 bg-warning/10 text-warning",
-  critical: "border-critical/30 bg-critical/10 text-critical",
+  default: "border-border bg-background text-muted-foreground",
+  healthy: "border-transparent bg-healthy-bg text-healthy",
+  watch: "border-transparent bg-watch-bg text-watch",
+  risk: "border-transparent bg-risk-bg text-risk",
+  offline: "border-transparent bg-offline-bg text-offline",
+  fault: "border-transparent bg-fault-bg text-fault",
+  success: "border-transparent bg-healthy-bg text-healthy",
+  warning: "border-transparent bg-watch-bg text-watch",
+  critical: "border-transparent bg-risk-bg text-risk",
+  secondary: "border-transparent bg-offline-bg text-offline",
 };
 
 export function Badge({
@@ -16,7 +22,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center rounded-[6px] border px-2 py-0.5 text-xs font-medium",
         variants[variant],
         className,
       )}

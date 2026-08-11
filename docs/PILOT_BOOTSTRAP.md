@@ -1,80 +1,135 @@
-# Pilot Bootstrap Guide
+# Pilot Bootstrap
 
-Public MVP: visitors use the site without login. Only operators authenticate at `/admin/login`.
+## Purpose
 
-## 1. Environment (web)
+This checklist prepares Eco-Sense Cồn Hô for a real field pilot. The goal is not only to make devices send data, but to ensure farmers, visitors, administrators, researchers, and judges can trust what they see.
 
-```bash
-cp apps/web/.env.local.example apps/web/.env.local
-```
+## Pilot success criteria
 
-Set:
+A pilot is ready when:
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (anon JWT only)
-- `SUPABASE_SERVICE_ROLE_KEY` (server only — required for public pages and reports)
+- at least one station sends signed telemetry successfully,
+- the station appears on a public QR page,
+- salinity and water-level status are understandable on mobile,
+- sensor health and last updated time are visible,
+- admin users can identify station issues,
+- community reports can be submitted,
+- invalid telemetry is rejected safely,
+- documentation matches the deployed behavior.
 
-## 2. Deploy database and edge
+## Environment setup
 
-From repo root:
+Prepare separate environments for development, staging, and production when possible.
 
-```bash
-npm run db:migrate
-npm run db:deploy
-npm run verify:deploy
-```
+Required configuration:
 
-## 3. Promote an admin operator
+- Supabase project URL.
+- Supabase anon key for browser-safe access.
+- Supabase service role key for server-only operations.
+- Edge Function deployment.
+- Database migrations applied.
+- RLS policies enabled and verified.
+- Public site deployment.
+- Admin login provider configured.
 
-1. Operator signs in once at `/admin/login` (magic link).
-2. Promote via SQL editor (service role):
+Never expose service role keys or device secrets in browser code, public documentation screenshots, or QR payloads.
 
-```sql
-update public.users set role = 'admin' where email = 'ops@example.com';
-```
+## Station provisioning
 
-3. Sign in again — `/admin` console should load.
+For each station, record:
 
-## 4. Pilot seed (stations + devices)
+- station ID,
+- physical location,
+- device ID,
+- device secret,
+- firmware version,
+- sensor types,
+- calibration date,
+- expected reporting interval,
+- safe salinity threshold,
+- safe water-level threshold,
+- QR page URL,
+- responsible operator.
 
-Applied by `npm run db:migrate`:
+Device secrets must be stored securely and rotated if exposed.
 
-- Stations `STATION_01` … `STATION_05` and matching devices
-- Development secrets in [`infra/supabase/seed/pilot_seed.sql`](../infra/supabase/seed/pilot_seed.sql) — rotate for production
+## Sensor calibration
 
-QR visitor URLs: `/s/STATION_01`, `/s/STATION_02`, etc.
+Before field deployment:
 
-## 5. Verify
+- confirm EC probe calibration,
+- confirm ultrasonic or water-level sensor placement,
+- test battery voltage reading,
+- test signal strength reading,
+- compare readings with manual measurement where possible,
+- record calibration metadata,
+- mark sensor status as trustworthy only after validation.
 
-1. Open `/` and `/dashboard` without login — live metrics render.
-2. Open `/s/STATION_01` — station detail and chart.
-3. Submit `/report` (text-only).
-4. Admin login → `/admin` shows station list.
-5. `RUN_RLS_TESTS=1 npm run test:rls`
-6. `LIVE_SUPABASE_INTEGRATION=1 npm run test:integration`
+## QR deployment
 
-## 6. Future farmer accounts (not MVP)
+Each station should have a durable QR label pointing to its public station page.
 
-`station_assignments` and farmer RLS remain in the database. When re-enabled:
+QR requirements:
 
-```sql
-insert into public.station_assignments (user_id, station_id, assigned_by)
-values ('<farmer-uuid>', 'STATION_01', '<admin-uuid>')
-on conflict do nothing;
-```
+- URL opens without login.
+- Page loads on a common Android phone.
+- Station identity is obvious.
+- Current status appears immediately.
+- Last updated time is visible.
+- Report action is easy to find.
+- QR label survives outdoor conditions.
 
-## 7. Field hardware readiness
+Do not encode secrets or device credentials in QR codes.
 
-Checklist before mounting nodes at Đầu Cồn, Homestay Cô Ba, and Cuối Cồn:
+## Field test script
 
-**Enclosure:** IP65+ target; sealed glands; anti-corrosion connectors; desiccant schedule.
+1. Power on the station.
+2. Confirm sensor readings are plausible.
+3. Send a signed telemetry payload.
+4. Confirm ingestion success.
+5. Open the public station QR page.
+6. Confirm salinity, water level, freshness, and sensor health.
+7. Submit a community report from mobile.
+8. Open admin console.
+9. Confirm station health, latest reading, and report visibility.
+10. Simulate stale data or sensor fault and confirm the UI explains it clearly.
 
-**Sensors:** Baseline EC calibration; day-7 and day-30 drift checks; cleaning SOP.
+## Data quality checks
 
-**Power:** 7+ duty-cycle battery profile; solar recovery after cloudy days; low-battery alert path.
+During pilot, monitor:
 
-**Connectivity:** LTE success rate per site; store-and-forward drain on reconnect; no duplicate rows on retry.
+- missing readings,
+- duplicate messages,
+- timestamp drift,
+- signature failures,
+- sensor faults,
+- battery decline,
+- weak LTE signal,
+- threshold exceedances,
+- community reports,
+- operator response time.
 
-**Physical:** Vandal-resistant mount; QR label with station URL; maintenance access path.
+## Incident response
 
-**Pilot gate (per station):** 30-day uptime target; no unresolved `SENSOR_FAULT`; signal above floor; battery safe; data continuity KPI met.
+When a station is unhealthy:
+
+1. Determine whether the issue is environmental, sensor-related, connectivity-related, or power-related.
+2. Mark the public UI state honestly.
+3. Avoid presenting stale data as current.
+4. Record operator actions.
+5. Update station status after maintenance.
+
+## Pilot handoff package
+
+Before presenting or expanding the pilot, prepare:
+
+- station inventory,
+- QR code list,
+- calibration records,
+- threshold definitions,
+- admin account list,
+- telemetry contract reference,
+- known limitations,
+- demo route,
+- field maintenance contacts,
+- rollback plan.

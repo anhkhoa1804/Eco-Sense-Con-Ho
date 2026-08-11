@@ -1,16 +1,28 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #fafaf8;
-  --color-foreground: #12202a;
-  --color-card: #ffffff;
-  --color-muted: #5f6c76;
+  --color-background: #f7f6f1;
+  --color-foreground: #0b1417;
+  --color-card: #fbfaf7;
+  --color-muted: #59666b;
   --color-accent: #166534;
   --color-accent-2: #0f766e;
   --color-warning: #b45309;
   --color-critical: #b91c1c;
-  --color-border: #dbe3e6;
-  --font-serif: "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  --color-border: rgba(15, 23, 42, 0.08);
+  --color-healthy: #1c7c42;
+  --color-healthy-bg: rgba(28, 124, 66, 0.08);
+  --color-watch: #a86400;
+  --color-watch-bg: rgba(168, 100, 0, 0.08);
+  --color-risk: #b42318;
+  --color-risk-bg: rgba(180, 35, 24, 0.08);
+  --color-offline: #5e6670;
+  --color-offline-bg: rgba(94, 102, 112, 0.08);
+  --color-fault: #6d28d9;
+  --color-fault-bg: rgba(109, 40, 217, 0.08);
+  --color-threshold: #b42318;
+  --color-salinity: #0f8b8d;
+  --font-serif: "Georgia", "Times New Roman", serif;
 }
 
 * {
@@ -25,6 +37,8 @@ body {
   color: var(--color-foreground);
   font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   color-scheme: light;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -32,7 +46,22 @@ a {
   text-decoration: none;
 }
 
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+}
+
+:where(.font-serif) {
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+}
+
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(22, 101, 52, 0.16);
 }

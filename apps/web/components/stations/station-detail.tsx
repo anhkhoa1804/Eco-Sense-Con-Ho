@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Activity, Battery, Droplets, Radio, Send, Sprout, Waves } from "lucide-react";
+import { Activity, ArrowRight, Battery, Droplets, Radio, Send, Sprout, Waves } from "lucide-react";
 import {
   StationLiveChart,
   type StationLiveChartPoint,
@@ -10,8 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getPublicRepositories } from "@/lib/publicRead";
-import { formatTimestamp } from "@/lib/utils";
-import type { EnvironmentalReading, Station, StationHealthLog, TrendPoint } from "@/types";
+import { formatSalinity, formatTimestamp, formatWaterLevel } from "@/lib/utils";
+import type { EnvironmentalReading, SensorStatus, Station, StationHealthLog, TrendPoint } from "@/types";
 
 type StationKind = "water" | "soil" | "gateway";
 
@@ -173,7 +173,11 @@ function chartDataFrom(profile: StationProfile, trend: TrendPoint[], signal: num
   });
 }
 
-function readingSummary(profile: StationProfile, reading?: EnvironmentalReading | null) {
+function readingSummary(
+  profile: StationProfile,
+  reading: EnvironmentalReading | null | undefined,
+  threshold?: { warningLevel: number; criticalLevel: number } | null,
+) {
   const salinity = reading?.salinity ?? profile.demo.salinity;
   const waterLevel = reading?.water_level ?? profile.demo.waterLevel;
   const soilEc = reading ? soilEcFrom(reading, profile) : profile.demo.soilEc;
@@ -186,7 +190,7 @@ function readingSummary(profile: StationProfile, reading?: EnvironmentalReading 
           ? "Đất đang ở mức phù hợp, có thể tiếp tục chăm sóc và theo dõi thêm sau mỗi đợt nước."
           : "EC đất còn thấp, có thể cân nhắc bổ sung dinh dưỡng theo lịch canh tác.";
 
-    return { salinity, waterLevel, soilEc, recommendation };
+    return { salinity, waterLevel, soilEc, recommendation, riskLabel: null as string | null };
   }
 
   if (profile.kind === "gateway") {
@@ -195,17 +199,34 @@ function readingSummary(profile: StationProfile, reading?: EnvironmentalReading 
       waterLevel,
       soilEc,
       recommendation: "Gateway đang ưu tiên gửi dữ liệu mới nhất về hệ thống để thông tin đến bà con nhanh chóng.",
+      riskLabel: null as string | null,
     };
   }
 
+  const criticalLevel = threshold?.criticalLevel ?? 1.8;
+  const warningLevel = threshold?.warningLevel ?? 1.2;
+  const riskLabel = salinity >= criticalLevel ? "High Risk" : salinity >= warningLevel ? "Increasing" : "Safe";
   const recommendation =
-    salinity >= 1.8
+    salinity >= criticalLevel
       ? "Độ mặn đang cao, bà con nên hạn chế lấy nước trực tiếp cho cây nhạy mặn."
-      : salinity >= 1.2
+      : salinity >= warningLevel
         ? "Độ mặn có dấu hiệu tăng, nên theo dõi thêm trước khi tưới hoặc lấy nước."
         : "Dữ liệu nước đang ở mức tương đối ổn định, tiếp tục quan sát theo từng con nước.";
 
-  return { salinity, waterLevel, soilEc, recommendation };
+  return { salinity, waterLevel, soilEc, recommendation, riskLabel };
+}
+
+function sensorStatusLabel(status?: SensorStatus | null): string {
+  switch (status) {
+    case "ok":
+      return "Hoạt động bình thường";
+    case "warn":
+      return "Cần chú ý";
+    case "fault":
+      return "Cần kiểm tra cảm biến";
+    default:
+      return "Chưa có dữ liệu";
+  }
 }
 
 function MetricTile({
@@ -237,12 +258,14 @@ function StationMetrics({
   profile,
   reading,
   health,
+  threshold,
 }: {
   profile: StationProfile;
   reading: EnvironmentalReading | null;
   health: StationHealthLog | null;
+  threshold?: { warningLevel: number; criticalLevel: number } | null;
 }) {
-  const summary = readingSummary(profile, reading);
+  const summary = readingSummary(profile, reading, threshold);
   const signal = health?.signal_strength_dbm ?? profile.demo.signal;
   const battery = health?.battery_voltage ?? profile.demo.battery;
 
@@ -272,7 +295,7 @@ function StationMetrics({
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <MetricTile title="Mực nước" value={formatWaterValue(summary.waterLevel)} note="Theo dõi triều cường và dao động nước ven sông." icon={Waves} />
       <MetricTile title="Độ mặn" value={formatSalinityValue(summary.salinity)} note="Dấu hiệu xâm nhập mặn ảnh hưởng sinh hoạt và canh tác." icon={Droplets} />
-      <MetricTile title="Trạng thái nước" value={summary.salinity >= 1.8 ? "Cao" : "Theo dõi"} note="Đánh giá nhanh từ dữ liệu mới nhất." icon={Activity} />
+      <MetricTile title="Trạng thái nước" value={summary.riskLabel ?? "Theo dõi"} note="Đánh giá nhanh từ dữ liệu mới nhất, dựa trên ngưỡng cảnh báo hiện hành." icon={Activity} />
       <MetricTile title="Pin trạm" value={`${battery.toFixed(2)} V`} note="Nguồn hiện tại của trạm ven sông." icon={Battery} />
     </section>
   );
@@ -284,14 +307,16 @@ export async function StationDetail({ stationId }: { stationId: string }) {
   let reading: EnvironmentalReading | null = null;
   let health: StationHealthLog | null = null;
   let trend: TrendPoint[] = [];
+  let threshold: { warningLevel: number; criticalLevel: number } | null = null;
 
   if (context) {
     const { repos, scope } = context;
-    [station, reading, health, trend] = await Promise.all([
+    [station, reading, health, trend, threshold] = await Promise.all([
       repos.stations.getById(stationId, scope),
       repos.readings.getLatestByStation(stationId, scope),
       repos.readings.getLatestHealthByStation(stationId, scope),
       repos.readings.getTrend24h(stationId, scope),
+      repos.readings.getDefaultSalinityThreshold(),
     ]);
   }
 
@@ -303,12 +328,12 @@ export async function StationDetail({ stationId }: { stationId: string }) {
   const effectiveTrend = trend.length > 0 ? trend : demoTrend(profile);
   const signal = health?.signal_strength_dbm ?? profile.demo.signal;
   const latestTimestamp = reading?.timestamp ?? health?.timestamp ?? new Date().toISOString();
-  const summary = readingSummary(profile, reading);
+  const summary = readingSummary(profile, reading, threshold);
   const chartData = chartDataFrom(profile, effectiveTrend, signal);
   const status = stationStatusLabel(station?.status);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <section className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="success">{status}</Badge>
@@ -321,7 +346,7 @@ export async function StationDetail({ stationId }: { stationId: string }) {
         </div>
       </section>
 
-      <StationMetrics profile={profile} reading={reading} health={health} />
+      <StationMetrics profile={profile} reading={reading} health={health} threshold={threshold} />
 
       <section className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
         <StationLiveChart
@@ -344,8 +369,8 @@ export async function StationDetail({ stationId }: { stationId: string }) {
                 <p>Pin: {(health?.battery_voltage ?? profile.demo.battery).toFixed(2)} V</p>
                 {profile.kind !== "gateway" ? (
                   <>
-                    <p>Cảm biến EC/độ mặn: {reading?.ec_probe_status ?? "ok"}</p>
-                    <p>Cảm biến mực nước/độ ẩm: {reading?.ultrasonic_status ?? "ok"}</p>
+                    <p>Cảm biến EC/độ mặn: {sensorStatusLabel(reading?.ec_probe_status)}</p>
+                    <p>Cảm biến mực nước/độ ẩm: {sensorStatusLabel(reading?.ultrasonic_status)}</p>
                   </>
                 ) : (
                   <>
@@ -376,8 +401,11 @@ export async function StationDetail({ stationId }: { stationId: string }) {
         <Button asChild variant="outline">
           <Link href="/dashboard">Về bản đồ quan trắc</Link>
         </Button>
-        <Button asChild>
-          <Link href={`/report?station=${encodeURIComponent(stationId)}`}>Báo cáo gần trạm này</Link>
+        <Button asChild className="gap-2">
+          <Link href={`/report?station=${encodeURIComponent(stationId)}`}>
+            Báo cáo gần trạm này
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </Button>
       </section>
     </div>

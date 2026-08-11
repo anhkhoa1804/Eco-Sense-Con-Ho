@@ -7,7 +7,7 @@
     "check": "tsc --noEmit",
     "build:edge": "esbuild src/edgeEntry.ts --bundle --platform=neutral --format=esm --outfile=../../infra/supabase/functions/edge-ingest/bundle.mjs",
     "test": "node --loader ts-node/esm --test tests/contract.test.ts",
-    "test:all": "node --loader ts-node/esm --test tests/**/*.test.ts",
+    "test:all": "node --loader ts-node/esm --test tests/contract.test.ts tests/integration.test.ts",
     "test:integration": "node --loader ts-node/esm --test tests/integration.test.ts",
     "mock:ingest": "node --loader ts-node/esm scripts/mock_ingest.ts",
     "simulator": "node --loader ts-node/esm scripts/simulator.ts"

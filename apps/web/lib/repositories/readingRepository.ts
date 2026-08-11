@@ -9,6 +9,7 @@ import type {
   DailyComparisonPoint,
   EnvironmentalReading,
   RepositoryScope,
+  SalinityThreshold,
   StationHealthLog,
   StationReadingSnapshot,
   TrendPoint,
@@ -341,5 +342,23 @@ export class ReadingRepository {
   async countWeakSignalNodes(scope: RepositoryScope): Promise<number> {
     const health = await this.getLatestHealthForAllStations(scope);
     return [...health.values()].filter((h) => h.signal_strength_dbm <= WEAK_SIGNAL_DBM).length;
+  }
+
+  async getDefaultSalinityThreshold(): Promise<SalinityThreshold | null> {
+    const { data, error } = await this.supabase
+      .from("crop_thresholds")
+      .select("crop_name, salinity_warning_level, salinity_critical_level")
+      .order("salinity_critical_level", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    return {
+      cropName: data.crop_name as string,
+      warningLevel: Number(data.salinity_warning_level),
+      criticalLevel: Number(data.salinity_critical_level),
+    };
   }
 }

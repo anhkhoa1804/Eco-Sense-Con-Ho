@@ -1,113 +1,129 @@
 # Authorization Model
 
-Eco-Sense uses **Supabase Auth** for operator identity, **PostgreSQL RLS** for direct database access, and a **Next.js server layer** for public read paths.
+## Purpose
 
-## Public web access (MVP)
+Eco-Sense separates public environmental transparency from privileged operations. Public users should be able to understand station status without login, while administrators need protected access to station management, thresholds, reports, and audit history.
 
-Visitors do **not** authenticate. Public pages (`/`, `/about`, `/dashboard`, `/s/*`, `/report`) load telemetry via:
+## Access principles
 
-- Next.js Server Components and Route Handlers
-- `SUPABASE_SERVICE_ROLE_KEY` (server only — never `NEXT_PUBLIC_*`)
-- Existing repositories with a fixed admin-equivalent read scope
-
-Database RLS remains strict: the `anon` role cannot SELECT telemetry (`012_revoke_anon_sensitive_grants.sql`). Public reads bypass RLS only inside trusted server code.
-
-Community reports are inserted via `POST /api/public/reports` using the service role (`user_id` null). This is not exposed through anon PostgREST.
-
-## Identity (authenticated)
-
-| Layer | Source | Notes |
-|-------|--------|-------|
-| Authentication | `auth.users` | Magic-link email — **admin operators only** in MVP UI |
-| Application profile | `public.users` | `id` = `auth.users.id` (FK) |
-| Role | `public.users.role` | `farmer` or `admin` |
-| Station access | `public.station_assignments` | Future farmer accounts; unused in public MVP |
+- Public pages may read approved environmental summaries and station status.
+- Public pages must never expose secrets, private user data, privileged audit detail, or admin controls.
+- Device ingestion is authenticated through signed telemetry and gateway controls, not user sessions.
+- Admin pages require authenticated users with explicit roles.
+- Database Row Level Security should enforce data boundaries even if application code has a bug.
+- Sensitive actions should be logged.
 
 ## Roles
 
-### Anonymous (`anon`)
+Recommended roles:
 
-- No direct access to telemetry, stations, profiles, or assignments via PostgREST.
-- Public website uses server-side service role, not anon queries.
+| Role | Purpose | Capabilities |
+|------|---------|--------------|
+| `public` | Anonymous community and QR visitors. | Read public station summaries, charts, and submit community reports. |
+| `operator` | Field or community operator. | Review reports, monitor assigned stations, acknowledge alerts. |
+| `admin` | System administrator. | Manage stations, devices, thresholds, users, and reports. |
+| `researcher` | Research or NGO partner. | Read approved datasets and station history without operational controls. |
+| `service` | Backend service role. | Perform ingestion, maintenance, and privileged server-side actions only. |
 
-### Farmer (`farmer`) — deferred UX
+The exact role names may differ in implementation, but these capability boundaries should remain.
 
-- Default role on first login (`ensure_user_profile`).
-- May read only assigned stations; may insert own `damage_logs`.
-- **Not used in public MVP UI.** Schema and RLS retained for future accounts.
+## Public access
 
-### Admin (`admin`)
+Public users may access:
 
-- Full read access to stations, telemetry, events, health logs, devices, audit logs, firmware, profiles.
-- May manage `station_assignments`.
-- Promoted manually in SQL; cannot self-promote.
+- homepage,
+- project overview,
+- dashboard summary,
+- station QR page,
+- public charts,
+- community report submission,
+- public educational explanations.
 
-## Application scope
+Public users must not access:
 
-`RepositoryScope` for authenticated repository queries:
+- device secrets,
+- raw HMAC fields beyond safe display,
+- internal operator notes,
+- private user identities,
+- threshold edit controls,
+- station provisioning tools,
+- audit logs containing sensitive data.
 
-```ts
-{
-  userId: string;
-  role: "farmer" | "admin";
-  stationIds: string[];
-}
-```
+## Admin access
 
-Public server reads use `{ role: "admin", userId: "public-read", stationIds: [] }` with the service client only.
+Authenticated admins may access:
 
-## Ingestion (service role)
+- station and device inventory,
+- ingestion health,
+- alert lists,
+- threshold configuration,
+- report triage,
+- maintenance state,
+- audit logs,
+- deployment checks.
 
-Edge function `edge-ingest` uses the service role and bypasses RLS. Device HMAC validation remains in the ingestion service.
+Admin actions should use clear confirmation for destructive or high-impact changes, especially threshold edits and device deactivation.
 
-## Promoting an admin
+## Device ingestion access
 
-```sql
-update public.users set role = 'admin' where email = 'ops@example.com';
-```
+Devices authenticate with:
 
-Perform after the operator has logged in once at `/admin/login`. See [`PILOT_BOOTSTRAP.md`](PILOT_BOOTSTRAP.md).
+- active device registration,
+- signed payloads,
+- timestamp drift checks,
+- replay protection,
+- idempotent message IDs.
 
-## RLS policy matrix
+Device authentication must not depend on browser user sessions.
 
-Policies: `infra/supabase/migrations/009_production_rls.sql`. Helpers: `008_auth_and_assignments.sql`.
+## Row Level Security expectations
 
-Legend: **✓** allowed · **✗** denied · **own** own rows · **scoped** assigned stations only
+Supabase RLS should be designed so that:
 
-### Core tables
+- anonymous clients can only read public-safe views or rows,
+- anonymous clients can submit reports through constrained insert policies,
+- authenticated operators only access permitted operational data,
+- admins have broader access through explicit role checks,
+- service role bypass is used only server-side,
+- secrets remain inaccessible to client roles.
 
-| Table | Anonymous | Farmer | Admin |
-|-------|-----------|--------|-------|
-| `users` | ✗ | **own** SELECT/UPDATE; INSERT self as `farmer` | ✓ all |
-| `station_assignments` | ✗ | **own** SELECT | ✓ all + write |
-| `stations` | ✗ | **scoped** SELECT | ✓ all |
-| `environmental_readings` | ✗ | **scoped** SELECT | ✓ all |
-| `environmental_events` | ✗ | **scoped** SELECT | ✓ all |
-| `station_health_logs` | ✗ | **scoped** SELECT | ✓ all |
-| `crop_thresholds` | ✗ | ✓ SELECT | ✓ SELECT |
-| `damage_logs` | ✗ | **own** SELECT/INSERT | ✓ SELECT all |
+Prefer public database views or RPC functions that shape data for the UI instead of exposing raw tables broadly.
 
-### Admin-only tables
+## Community reports
 
-| Table | Anonymous | Farmer | Admin |
-|-------|-----------|--------|-------|
-| `devices` | ✗ | ✗ | ✓ SELECT |
-| `ingestion_audit_logs` | ✗ | ✗ | ✓ SELECT |
-| `firmware_updates` | ✗ | ✗ | ✓ SELECT |
+Community reporting should be easy, but protected from abuse.
 
-### Write paths
+Recommended behavior:
 
-| Operation | Actor | Mechanism |
-|-----------|-------|-----------|
-| Telemetry INSERT | Edge function | Service role |
-| Public telemetry read | Next.js server | Service role (curated pages) |
-| Community report INSERT | Public visitor | `POST /api/public/reports` (service role) |
-| Profile bootstrap | Authenticated user | `ensure_user_profile()` |
-| Station assignment | Admin | `station_assignments_admin_write` |
+- allow anonymous submissions with rate limiting or abuse controls,
+- validate text and attachments,
+- store submission time and station context when available,
+- mark reports as pending until reviewed,
+- avoid exposing reporter private information publicly,
+- preserve drafts offline when possible.
 
-### Testing
+## Audit behavior
 
-```bash
-RUN_RLS_TESTS=1 npm run test:rls -w @eco-sense/supabase-infra
-npm run test -w @eco-sense/web
-```
+Audit logs should capture:
+
+- device ingestion decisions,
+- rejected telemetry reasons,
+- threshold changes,
+- device activation or deactivation,
+- admin role changes,
+- report status changes,
+- alert acknowledgments.
+
+Audit logs should be precise and calm. They exist to support trust and operations, not to create noisy UI.
+
+## Authorization checklist
+
+Before shipping a feature, confirm:
+
+- the persona and role are defined,
+- public and admin behavior are separated,
+- RLS protects the data path,
+- secrets are never exposed to the browser,
+- unauthorized states are handled clearly,
+- sensitive changes are audited,
+- error messages do not leak implementation details.

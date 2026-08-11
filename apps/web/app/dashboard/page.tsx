@@ -1,17 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AlertCard } from "@/components/alerts/alert-card";
+import { ArrowRight, Gauge, Radar } from "lucide-react";
 import { DailyComparisonChart } from "@/components/dashboard/daily-comparison-chart";
-import { MetricCard } from "@/components/dashboard/metric-card";
-import { StationCard } from "@/components/dashboard/station-card";
 import { PublicShell } from "@/components/layout/public-shell";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { SalinityChart } from "@/components/stations/salinity-chart";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getPublicRepositories } from "@/lib/publicRead";
 import { getDashboardMetrics } from "@/lib/repositories";
 import { formatSalinity, formatWaterLevel } from "@/lib/utils";
-import type { DailyComparisonPoint } from "@/types";
+import type { DailyComparisonPoint, EnvironmentalEvent, StationReadingSnapshot, TrendPoint } from "@/types";
 import DashboardLoading from "./loading";
 
 export const revalidate = 60;
@@ -112,22 +114,26 @@ function StationMap() {
   );
 }
 
+type TrendSummary = {
+  current: number;
+  average: number;
+  delta: number;
+  label: string;
+  points: TrendPoint[];
+};
+
 async function DashboardContent() {
   try {
     const publicRepos = getPublicRepositories();
-
     if (!publicRepos) {
       return (
         <>
           <StationMap />
           <DailyComparisonChart data={demoDailyComparison()} />
-          <section className="max-w-3xl">
-            <h2 className="text-3xl font-semibold">Horizon Dashboard</h2>
-            <p className="mt-4 text-muted">
-              Bản đồ đã sẵn sàng. Dữ liệu trực tiếp sẽ hiện khi cấu hình Supabase local hoặc backend triển khai được kết
-              nối.
-            </p>
-          </section>
+          <EmptyState
+            title="Horizon Dashboard"
+            description="Bản đồ đã sẵn sàng. Dữ liệu trực tiếp sẽ hiện khi cấu hình Supabase local hoặc backend triển khai được kết nối."
+          />
         </>
       );
     }
@@ -143,21 +149,41 @@ async function DashboardContent() {
       repos.alerts.getBySeverity("info", scope),
       repos.readings.getDailyComparison(scope),
     ]);
+    const threshold = await repos.readings.getDefaultSalinityThreshold();
 
-    const readingValues = snapshots.flatMap((snapshot) =>
-      snapshot.reading ? [snapshot.reading] : [],
-    );
-
+    const readingValues = snapshots.flatMap((snapshot) => (snapshot.reading ? [snapshot.reading] : []));
     const averageWaterLevel =
       readingValues.length > 0
         ? readingValues.reduce((sum, reading) => sum + reading.water_level, 0) / readingValues.length
         : 0;
+    const latestTimestamp = readingValues
+      .map((reading) => new Date(reading.timestamp).getTime())
+      .filter(Number.isFinite)
+      .sort((a, b) => b - a)[0];
 
+    const allAlerts = [...critical, ...warning, ...info];
+    const stationAlertMap = new Map<string, EnvironmentalEvent[]>();
+    for (const alert of allAlerts) {
+      const stationAlerts = stationAlertMap.get(alert.station_id) ?? [];
+      stationAlerts.push(alert);
+      stationAlertMap.set(alert.station_id, stationAlerts);
+    }
+
+    const sortedSnapshots = [...snapshots].sort(
+      (first, second) => stationPriority(first, stationAlertMap) - stationPriority(second, stationAlertMap),
+    );
+    const featuredSnapshot = sortedSnapshots.find((snapshot) => snapshot.reading) ?? sortedSnapshots[0];
     const stationNames = new Map(
       snapshots.map((snapshot) => [snapshot.station.id, snapshot.station.name]),
     );
+    const freshness = latestTimestamp
+      ? `Cập nhật ${new Intl.DateTimeFormat("vi-VN", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(latestTimestamp))}`
+      : "Chưa có dữ liệu đo";
 
-    const allAlerts = [...critical, ...warning, ...info];
+    const trendSummary = await buildTrendSummary(repos, scope, featuredSnapshot?.station.id);
 
     return (
       <>
@@ -165,69 +191,153 @@ async function DashboardContent() {
         <StationMap />
         <DailyComparisonChart data={dailyComparison} />
 
-        <section aria-label="Tóm tắt vận hành" className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Độ mặn trung bình"
-            value={formatSalinity(metrics.averageSalinity)}
-            note="Dữ liệu mới nhất từ các trạm"
-          />
-          <MetricCard
-            label="Mực nước trung bình"
-            value={formatWaterLevel(averageWaterLevel)}
-            note="Tổng hợp từ các bản ghi gần nhất"
-          />
-          <MetricCard
-            label="Trạm hoạt động"
-            value={`${metrics.activeStations}/${metrics.totalStations}`}
-            note="Mức phủ của mạng lưới"
-          />
-          <MetricCard
-            label="Cảnh báo cần chú ý"
-            value={String(metrics.criticalAlerts)}
-            note="Xuất hiện trong 24 giờ gần nhất"
-          />
-        </section>
-
-        <section aria-label="Danh sách trạm" className="mb-8">
-          <div className="mb-4">
-            <h3 className="text-2xl font-semibold tracking-tight">Danh sách trạm</h3>
-            <p className="mt-1 text-sm text-muted">
-              Mỗi thẻ hiển thị chỉ số chính; bấm vào trạm để xem dữ liệu đo trực tiếp.
-            </p>
+        <section className="mb-10 space-y-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="healthy">Realtime network</Badge>
+            <Badge variant="default">Cồn Hô dashboard</Badge>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {snapshots.map((snapshot) => (
-              <StationCard key={snapshot.station.id} snapshot={snapshot} />
-            ))}
-          </div>
-        </section>
-
-        <section aria-label="Cảnh báo" className="space-y-4">
-          <div>
-            <h3 className="text-2xl font-semibold tracking-tight">Cảnh báo</h3>
-            <p className="mt-1 text-sm text-muted">Một danh sách duy nhất, theo mức độ ưu tiên.</p>
-          </div>
-
-          {alerts.length === 0 ? (
-            <p className="text-muted">Hiện không có cảnh báo mới.</p>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {alerts.map((alert) => (
-                <AlertCard
-                  key={alert.id}
-                  alert={alert}
-                  stationName={stationNames.get(alert.station_id)}
-                />
-              ))}
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl space-y-3">
+              <p className="text-xs uppercase tracking-[0.22em] text-accent">Quan trắc trực tiếp</p>
+              <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Tình hình môi trường hôm nay</h2>
+              <p className="text-sm leading-relaxed text-muted">
+                Bảng dưới đây cho biết mạng lưới đang ổn hay cần chú ý, và điều gì vừa thay đổi gần nhất.
+              </p>
             </div>
-          )}
+            <div className="flex flex-wrap gap-3">
+              <Button asChild variant="outline">
+                <Link href="/report">Gửi báo cáo hiện trường</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/about">Xem câu chuyện dự án</Link>
+              </Button>
+            </div>
+          </div>
 
-          {allAlerts.length === 0 && (
-            <p className="text-muted">
-              Không có cảnh báo trong 7 ngày gần nhất. Mạng lưới đang vận hành bình thường.
-            </p>
-          )}
+          <dl className="grid gap-6 border-y border-border/40 py-6 sm:grid-cols-2 xl:grid-cols-4">
+            <TelemetryStat label="Cập nhật gần nhất" value={freshness} />
+            <TelemetryStat label="Trạm hoạt động" value={`${metrics.activeStations}/${metrics.totalStations}`} />
+            <TelemetryStat label="Tín hiệu yếu" value={`${metrics.weakSignalNodes}`} />
+            <TelemetryStat label="Cảnh báo cần chú ý" value={`${metrics.criticalAlerts}`} />
+          </dl>
+        </section>
+
+        <section className="grid gap-14 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+          <div className="space-y-8">
+            <SalinityChart
+              data={trendSummary?.points ?? []}
+              stationName={featuredSnapshot?.station.name ?? "Cồn Hô"}
+              threshold={threshold}
+            />
+
+            <div className="space-y-4">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Priority updates</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">Cảnh báo</h3>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted">
+                  <Gauge className="h-3.5 w-3.5 text-accent" aria-hidden />
+                  {allAlerts.length} sự kiện gần đây
+                </div>
+              </div>
+
+              {alerts.length === 0 ? (
+                <EmptyState
+                  title="Không có cảnh báo mới"
+                  description="Mạng lưới đang vận hành bình thường. Cảnh báo sẽ xuất hiện ở đây khi một trạm cần chú ý."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {alerts.map((alert) => (
+                    <div key={alert.id} className="flex items-start justify-between gap-4 border-b border-border/30 py-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {stationNames.get(alert.station_id) ?? alert.station_id}
+                        </p>
+                        <p className="mt-1 text-sm text-muted">{alert.message_id ?? alert.event_type}</p>
+                      </div>
+                      <div className="text-right text-sm">
+                        <p className="font-medium">
+                          {alert.severity === "critical"
+                            ? "Critical"
+                            : alert.severity === "warning"
+                              ? "Warning"
+                              : "Info"}
+                        </p>
+                        <p className="text-muted">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(alert.timestamp))}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Live stations</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">Danh sách trạm theo mức ưu tiên</h3>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted">
+                  <Radar className="h-3.5 w-3.5 text-accent" aria-hidden />
+                  order by risk
+                </div>
+              </div>
+
+              <div className="space-y-0">
+                {sortedSnapshots.map((snapshot, index) => (
+                  <Link
+                    key={snapshot.station.id}
+                    href={`/s/${snapshot.station.id}`}
+                    className="flex items-center justify-between border-b border-border/30 py-4 transition-opacity hover:opacity-70"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">{snapshot.station.name}</p>
+                      <p className="text-sm text-muted">
+                        {snapshot.reading
+                          ? `Độ mặn ${formatSalinity(snapshot.reading.salinity)} · Mực nước ${formatWaterLevel(snapshot.reading.water_level)}`
+                          : "Chưa có dữ liệu gần nhất"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs uppercase tracking-[0.14em] text-muted">
+                        {index === 0 ? "Top priority" : "Monitor"}
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-muted" aria-hidden />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {trendSummary ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Current trend</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">Range and delta</h3>
+                </div>
+                <div className="space-y-4 border-t border-border/40 pt-4">
+                  {[
+                    { label: "Current", value: formatSalinity(trendSummary.current) },
+                    { label: "Average", value: formatSalinity(trendSummary.average) },
+                    {
+                      label: "Delta",
+                      value: `${trendSummary.delta >= 0 ? "+" : ""}${formatSalinity(Math.abs(trendSummary.delta))}`,
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-baseline justify-between gap-4">
+                      <p className="text-sm uppercase tracking-[0.14em] text-muted">{item.label}</p>
+                      <p className="text-2xl font-semibold tracking-tight">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </section>
       </>
     );
@@ -236,18 +346,71 @@ async function DashboardContent() {
       <>
         <StationMap />
         <DailyComparisonChart data={demoDailyComparison()} />
-        <section className="max-w-3xl py-8">
-          <h2 className="mb-4 text-3xl font-semibold">Horizon Dashboard</h2>
-          <p className="text-muted">
-            Hệ thống đang ở chế độ demo hoặc chưa được cấu hình Supabase trên môi trường triển khai.
-          </p>
-          <p className="mt-3 text-sm text-muted">
-            Dashboard sẽ hiển thị dữ liệu thực khi các biến môi trường được cấu hình đầy đủ.
-          </p>
-        </section>
+        <EmptyState
+          title="Horizon Dashboard"
+          description="Hệ thống đang ở chế độ demo hoặc chưa được cấu hình Supabase trên môi trường triển khai. Dashboard sẽ hiển thị dữ liệu thực khi các biến môi trường được cấu hình đầy đủ."
+        />
       </>
     );
   }
+}
+
+function TelemetryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <dt className="text-xs uppercase tracking-[0.16em] text-muted">{label}</dt>
+      <dd className="text-xl font-semibold tracking-tight">{value}</dd>
+    </div>
+  );
+}
+
+async function buildTrendSummary(
+  repos: NonNullable<ReturnType<typeof getPublicRepositories>>["repos"],
+  scope: Parameters<typeof getDashboardMetrics>[1],
+  stationId?: string,
+): Promise<TrendSummary | null> {
+  if (!stationId) return null;
+
+  const points = await repos.readings.getTrend24h(stationId, scope);
+  if (points.length === 0) return null;
+
+  const values = points.map((point) => point.salinity);
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const current = values[values.length - 1];
+  const delta = current - values[0];
+  const first = new Date(points[0].timestamp);
+  const last = new Date(points[points.length - 1].timestamp);
+  const label = `Từ ${new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(first)} đến ${new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(last)}`;
+
+  return { current, average, delta, label, points };
+}
+
+function stationPriority(
+  snapshot: StationReadingSnapshot,
+  stationAlertMap: Map<string, EnvironmentalEvent[]>,
+): number {
+  const stationAlerts = stationAlertMap.get(snapshot.station.id) ?? [];
+  const hasCriticalAlert = stationAlerts.some((alert) => alert.severity === "critical");
+  const hasSensorFault =
+    stationAlerts.some((alert) => alert.event_type === "SENSOR_FAULT") ||
+    (snapshot.reading?.fault_flags ?? 0) > 0 ||
+    snapshot.reading?.ec_probe_status === "fault" ||
+    snapshot.reading?.ultrasonic_status === "fault";
+  const isOffline =
+    snapshot.station.status === "inactive" ||
+    stationAlerts.some((alert) => alert.event_type === "OFFLINE");
+  const hasWarning =
+    snapshot.station.status === "maintenance" ||
+    stationAlerts.some((alert) => alert.severity === "warning") ||
+    snapshot.reading?.ec_probe_status === "warn" ||
+    snapshot.reading?.ultrasonic_status === "warn";
+
+  if (hasCriticalAlert) return 0;
+  if (hasSensorFault) return 1;
+  if (isOffline) return 2;
+  if (hasWarning) return 3;
+  if (snapshot.reading) return 4;
+  return 5;
 }
 
 export default function DashboardPage() {

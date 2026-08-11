@@ -1,246 +1,135 @@
-# Eco-Sense Con Ho - Implementation Plan
+# Implementation Plan
 
-This document breaks the PRD/TDD into executable work packages for engineering.
+## Goal
 
-## 0. Delivery Strategy
-- Model: Monorepo with app, service, firmware, and infra boundaries.
-- Process: Phase-gated delivery with acceptance criteria per phase.
-- Release cadence: Weekly internal milestones, bi-weekly field validation.
-- Team size assumption: Small team (3 contributors), so prioritize delivery reliability over enterprise process overhead.
+Build Eco-Sense Cồn Hô into a production-quality showcase platform: a calm public environmental experience, a reliable field telemetry pipeline, and a precise admin operations console.
 
-## 1. Phase 1 - Foundation and Project Scaffolding
-Goal: Establish a production-grade baseline repository and delivery pipeline.
+## Phase 1 — Product foundation
 
-Tasks:
-1. Initialize monorepo structure (`apps`, `services`, `firmware`, `infra`, `docs`).
-2. Bootstrap Next.js app as PWA shell.
-3. Initialize Supabase project configuration and migration flow.
-4. Define coding standards, environment conventions, and secrets policy.
-5. Set up lightweight CI checks (lint + typecheck + optional smoke test).
+Deliverables:
 
-Outputs:
-- Working repo skeleton.
-- CI pipeline and branch strategy.
-- Environment templates (`.env.example`) for web, edge, and firmware.
+- Product handbook in `docs/`.
+- Clear public versus admin information architecture.
+- Shared design system direction.
+- Core status model for healthy, watch, risk, offline, and sensor fault.
+- Mobile-first page hierarchy for QR station pages.
 
-Acceptance criteria:
-- Local setup in <= 15 minutes from clean machine.
-- CI green on default branch.
+Quality gate:
 
-## 2. Phase 2 - Data Model and Access Control
-Goal: Implement core PostgreSQL schema + RLS policy framework.
+- A new contributor can explain the product, personas, and UI philosophy after reading `docs/README.md` and `docs/PRODUCT_CONTEXT.md`.
 
-Tasks:
-1. Create migrations for:
-   - users
-   - stations
-   - station_health_logs
-   - environmental_data
-   - damage_logs
-   - crop_thresholds
-2. Add keys, indexes, and constraints:
-   - unique `environmental_data.message_id`
-   - foreign keys and station/time indexes
-   - Define table partitioning strategy for environmental_readings (monthly).
-3. Implement RLS policies by role:
-   - farmer/user
-   - admin/climate steward
-4. Seed minimal baseline data for local and staging.
+## Phase 2 — Data and ingestion foundation
 
-Outputs:
-- Versioned SQL migrations.
-- RLS policy scripts.
-- Seed scripts.
+Deliverables:
 
-Acceptance criteria:
-- Schema migration idempotent in dev/staging.
-- Unauthorized row access blocked by policy tests.
+- Supabase schema for stations, devices, readings, health logs, events, reports, thresholds, and audit logs.
+- v1 telemetry ingestion edge function.
+- HMAC signature validation.
+- Timestamp replay protection.
+- Idempotent `message_id` behavior.
+- Sensor fault rejection or isolation.
 
-## 3. Phase 3 - IoT Ingestion Service (Edge Functions)
-Goal: Secure, idempotent ingestion endpoint for field nodes.
+Quality gate:
 
-Tasks:
-1. Define canonical payload contract (telemetry + health + metadata).
-2. Implement HMAC validation with per-device secret lookup.
-3. Enforce timestamp drift check (<= 5 min).
-4. Implement idempotency using `message_id` uniqueness and duplicate handling.
-5. Persist:
-   - environmental metrics -> environmental_data
-   - node health -> station_health_logs
-6. Return OTA metadata when firmware update is available.
-7. Add structured logging and failure reason taxonomy.
+- Valid telemetry inserts exactly once.
+- Duplicate telemetry is safely ignored.
+- Invalid signatures, stale timestamps, inactive devices, out-of-range values, and sensor faults are rejected with clear error codes.
 
-Outputs:
-- Edge endpoint(s) ready for ESP32 integration.
-- API contract doc and test vectors.
+## Phase 3 — Public experience
 
-Acceptance criteria:
-- Replay attacks rejected.
-- Duplicate sends do not create duplicate rows.
-- 100% valid signed payloads are persisted successfully in staging.
-- Retries from LTE drops do not cause data loss or inconsistent state.
+Deliverables:
 
-## 4. Phase 4 - Firmware Node Implementation
-Goal: Production firmware for resilient field operation.
+- Homepage explaining the environmental monitoring story.
+- Public dashboard with high-level station status.
+- QR station page for `/s/[stationId]`.
+- Salinity and water-level cards.
+- Recent trend charts with thresholds.
+- Data freshness and sensor health indicators.
+- Community reporting page.
 
-Tasks:
-1. Implement power duty cycle:
-   - wake -> LTE on -> read sensors -> send -> LTE off -> deep sleep
-2. Integrate sensor acquisition:
-   - EC (with temperature compensation)
-   - ultrasonic water level
-3. Implement payload signing and message_id generation.
-4. Implement calibration captive portal:
-   - AP mode + local web UI
-   - compute/store K-value in NVS/EEPROM
-5. Implement OTA check and upgrade flow.
-6. Add retry strategy and watchdog handling.
+Quality gate:
 
-Outputs:
-- Firmware build profiles for dev/prod.
-- Device provisioning guide.
+- A farmer can scan a QR code and understand station status in a few seconds on a phone.
+- A tourist or judge immediately sees a polished, credible product.
 
-Acceptance criteria:
-- End-to-end send cycle < 15s under nominal LTE conditions.
-- Stable deep sleep current and expected daily budget.
+## Phase 4 — Admin operations
 
-## 5. Phase 5 - Public Web Platform (MVP — implemented)
-Goal: Public climate dashboard, citizen reports, QR stations, admin-only auth.
+Deliverables:
 
-Tasks (done):
-1. Server-only service role reads via existing repositories.
-2. Public routes: `/`, `/about`, `/dashboard`, `/s/[stationId]`, `/report`.
-3. `POST /api/public/reports` for community reports (text-only).
-4. Admin at `/admin/login` and `/admin`.
+- Admin login.
+- Station table with status, freshness, alerts, battery, and signal.
+- Station detail operations view.
+- Alert triage.
+- Threshold management.
+- Community report review.
+- Audit timeline.
 
-Deferred from this phase: map UI, photo upload, farmer login UX, offline report queue.
+Quality gate:
 
-## 5b. Phase 5 (legacy) - User PWA (Farmer Experience) — deferred
-Goal: Deliver offline-capable farmer-facing product features.
+- An admin can identify and prioritize station issues quickly without visual noise.
+- Keyboard navigation and table workflows are efficient.
 
-Tasks:
-1. Build authentication and profile setup flow.
-2. Create station overview and latest readings pages.
-3. Implement advanced alert cards:
-   - threshold status
-   - trend delta over 2h
-   - cumulative exposure duration
-4. Implement damage report workflow:
-   - photo capture/upload
-   - geolocation first
-   - map-pin fallback when GPS unavailable/low accuracy
-5. Implement offline-first data capture with IndexedDB.
-6. Implement background sync via Service Worker.
+## Phase 5 — Field pilot readiness
 
-Outputs:
-- PWA installable on Android/iOS browsers.
-- Offline queue for damage reports.
+Deliverables:
 
-Acceptance criteria:
-- Damage report can be fully captured offline.
-- Sync resumes automatically when online.
+- Device provisioning checklist.
+- QR labels generated and tested.
+- Calibration records.
+- Staging and production environment separation.
+- Pilot runbook and incident response process.
+- Data quality monitoring.
 
-## 6. Phase 6 - Admin and Fleet Diagnostics
-Goal: Provide operational visibility and governance tooling.
+Quality gate:
 
-Tasks:
-1. Build admin dashboard for station fleet status.
-2. Add charts for battery voltage and signal strength trends.
-3. Add warning indicators:
-   - battery < 3.6V
-   - signal < -95 dBm
-4. Create data export module (CSV/Excel):
-   - filter by station
-   - filter by date range
-5. Add firmware/version distribution view.
+- A deployed station can send signed readings, appear on its public QR page, and show health/freshness correctly.
 
-Outputs:
-- Admin console pages.
-- Export utility endpoints/actions.
+## Phase 6 — Production showcase polish
 
-Acceptance criteria:
-- Admin can identify weak stations in < 30s.
-- Exported file integrity validated on sample datasets.
+Deliverables:
 
-## 7. Phase 7 - Quality, Security, and Field Readiness
-Goal: Hardening before production deployment.
+- Accessibility pass against WCAG AA expectations.
+- Performance pass for mobile station pages.
+- Empty, loading, error, offline, and stale states refined.
+- Demo script for judges and partners.
+- Documentation updated to match implementation.
 
-Tasks:
-1. End-to-end test suite:
-   - ingestion
-   - alert engine
-   - offline sync
-2. Security tests:
-   - authz policy tests
-   - replay and tampering scenarios
-3. Performance checks:
-   - ingestion load profile
-   - PWA startup performance in low bandwidth
-4. Observability:
-   - dashboards
-   - alerting rules
-   - operational runbooks
-5. Field pilot with staged firmware rollout.
+Quality gate:
 
-Outputs:
-- Test report + known issues register.
-- Go-live checklist.
+- The product can be demonstrated confidently in 5 minutes and inspected deeply by technical reviewers.
 
-Acceptance criteria:
-- All critical test paths pass.
-- No high-severity open issues before launch.
+## Feature delivery checklist
 
-## 8. Cross-Cutting Technical Decisions
-- Time handling: Store timestamps in UTC, render local timezone in UI.
-- Numeric precision: Standardize units (salinity per mille, water level cm).
-- Idempotency key: `message_id` generated on-device each wake cycle.
-- API versioning: Prefix ingestion route with `/v1`.
-- Backward compatibility: Keep one previous firmware payload format during rollout.
-- OTA distribution channel: GitHub Releases as primary binary source.
-- Telemetry reliability mode: store-and-forward queue on node, not send-and-forget.
-- Data retention strategy:
-   - raw telemetry retention: 2 years
-   - hourly aggregates retention: long-term
-   - dashboard defaults to aggregates for long time ranges
-- Extended outage fallback (future phase): SMS summary when LTE attach fails for >24h.
+Every feature should define:
 
-## 8.1 Architecture-First Documents (Required Before Feature Coding)
-1. `docs/API_CONTRACTS.md` must be finalized before implementing firmware payload and ingestion parser.
-2. `docs/FIRMWARE_SPEC.md` must be finalized before implementing sensor loop and sleep orchestration.
-3. `docs/DEPLOYMENT_PACKAGE.md` must be finalized before first field installation.
-4. `docs/FIELD_TEST_PLAN.md` must be finalized before pilot rollout.
+- primary persona,
+- public or admin surface,
+- user problem,
+- success state,
+- loading state,
+- empty state,
+- error state,
+- stale/offline behavior,
+- accessibility behavior,
+- performance considerations,
+- authorization requirements,
+- audit requirements if sensitive.
 
-## 9. Suggested Initial Backlog (First 2 Sprints)
-Sprint 1:
-1. Phase 1 full completion.
-2. Phase 2 schema + base RLS.
-3. Phase 3 ingestion endpoint skeleton + HMAC verification + sensor fault fields.
+## Design implementation rules
 
-Sprint 2:
-1. Phase 3 complete idempotent persistence.
-2. Phase 5 authentication + station overview with mock telemetry.
-3. Phase 4 firmware payload signing + local queue (store-and-forward) design.
+- Start mobile-first.
+- Use shared components and tokens.
+- Keep public pages simple and admin pages efficient.
+- Avoid duplicated component implementations.
+- Treat status labels and thresholds as product logic, not decorative styling.
+- Preserve data trust when readings are stale, missing, or faulty.
 
-## 10. Risks and Mitigations
-- LTE instability: Add robust retry + idempotent writes.
-- Sensor drift/fouling: Enforce calibration SOP and housing maintenance schedule.
-- Battery depletion in bad weather: Optimize wake time and daytime OTA checks.
-- Offline media size growth: Compress image client-side before queueing.
-- GPS permission denial: Force map-pin fallback with area presets.
+## Technical implementation rules
 
-## 11. Definition of Done (Global)
-A feature is complete only when:
-1. Functional requirements implemented.
-2. Security and access controls validated.
-3. Observability and error handling included.
-4. Documentation updated.
-5. Tests pass in CI.
-
-## 12. Architecture Gaps Closed in This Revision
-- Data contract is now first-class and implementation-blocking.
-- OTA architecture now has an explicit distribution decision (GitHub Releases).
-- Field deployment package now includes mechanical/electrical/environmental engineering requirements.
-- Field reliability tests are codified as release gates, not optional checks.
-- Sensor fault model is now explicit in payload design.
-- Store-and-forward reliability is now part of firmware architecture.
-- Long-horizon operational readiness now includes a 90-day gate.
+- Validate data at the boundary.
+- Keep secrets server-side.
+- Prefer typed contracts where possible.
+- Keep ingestion idempotent.
+- Separate environmental readings from device health and events.
+- Use RLS as the final data access boundary.
+- Add tests for contracts, authorization, and critical status logic.

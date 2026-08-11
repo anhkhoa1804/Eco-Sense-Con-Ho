@@ -1,56 +1,75 @@
 import { Suspense } from "react";
+import { CheckCircle2, Camera, MapPinned, ShieldCheck } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { ReportForm } from "@/components/report/report-form";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const steps = [
+  { icon: MapPinned, title: "Locate", desc: "GPS or station code anchors the report." },
+  { icon: Camera, title: "Describe", desc: "Tell us what changed and where." },
+  { icon: ShieldCheck, title: "Review", desc: "The report is checked before action." },
+  { icon: CheckCircle2, title: "Confirm", desc: "Keep the reference for follow-up." },
+];
+
 function ReportFallback() {
-  return <Skeleton className="h-96 w-full max-w-lg" />;
+  return <Skeleton className="h-[640px] w-full rounded-[36px]" />;
 }
 
 export default function ReportPage() {
   return (
     <PublicShell activePath="/report">
-      <section className="mb-6 max-w-3xl">
-        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-accent">Báo cáo hiện trường</p>
-        <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Ghi nhận quan sát về môi trường mà không cần tài khoản</h2>
-        <p className="mt-3 text-lg leading-relaxed text-muted">
-          Báo cáo của bạn giúp theo dõi xói lở, ngập nước, ô nhiễm và các dấu hiệu bất thường khác trên Cồn Hô.
-        </p>
-      </section>
+      <section className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+        <div className="space-y-8">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="healthy">Mobile-first</Badge>
+            <Badge variant="default">Field report</Badge>
+          </div>
 
-      <section className="mb-8 grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Vì sao nên báo cáo?</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm leading-relaxed text-muted">
-            Báo cáo giúp cộng đồng nhìn thấy sớm những thay đổi tại bờ sông, khu dân cư và khu du lịch.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Quyền riêng tư</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm leading-relaxed text-muted">
-            Không cần tài khoản. Vị trí chỉ dùng cho ngữ cảnh báo cáo và phục vụ việc đối chiếu hiện trường.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Sau khi gửi</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm leading-relaxed text-muted">
-            Báo cáo sẽ được xem xét trước khi chuyển sang quy trình xử lý hoặc xác minh tiếp theo.
-          </CardContent>
-        </Card>
-      </section>
+          <div className="space-y-4">
+            <p className="text-xs uppercase tracking-[0.22em] text-accent">Citizen science</p>
+            <h2 className="max-w-3xl text-5xl font-semibold tracking-tight md:text-7xl">
+              Ghi nhận hiện trường như một ứng dụng di động cao cấp.
+            </h2>
+            <p className="max-w-2xl text-lg leading-relaxed text-muted">
+              Báo cáo ngắn, rõ và ưu tiên thao tác bằng một tay. Vị trí, mô tả, và xác nhận được trình bày theo nhịp đọc
+              tự nhiên thay vì một biểu mẫu dài.
+            </p>
+          </div>
 
-      <div className="max-w-lg">
-        <Suspense fallback={<ReportFallback />}>
-          <ReportForm />
-        </Suspense>
-      </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {steps.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <div key={step.title} className="flex gap-4 py-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
+                    <Icon className="h-5 w-5" aria-hidden />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-muted">0{index + 1}</p>
+                    <h3 className="mt-1 font-medium">{step.title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted">{step.desc}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className="rounded-[40px] bg-[linear-gradient(180deg,#f6faf6_0%,#edf5ef_100%)] p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-border/70">
+            <p className="text-xs uppercase tracking-[0.22em] text-accent">Flow</p>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
+              The workflow is intentionally quiet: no heavy containers, no extra chrome, just the action path and the
+              form.
+            </p>
+          </div>
+
+          <Suspense fallback={<ReportFallback />}>
+            <ReportForm />
+          </Suspense>
+        </div>
+      </section>
     </PublicShell>
   );
 }
