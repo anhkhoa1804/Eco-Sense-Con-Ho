@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isLikelySupabasePublicKey, isValidHttpUrl } from "@/lib/supabase/env";
 
 function isPublicPath(pathname: string): boolean {
   if (
@@ -45,7 +46,7 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  if (!url || !key) {
+  if (!isValidHttpUrl(url) || !isLikelySupabasePublicKey(key)) {
     if (isAdminPath(pathname)) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/admin/login";
@@ -97,7 +98,7 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  if (user && pathname === "/admin/login") {
+  if (user && pathname === "/admin/login" && !request.nextUrl.searchParams.has("error")) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/admin";
     redirectUrl.search = "";

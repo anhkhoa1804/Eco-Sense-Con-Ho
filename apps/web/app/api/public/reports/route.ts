@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { addDemoReport } from "@/lib/reports/demoReportStore";
 import { createServiceClient } from "@/lib/supabase/service";
 
 const CATEGORIES = [
@@ -12,7 +13,6 @@ const CATEGORIES = [
 
 const MIN_DESCRIPTION = 10;
 const MAX_DESCRIPTION = 2000;
-
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const RATE_MAX = 5;
 
@@ -29,10 +29,7 @@ function clientIp(request: Request): string {
 function rateLimited(ip: string): boolean {
   const now = Date.now();
   const windowStart = now - RATE_WINDOW_MS;
-
-  const times = (hits.get(ip) ?? []).filter(
-    (t) => t > windowStart,
-  );
+  const times = (hits.get(ip) ?? []).filter((t) => t > windowStart);
 
   if (times.length >= RATE_MAX) {
     return true;
@@ -40,171 +37,129 @@ function rateLimited(ip: string): boolean {
 
   times.push(now);
   hits.set(ip, times);
-
   return false;
 }
 
+function isMissingTableError(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "PGRST205"
+  );
+}
+
 export async function POST(request: Request) {
+  let body: unknown;
+
   try {
-    const supabase = createServiceClient();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
-    if (!supabase) {
-      return NextResponse.json(
-        {
-          error: "Demo deployment does not have backend services configured",
-        },
-        {
-          status: 503,
-        }
-      );
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+  }
+
+  const { category, description, lat, lng, stationId } = body as Record<string, unknown>;
+
+  if (
+    typeof category !== "string" ||
+    !CATEGORIES.includes(category as (typeof CATEGORIES)[number])
+  ) {
+    return NextResponse.json({ error: "invalid_category" }, { status: 400 });
+  }
+
+  if (typeof description !== "string" || description.trim().length < MIN_DESCRIPTION) {
+    return NextResponse.json({ error: "description_too_short" }, { status: 400 });
+  }
+
+  if (description.length > MAX_DESCRIPTION) {
+    return NextResponse.json({ error: "description_too_long" }, { status: 400 });
+  }
+
+  if (rateLimited(clientIp(request))) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
+
+  const supabase = createServiceClient();
+  let reportLat = typeof lat === "number" ? lat : null;
+  let reportLng = typeof lng === "number" ? lng : null;
+
+  if (supabase && typeof stationId === "string" && stationId.length > 0) {
+    const { data: station } = await supabase
+      .from("stations")
+      .select("lat, lng")
+      .eq("id", stationId)
+      .maybeSingle();
+
+    if (station) {
+      reportLat ??= Number(station.lat);
+      reportLng ??= Number(station.lng);
     }
+  }
 
-    let body: unknown;
+  if (
+    reportLat === null ||
+    reportLng === null ||
+    !Number.isFinite(reportLat) ||
+    !Number.isFinite(reportLng)
+  ) {
+    reportLat = 10.082;
+    reportLng = 106.032;
+  }
 
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: "Thân yêu cầu JSON không hợp lệ" },
-        { status: 400 },
-      );
-    }
+  const fullDescription =
+    `[${category}]` +
+    (typeof stationId === "string" && stationId ? ` [station:${stationId}]` : "") +
+    ` ${description.trim()}`;
 
-    if (!body || typeof body !== "object") {
-      return NextResponse.json(
-        { error: "Thân yêu cầu không hợp lệ" },
-        { status: 400 },
-      );
-    }
+  const demoReport = () =>
+    addDemoReport({
+      lat: reportLat,
+      lng: reportLng,
+      description: fullDescription,
+      timestamp: new Date().toISOString(),
+    });
 
-    const { category, description, lat, lng, stationId } =
-      body as Record<string, unknown>;
-
-    if (
-      typeof category !== "string" ||
-      !CATEGORIES.includes(
-        category as (typeof CATEGORIES)[number],
-      )
-    ) {
-      return NextResponse.json(
-        { error: "Loại báo cáo không hợp lệ" },
-        { status: 400 },
-      );
-    }
-
-    if (
-      typeof description !== "string" ||
-      description.trim().length < MIN_DESCRIPTION
-    ) {
-      return NextResponse.json(
-        {
-          error: `Mô tả phải có ít nhất ${MIN_DESCRIPTION} ký tự`,
-        },
-        { status: 400 },
-      );
-    }
-
-    if (description.length > MAX_DESCRIPTION) {
-      return NextResponse.json(
-        { error: "Mô tả quá dài" },
-        { status: 400 },
-      );
-    }
-
-    const ip = clientIp(request);
-
-    if (rateLimited(ip)) {
-      return NextResponse.json(
-        {
-          error:
-            "Quá nhiều báo cáo. Vui lòng thử lại sau.",
-        },
-        { status: 429 },
-      );
-    }
-
-    let reportLat =
-      typeof lat === "number" ? lat : null;
-
-    let reportLng =
-      typeof lng === "number" ? lng : null;
-
-    if (
-      typeof stationId === "string" &&
-      stationId.length > 0
-    ) {
-      const { data: station } = await supabase
-        .from("stations")
-        .select("lat, lng")
-        .eq("id", stationId)
-        .maybeSingle();
-
-      if (station) {
-        if (reportLat === null)
-          reportLat = Number(station.lat);
-
-        if (reportLng === null)
-          reportLng = Number(station.lng);
-      }
-    }
-
-    if (
-      reportLat === null ||
-      reportLng === null ||
-      !Number.isFinite(reportLat) ||
-      !Number.isFinite(reportLng)
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Cần vị trí (bật GPS hoặc chọn một trạm)",
-        },
-        { status: 400 },
-      );
-    }
-
-    const fullDescription =
-      `[${category}]` +
-      (stationId
-        ? ` [station:${stationId}]`
-        : "") +
-      ` ${description.trim()}`;
-
-    const now = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from("damage_logs")
-      .insert({
-        user_id: null,
-        lat: reportLat,
-        lng: reportLng,
-        description: fullDescription,
-        status: "new",
-        timestamp: now,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      return NextResponse.json(
-        { error: "Không thể lưu báo cáo" },
-        { status: 500 },
-      );
-    }
-
+  if (!supabase) {
+    const report = demoReport();
     return NextResponse.json({
       ok: true,
-      id: data.id,
+      demo: true,
+      id: report.id,
     });
-  } catch {
-    return NextResponse.json(
-      {
-        ok: false,
-        demo: true,
-        message:
-          "Supabase chưa được cấu hình trên môi trường triển khai.",
-      },
-      { status: 200 },
-    );
   }
+
+  const { data, error } = await supabase
+    .from("damage_logs")
+    .insert({
+      user_id: null,
+      lat: reportLat,
+      lng: reportLng,
+      description: fullDescription,
+      status: "new",
+      timestamp: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    if (!isMissingTableError(error)) {
+      console.warn("[reports] Falling back to demo report:", error.message);
+    }
+
+    const report = demoReport();
+    return NextResponse.json({
+      ok: true,
+      demo: true,
+      id: report.id,
+    });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    id: data.id,
+  });
 }

@@ -1,24 +1,20 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { redirect } from "next/navigation";
+import { clearLocalAdminSession } from "@/lib/auth/localAdminSession";
 import { Button } from "@/components/ui/button";
 
+async function signOut() {
+  "use server";
+
+  await clearLocalAdminSession();
+  redirect("/admin/login");
+}
+
 export function SignOutButton() {
-  const router = useRouter();
-
-  async function handleSignOut() {
-    const supabase = createClient();
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
-    router.push("/admin/login");
-    router.refresh();
-  }
-
   return (
-    <Button type="button" variant="outline" onClick={handleSignOut}>
-      Đăng xuất
-    </Button>
+    <form action={signOut}>
+      <Button type="submit" variant="outline">
+        Đăng xuất
+      </Button>
+    </form>
   );
 }

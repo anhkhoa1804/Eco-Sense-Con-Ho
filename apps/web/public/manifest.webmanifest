@@ -1,7 +1,7 @@
 {
-  "name": "Eco-Sense Cồn Hô",
-  "short_name": "Eco-Sense",
-  "description": "Cổng quan trắc khí hậu và môi trường công khai tại Cồn Hô",
+  "name": "Horizon Cồn Hô",
+  "short_name": "Horizon",
+  "description": "Mạng lưới quan trắc khí hậu và môi trường do thanh niên dẫn dắt tại Cồn Hô",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fafaf8",

@@ -1,4 +1,4 @@
-import { applyStationIdScope, canAccessStation, type AppSupabase } from "./base";
+import { applyStationIdScope, canAccessStation, isMissingTableError, type AppSupabase } from "./base";
 import type { RepositoryScope, Station, StationStatus } from "@/types";
 
 function mapStation(row: Record<string, unknown>): Station {
@@ -20,6 +20,7 @@ export class StationRepository {
     query = applyStationIdScope(query, scope);
 
     const { data, error } = await query;
+    if (isMissingTableError(error)) return [];
     if (error) throw error;
     return (data ?? []).map(mapStation);
   }
@@ -30,6 +31,7 @@ export class StationRepository {
     }
 
     const { data, error } = await this.supabase.from("stations").select("*").eq("id", id).maybeSingle();
+    if (isMissingTableError(error)) return null;
     if (error) throw error;
     return data ? mapStation(data) : null;
   }

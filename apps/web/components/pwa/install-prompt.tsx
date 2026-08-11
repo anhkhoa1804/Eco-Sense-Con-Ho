@@ -30,7 +30,7 @@ export function InstallPrompt() {
   return (
     <Card className="mb-6 border-accent/20">
       <CardHeader>
-        <CardTitle>Cài ứng dụng Eco-Sense</CardTitle>
+        <CardTitle>Cài ứng dụng Horizon</CardTitle>
         <CardDescription>Thêm bảng quan trắc vào màn hình chính để truy cập nhanh hơn.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">

@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { BookOpen, ClipboardList, Home, LayoutDashboard, Shield } from "lucide-react";
+import { ClipboardList, Home, LayoutDashboard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Trang chủ", icon: Home },
-  { href: "/about", label: "Giới thiệu", icon: BookOpen },
   { href: "/dashboard", label: "Quan trắc", icon: LayoutDashboard },
   { href: "/report", label: "Báo cáo", icon: ClipboardList },
 ];
@@ -21,7 +20,7 @@ export function PublicShell({
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" className="block">
-            <p className="text-xs uppercase tracking-[0.18em] text-accent">Eco-Sense</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-accent">Horizon</p>
             <h1 className="text-lg font-semibold tracking-tight">Quan trắc Cồn Hô</h1>
           </Link>
           <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 md:flex">

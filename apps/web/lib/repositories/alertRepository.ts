@@ -1,4 +1,4 @@
-import { applyStationScope, type AppSupabase } from "./base";
+import { applyStationScope, isMissingTableError, type AppSupabase } from "./base";
 import type { AlertSeverity, EnvironmentalEvent, RepositoryScope } from "@/types";
 
 function mapEvent(row: Record<string, unknown>): EnvironmentalEvent {
@@ -29,6 +29,7 @@ export class AlertRepository {
     query = applyStationScope(query, scope);
 
     const { data, error } = await query;
+    if (isMissingTableError(error)) return [];
     if (error) throw error;
     return (data ?? []).map(mapEvent);
   }
@@ -46,6 +47,7 @@ export class AlertRepository {
     query = applyStationScope(query, scope);
 
     const { data, error } = await query;
+    if (isMissingTableError(error)) return [];
     if (error) throw error;
     return (data ?? []).map(mapEvent);
   }
@@ -61,6 +63,7 @@ export class AlertRepository {
     query = applyStationScope(query, scope);
 
     const { count, error } = await query;
+    if (isMissingTableError(error)) return 0;
     if (error) throw error;
     return count ?? 0;
   }

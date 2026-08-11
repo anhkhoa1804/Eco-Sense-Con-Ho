@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { Send, Sprout, Waves } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPublicRepositories } from "@/lib/publicRead";
 import { getDashboardMetrics } from "@/lib/repositories";
@@ -62,81 +63,120 @@ function SummaryFallback() {
   );
 }
 
+const focusItems = [
+  {
+    title: "Trạm 1 - Dữ liệu nước",
+    desc: "Theo dõi mực nước, độ mặn, triều cường và những biến động quanh bờ sông.",
+    icon: Waves,
+  },
+  {
+    title: "Trạm 2 - Dữ liệu đất",
+    desc: "Đo tình trạng đất để hỗ trợ bà con chọn thời điểm tưới, chăm sóc và trồng trọt phù hợp.",
+    icon: Sprout,
+  },
+  {
+    title: "Gateway - Gửi tin về bà con",
+    desc: "Tổng hợp dữ liệu từ các trạm và gửi cảnh báo, khuyến nghị qua SIM, Zalo hoặc các kênh quen dùng.",
+    icon: Send,
+  },
+];
+
 export default function HomePage() {
   return (
     <PublicShell activePath="/">
-      <section className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-start">
-        <div>
-          <p className="mb-3 text-xs uppercase tracking-[0.18em] text-accent">Quan trắc công khai</p>
-          <h2 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-5xl">
-            Quan trắc độ mặn và môi trường nước tại Cồn Hô theo thời gian thực.
+      <section className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
+        <div className="max-w-3xl">
+          <p className="mb-3 text-xs uppercase tracking-[0.18em] text-accent">05-06.09.2026 · Cồn Hô</p>
+          <h2 className="text-4xl font-semibold tracking-tight md:text-5xl">
+            HORIZON lắng nghe thiên nhiên, đồng hành cùng cộng đồng.
           </h2>
-          <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted">
-            Nền tảng công khai dành cho cư dân, học sinh, nhà nghiên cứu, cơ quan quản lý và du khách muốn theo dõi
-            tình trạng môi trường nước trên cù lao.
-          </p>
+          <div className="mt-5 space-y-4 text-lg leading-relaxed text-muted">
+            <p>
+              Bà con Cồn Hô từ lâu sống cùng nhịp nước lên, nước xuống. Canh tác, mưu sinh và du lịch đều gắn với
+              dòng sông, nhưng dòng sông ấy cũng đang mang theo những đổi thay khó lường: nước mặn lấn sâu, triều
+              cường dâng cao, ngập úng và sạt lở xuất hiện qua từng mùa.
+            </p>
+            <p>
+              Từ một câu hỏi giản dị: làm sao để bà con nhận ra những thay đổi ấy sớm hơn? Horizon bắt đầu bằng các
+              trạm quan trắc ghi lại mực nước, độ mặn, dữ liệu đất và biến động môi trường mỗi ngày, rồi đưa thông tin
+              trở lại với bà con một cách nhanh chóng.
+            </p>
+          </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild size="lg">
               <Link href="/dashboard">Xem dữ liệu quan trắc</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <Link href="/about">Tìm hiểu dự án</Link>
+              <Link href="/report">Gửi báo cáo hiện trường</Link>
             </Button>
           </div>
         </div>
 
         <Card className="border-accent/15 bg-muted/20">
-          <CardHeader>
-            <CardTitle>Truy cập nhanh</CardTitle>
-            <CardDescription>Người xem mới có thể mở dữ liệu, tìm hiểu dự án hoặc gửi báo cáo hiện trường.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {[
-              { href: "/dashboard", title: "Bảng quan trắc", desc: "Độ mặn, mực nước, trạng thái trạm" },
-              { href: "/report", title: "Báo cáo hiện trường", desc: "Gửi quan sát mà không cần tài khoản" },
-              { href: "/about", title: "Giới thiệu dự án", desc: "Hiểu mục tiêu và phạm vi quan trắc" },
-              { href: "/s/STATION_01", title: "Quét một trạm", desc: "Trang xem nhanh trên điện thoại" },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-xl border border-border bg-background p-4 transition-colors hover:border-accent/30 hover:bg-muted/20"
-              >
-                <p className="font-medium">{item.title}</p>
-                <p className="mt-1 text-sm text-muted">{item.desc}</p>
-              </Link>
-            ))}
+          <CardContent className="space-y-5">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">Thông điệp</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight">Ba điểm chạm, cùng lên đèn.</p>
+            </div>
+            <p className="leading-relaxed text-muted">
+              Horizon không chỉ ghi nhận dữ liệu môi trường, mà còn đưa dữ liệu ấy trở lại với đời sống hằng ngày của
+              bà con. Một trạm nhìn dòng nước, một trạm nhìn thửa đất, và gateway giúp thông tin đến đúng lúc qua những
+              kênh bà con dễ dùng.
+            </p>
+            <div className="grid gap-3">
+              {focusItems.map(({ title, desc, icon: Icon }) => (
+                <div key={title} className="flex gap-3 rounded-lg border border-border bg-background p-4">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                    <Icon className="h-5 w-5" aria-hidden />
+                  </span>
+                  <div>
+                    <p className="font-medium">{title}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-muted">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </section>
 
       <section className="mt-10">
-        <h3 className="mb-4 text-2xl font-semibold tracking-tight">Tổng quan trực tiếp</h3>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-accent">Quan trắc trực tiếp</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight">Tình hình môi trường hôm nay</h3>
+          </div>
+          <Button asChild variant="outline">
+            <Link href="/dashboard">Mở bảng quan trắc</Link>
+          </Button>
+        </div>
         <Suspense fallback={<SummaryFallback />}>
           <LiveSummary />
         </Suspense>
       </section>
 
-      <section className="mt-10">
-        <Card>
-          <CardHeader>
-            <CardTitle>Cách hệ thống hoạt động</CardTitle>
-            <CardDescription>Ba bước ngắn gọn để hiểu chuỗi thu thập và công bố dữ liệu.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
-            {[
-              { title: "Trạm cảm biến", desc: "Đo độ mặn, mực nước và tín hiệu tại hiện trường." },
-              { title: "Hệ thống thu thập", desc: "Dữ liệu được tổng hợp và kiểm tra trên máy chủ." },
-              { title: "Bảng quan trắc công khai", desc: "Người dân có thể xem dữ liệu và gửi báo cáo." },
-            ].map((step, index) => (
-              <div key={step.title} className="rounded-xl border border-border bg-background p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">Bước {index + 1}</p>
-                <h4 className="mt-2 text-lg font-semibold">{step.title}</h4>
-                <p className="mt-2 text-sm text-muted">{step.desc}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      <section className="mt-10 grid gap-4 md:grid-cols-3">
+        {[
+          {
+            title: "Ghi nhận mỗi ngày",
+            desc: "Trạm cảm biến đo mực nước, độ mặn và tình trạng thiết bị tại hiện trường.",
+          },
+          {
+            title: "Đối chiếu cùng kinh nghiệm",
+            desc: "Dữ liệu không thay thế quan sát của bà con, mà giúp các thay đổi được nhìn thấy rõ hơn.",
+          },
+          {
+            title: "Cùng cộng đồng hành động",
+            desc: "Người dân có thể xem thông tin công khai và gửi báo cáo khi thấy bất thường.",
+          },
+        ].map((item) => (
+          <Card key={item.title}>
+            <CardContent>
+              <h4 className="text-lg font-semibold tracking-tight">{item.title}</h4>
+              <p className="mt-2 text-sm leading-relaxed text-muted">{item.desc}</p>
+            </CardContent>
+          </Card>
+        ))}
       </section>
     </PublicShell>
   );

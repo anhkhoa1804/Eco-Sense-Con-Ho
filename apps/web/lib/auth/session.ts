@@ -1,6 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { createRepositories } from "@/lib/repositories";
-import { ensureUserProfile } from "@/lib/auth/bootstrap";
+import { isAdminEmailAllowed } from "@/lib/auth/adminAllowlist";
+import { getLocalAdminSession } from "@/lib/auth/localAdminSession";
 import type { RepositoryScope, UserProfile } from "@/types";
 
 export async function getSessionContext(): Promise<{
@@ -8,27 +7,26 @@ export async function getSessionContext(): Promise<{
   profile: UserProfile | null;
   scope: RepositoryScope | null;
 }> {
-  const supabase = await createClient();
-  if (!supabase) {
-    return { user: null, profile: null, scope: null };
-  }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
+  const session = await getLocalAdminSession();
+  if (!session || !(await isAdminEmailAllowed(session.email))) {
     return { user: null, profile: null, scope: null };
   }
 
-  await ensureUserProfile(supabase, user);
-
-  const repos = createRepositories(supabase);
-  const profile = await repos.users.getProfile(user.id, user.email);
-  const scope = repos.users.buildScope(profile);
+  const profile: UserProfile = {
+    id: `local-admin:${session.email}`,
+    email: session.email,
+    role: "admin",
+    phone: null,
+    assignedStationIds: [],
+  };
 
   return {
-    user: { id: user.id, email: user.email },
+    user: { id: profile.id, email: profile.email },
     profile,
-    scope,
+    scope: {
+      userId: profile.id,
+      role: "admin",
+      stationIds: [],
+    },
   };
 }

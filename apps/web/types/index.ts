@@ -60,6 +60,14 @@ export interface DashboardMetrics {
   weakSignalNodes: number;
 }
 
+export interface DailyComparisonPoint {
+  date: string;
+  tideLevel: number;
+  salinity: number;
+  soilEc: number;
+  readingCount: number;
+}
+
 export interface UserProfile {
   id: string;
   email: string;

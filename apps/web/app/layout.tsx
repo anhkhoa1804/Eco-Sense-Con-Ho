@@ -3,13 +3,13 @@ import { QueryProvider } from "@/providers/query-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Eco-Sense Cồn Hô",
-  description: "Cổng quan trắc khí hậu và môi trường công khai tại Cồn Hô",
+  title: "Horizon Cồn Hô",
+  description: "Mạng lưới quan trắc khí hậu và môi trường do thanh niên dẫn dắt tại Cồn Hô",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Eco-Sense",
+    title: "Horizon",
   },
 };
 

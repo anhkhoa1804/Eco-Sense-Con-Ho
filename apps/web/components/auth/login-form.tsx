@@ -1,81 +1,78 @@
-"use client";
-
-import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { redirect } from "next/navigation";
+import { isAdminEmailAllowed, normalizeEmail } from "@/lib/auth/adminAllowlist";
+import { createLocalAdminSession, isLocalAdminPasswordValid } from "@/lib/auth/localAdminSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export function LoginForm({ redirectTo }: { redirectTo: string }) {
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+function safeRedirect(value: string): string {
+  return value.startsWith("/") && !value.startsWith("//") ? value : "/admin";
+}
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    setMessage(null);
+async function loginAdmin(formData: FormData) {
+  "use server";
 
-    const supabase = createClient();
-    if (!supabase) {
-      setError("Cấu hình hệ thống không hợp lệ (Supabase missing).");
-      setLoading(false);
-      return;
-    }
-    const origin = window.location.origin;
-    const { error: signInError } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
-      },
-    });
+  const email = normalizeEmail(String(formData.get("email") ?? ""));
+  const password = String(formData.get("password") ?? "");
+  const redirectTo = safeRedirect(String(formData.get("redirectTo") ?? "/admin"));
+  const emailQuery = email ? `&email=${encodeURIComponent(email)}` : "";
 
-    setLoading(false);
-    if (signInError) {
-      setError("Không thể gửi liên kết đăng nhập. Vui lòng thử lại sau.");
-      return;
-    }
-
-    setMessage("Đã gửi liên kết đăng nhập đến email của bạn.");
+  if (!email || !(await isAdminEmailAllowed(email))) {
+    redirect(`/admin/login?error=unauthorized${emailQuery}`);
   }
 
+  if (!isLocalAdminPasswordValid(password)) {
+    redirect(`/admin/login?error=bad-password${emailQuery}`);
+  }
+
+  await createLocalAdminSession(email);
+  redirect(redirectTo);
+}
+
+export function LoginForm({
+  redirectTo,
+  defaultEmail = "",
+}: {
+  redirectTo: string;
+  defaultEmail?: string;
+}) {
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle>Đăng nhập quản trị</CardTitle>
         <CardDescription>
-          Dành cho người vận hành. Hệ thống sẽ gửi liên kết một lần đến email của bạn.
+          Nhập email được cấp quyền và mật khẩu nội bộ của dự án. Không cần gửi liên kết email.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={loginAdmin} className="space-y-4">
+          <input type="hidden" name="redirectTo" value={redirectTo} />
           <div className="space-y-2">
             <Label htmlFor="email">Địa chỉ email</Label>
             <Input
               id="email"
+              name="email"
               type="email"
               autoComplete="email"
               required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="vd@coquan.vn"
+              defaultValue={defaultEmail}
+              placeholder="ten@gmail.com"
             />
           </div>
-          {error ? (
-            <p className="text-sm text-critical" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {message ? (
-            <p className="text-sm text-accent" role="status">
-              {message}
-            </p>
-          ) : null}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Đang gửi..." : "Gửi liên kết đăng nhập"}
+          <div className="space-y-2">
+            <Label htmlFor="password">Mật khẩu quản trị</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              placeholder="Nhập mật khẩu"
+            />
+          </div>
+          <Button type="submit" className="w-full">
+            Đăng nhập
           </Button>
         </form>
       </CardContent>

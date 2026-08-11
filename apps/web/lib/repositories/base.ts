@@ -47,4 +47,13 @@ export function applyStationIdScope<T extends { in: (col: string, vals: string[]
   return query;
 }
 
+export function isMissingTableError(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "PGRST205"
+  );
+}
+
 export type AppSupabase = SupabaseClient;
