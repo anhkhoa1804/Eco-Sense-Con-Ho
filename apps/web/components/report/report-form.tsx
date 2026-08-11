@@ -135,14 +135,16 @@ export function ReportForm() {
       </div>
 
       <div className="space-y-3">
-        <Label className="text-sm font-medium">Loại hiện trạng</Label>
-        <div className="flex flex-wrap gap-2">
+        <Label id="category-label" className="text-sm font-medium">Loại hiện trạng</Label>
+        <div role="radiogroup" aria-labelledby="category-label" className="flex flex-wrap gap-2">
           {CATEGORIES.map((item) => {
             const active = category === item.value;
             return (
               <button
                 key={item.value}
                 type="button"
+                role="radio"
+                aria-checked={active}
                 onClick={() => setCategory(item.value)}
                 className={cn(
                   "rounded-full px-4 py-3 text-sm font-medium transition-colors",
@@ -199,7 +201,7 @@ export function ReportForm() {
           <Label htmlFor="description" className="text-sm font-medium">
             Mô tả quan sát
           </Label>
-          <span className="text-xs uppercase tracking-[0.14em] text-muted">Required</span>
+          <span className="text-xs uppercase tracking-[0.14em] text-muted">Bắt buộc</span>
         </div>
         <Textarea
           id="description"
@@ -223,7 +225,7 @@ export function ReportForm() {
 
       {location ? (
         <div className="rounded-[28px] bg-muted/20 px-5 py-4 text-sm text-muted">
-          <p className="font-medium text-foreground">Location preview</p>
+          <p className="font-medium text-foreground">Xem trước vị trí</p>
           <p className="mt-1">
             Báo cáo hiện được ghim tại {location.lat.toFixed(4)}, {location.lng.toFixed(4)}.
           </p>

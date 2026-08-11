@@ -13,3 +13,4 @@ firmware/**/build/
 .DS_Store
 Thumbs.db
 *.log
+*.tsbuildinfo

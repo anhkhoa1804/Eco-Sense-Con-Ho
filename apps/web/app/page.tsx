@@ -90,10 +90,10 @@ async function LiveSummary() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-baseline gap-x-8 gap-y-4 border-y border-border/40 py-4">
-        <RibbonStat label="Max salinity" value={formatSalinity(metrics.averageSalinity)} />
-        <RibbonStat label="Water rhythm" value={formatWaterLevel(averageWaterLevel)} />
-        <RibbonStat label="Stations active" value={`${metrics.activeStations}/${metrics.totalStations}`} />
-        <RibbonStat label="Critical alerts" value={String(metrics.criticalAlerts)} />
+        <RibbonStat label="Độ mặn trung bình" value={formatSalinity(metrics.averageSalinity)} />
+        <RibbonStat label="Mực nước trung bình" value={formatWaterLevel(averageWaterLevel)} />
+        <RibbonStat label="Trạm đang hoạt động" value={`${metrics.activeStations}/${metrics.totalStations}`} />
+        <RibbonStat label="Cảnh báo cần chú ý" value={String(metrics.criticalAlerts)} />
       </div>
       <p className="text-sm text-muted">{freshness}</p>
     </div>
@@ -121,7 +121,7 @@ function NetworkPreview() {
       <div className="absolute inset-y-12 left-1/2 w-px bg-border/70" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(31,138,76,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(15,118,110,0.1),transparent_28%)]" />
       <div className="absolute left-8 top-8 rounded-full bg-background/80 px-4 py-1.5 text-xs font-medium text-muted shadow-sm backdrop-blur">
-        Realtime network
+        Mạng lưới thời gian thực
       </div>
       <div className="absolute inset-x-8 top-28 h-[1px] bg-foreground/5" />
       <div className="absolute inset-y-28 left-8 right-8 w-[1px] bg-foreground/5" />
@@ -177,7 +177,7 @@ export default function HomePage() {
       <section className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div className="space-y-8">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="healthy">Climate-tech platform</Badge>
+            <Badge variant="healthy">Nền tảng quan trắc khí hậu</Badge>
             <Badge variant="default">Cồn Hô, Trà Vinh</Badge>
           </div>
 
@@ -270,12 +270,12 @@ export default function HomePage() {
                     <Icon className="h-5 w-5" aria-hidden />
                   </div>
                   <div>
-                    <p className="font-medium text-foreground">A public signal</p>
-                    <p className="text-sm text-muted">Clear enough for citizens, detailed enough for researchers.</p>
+                    <p className="font-medium text-foreground">Tín hiệu công khai</p>
+                    <p className="text-sm text-muted">Đủ rõ cho người dân, đủ chi tiết cho nhà nghiên cứu.</p>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {["Map first", "Readable trend", "Trustworthy context"].map((item) => (
+                  {["Bản đồ trực quan", "Xu hướng dễ đọc", "Ngữ cảnh đáng tin cậy"].map((item) => (
                     <div key={item} className="text-sm text-muted">
                       {item}
                     </div>
@@ -313,15 +313,15 @@ export default function HomePage() {
 
       <section className="mt-20 flex flex-col gap-6 border-t border-border/40 pt-8 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-accent">Call to action</p>
-          <h3 className="mt-2 text-2xl font-semibold tracking-tight">Explore the monitoring network.</h3>
+          <p className="text-xs uppercase tracking-[0.22em] text-accent">Bắt đầu</p>
+          <h3 className="mt-2 text-2xl font-semibold tracking-tight">Khám phá mạng lưới quan trắc.</h3>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button asChild>
-            <Link href="/dashboard">Enter dashboard</Link>
+            <Link href="/dashboard">Vào bảng quan trắc</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/about">Read the story</Link>
+            <Link href="/about">Đọc câu chuyện dự án</Link>
           </Button>
         </div>
       </section>

@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getPublicRepositories } from "@/lib/publicRead";
 import { getDashboardMetrics } from "@/lib/repositories";
-import { formatSalinity, formatWaterLevel } from "@/lib/utils";
+import { formatSalinity, formatWaterLevel, severityLabel } from "@/lib/utils";
 import type { DailyComparisonPoint, EnvironmentalEvent, StationReadingSnapshot, TrendPoint } from "@/types";
 import DashboardLoading from "./loading";
 
@@ -193,8 +193,8 @@ async function DashboardContent() {
 
         <section className="mb-10 space-y-6">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="healthy">Realtime network</Badge>
-            <Badge variant="default">Cồn Hô dashboard</Badge>
+            <Badge variant="healthy">Mạng lưới thời gian thực</Badge>
+            <Badge variant="default">Bảng quan trắc Cồn Hô</Badge>
           </div>
 
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -234,7 +234,7 @@ async function DashboardContent() {
             <div className="space-y-4">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Priority updates</p>
+                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Cập nhật ưu tiên</p>
                   <h3 className="mt-2 text-2xl font-semibold tracking-tight">Cảnh báo</h3>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted">
@@ -259,13 +259,7 @@ async function DashboardContent() {
                         <p className="mt-1 text-sm text-muted">{alert.message_id ?? alert.event_type}</p>
                       </div>
                       <div className="text-right text-sm">
-                        <p className="font-medium">
-                          {alert.severity === "critical"
-                            ? "Critical"
-                            : alert.severity === "warning"
-                              ? "Warning"
-                              : "Info"}
-                        </p>
+                        <p className="font-medium">{severityLabel(alert.severity)}</p>
                         <p className="text-muted">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(alert.timestamp))}</p>
                       </div>
                     </div>
@@ -279,12 +273,12 @@ async function DashboardContent() {
             <div className="space-y-4">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Live stations</p>
+                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Trạm trực tiếp</p>
                   <h3 className="mt-2 text-2xl font-semibold tracking-tight">Danh sách trạm theo mức ưu tiên</h3>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted">
                   <Radar className="h-3.5 w-3.5 text-accent" aria-hidden />
-                  order by risk
+                  Xếp theo mức rủi ro
                 </div>
               </div>
 
@@ -305,7 +299,7 @@ async function DashboardContent() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs uppercase tracking-[0.14em] text-muted">
-                        {index === 0 ? "Top priority" : "Monitor"}
+                        {index === 0 ? "Ưu tiên hàng đầu" : "Theo dõi"}
                       </span>
                       <ArrowRight className="h-4 w-4 text-muted" aria-hidden />
                     </div>
@@ -317,15 +311,15 @@ async function DashboardContent() {
             {trendSummary ? (
               <div className="space-y-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Current trend</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">Range and delta</h3>
+                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Xu hướng hiện tại</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">Biên độ và chênh lệch</h3>
                 </div>
                 <div className="space-y-4 border-t border-border/40 pt-4">
                   {[
-                    { label: "Current", value: formatSalinity(trendSummary.current) },
-                    { label: "Average", value: formatSalinity(trendSummary.average) },
+                    { label: "Hiện tại", value: formatSalinity(trendSummary.current) },
+                    { label: "Trung bình", value: formatSalinity(trendSummary.average) },
                     {
-                      label: "Delta",
+                      label: "Chênh lệch",
                       value: `${trendSummary.delta >= 0 ? "+" : ""}${formatSalinity(Math.abs(trendSummary.delta))}`,
                     },
                   ].map((item) => (

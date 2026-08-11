@@ -6,16 +6,16 @@
   "scripts": {
     "check": "tsc --noEmit",
     "build:edge": "esbuild src/edgeEntry.ts --bundle --platform=neutral --format=esm --outfile=../../infra/supabase/functions/edge-ingest/bundle.mjs",
-    "test": "node --loader ts-node/esm --test tests/contract.test.ts",
-    "test:all": "node --loader ts-node/esm --test tests/contract.test.ts tests/integration.test.ts",
-    "test:integration": "node --loader ts-node/esm --test tests/integration.test.ts",
-    "mock:ingest": "node --loader ts-node/esm scripts/mock_ingest.ts",
-    "simulator": "node --loader ts-node/esm scripts/simulator.ts"
+    "test": "tsx --test tests/contract.test.ts",
+    "test:all": "tsx --test tests/contract.test.ts tests/integration.test.ts",
+    "test:integration": "tsx --test tests/integration.test.ts",
+    "mock:ingest": "tsx scripts/mock_ingest.ts",
+    "simulator": "tsx scripts/simulator.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
     "esbuild": "^0.25.5",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.19.4",
     "typescript": "^5.8.3"
   }
 }

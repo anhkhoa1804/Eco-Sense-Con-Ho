@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const steps = [
-  { icon: MapPinned, title: "Locate", desc: "GPS or station code anchors the report." },
-  { icon: Camera, title: "Describe", desc: "Tell us what changed and where." },
-  { icon: ShieldCheck, title: "Review", desc: "The report is checked before action." },
-  { icon: CheckCircle2, title: "Confirm", desc: "Keep the reference for follow-up." },
+  { icon: MapPinned, title: "Định vị", desc: "GPS hoặc mã trạm giúp xác định vị trí báo cáo." },
+  { icon: Camera, title: "Mô tả", desc: "Cho biết điều gì đã thay đổi và ở đâu." },
+  { icon: ShieldCheck, title: "Xem xét", desc: "Báo cáo được kiểm tra trước khi xử lý." },
+  { icon: CheckCircle2, title: "Xác nhận", desc: "Lưu lại mã tham chiếu để theo dõi sau." },
 ];
 
 function ReportFallback() {
@@ -22,12 +22,12 @@ export default function ReportPage() {
       <section className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
         <div className="space-y-8">
           <div className="flex flex-wrap gap-2">
-            <Badge variant="healthy">Mobile-first</Badge>
-            <Badge variant="default">Field report</Badge>
+            <Badge variant="healthy">Ưu tiên di động</Badge>
+            <Badge variant="default">Báo cáo hiện trường</Badge>
           </div>
 
           <div className="space-y-4">
-            <p className="text-xs uppercase tracking-[0.22em] text-accent">Citizen science</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-accent">Khoa học công dân</p>
             <h2 className="max-w-3xl text-5xl font-semibold tracking-tight md:text-7xl">
               Ghi nhận hiện trường như một ứng dụng di động cao cấp.
             </h2>
@@ -58,10 +58,10 @@ export default function ReportPage() {
 
         <div className="space-y-8">
           <div className="rounded-[40px] bg-[linear-gradient(180deg,#f6faf6_0%,#edf5ef_100%)] p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-border/70">
-            <p className="text-xs uppercase tracking-[0.22em] text-accent">Flow</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-accent">Quy trình</p>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-              The workflow is intentionally quiet: no heavy containers, no extra chrome, just the action path and the
-              form.
+              Quy trình được thiết kế tối giản: không khung thừa, không chi tiết rườm rà, chỉ tập trung vào luồng thao
+              tác và biểu mẫu.
             </p>
           </div>
 

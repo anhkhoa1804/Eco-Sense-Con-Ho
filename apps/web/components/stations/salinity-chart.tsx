@@ -116,7 +116,7 @@ export function SalinityChart({
                 }}
                 labelStyle={{ color: "var(--color-foreground)", fontWeight: 600 }}
                 formatter={(value: number, name: string) => [
-                  `${Number(value).toFixed(2)} ${name === "water_level" ? "cm" : "ppt"}`,
+                  `${Number(value).toFixed(2)} ${name === "water_level" ? "cm" : "‰"}`,
                   name === "water_level" ? "Mực nước" : "Độ mặn",
                 ]}
               />
@@ -127,7 +127,7 @@ export function SalinityChart({
                     stroke="var(--color-watch)"
                     strokeDasharray="5 5"
                     label={{
-                      value: "Watch",
+                      value: "Cần chú ý",
                       fill: "var(--color-watch)",
                       fontSize: 12,
                       position: "insideTopRight",
@@ -138,7 +138,7 @@ export function SalinityChart({
                     stroke="var(--color-threshold)"
                     strokeDasharray="5 5"
                     label={{
-                      value: "High risk",
+                      value: "Nguy cơ cao",
                       fill: "var(--color-threshold)",
                       fontSize: 12,
                       position: "insideTopRight",

@@ -205,7 +205,7 @@ function readingSummary(
 
   const criticalLevel = threshold?.criticalLevel ?? 1.8;
   const warningLevel = threshold?.warningLevel ?? 1.2;
-  const riskLabel = salinity >= criticalLevel ? "High Risk" : salinity >= warningLevel ? "Increasing" : "Safe";
+  const riskLabel = salinity >= criticalLevel ? "Nguy cơ cao" : salinity >= warningLevel ? "Đang tăng" : "An toàn";
   const recommendation =
     salinity >= criticalLevel
       ? "Độ mặn đang cao, bà con nên hạn chế lấy nước trực tiếp cho cây nhạy mặn."
@@ -331,12 +331,14 @@ export async function StationDetail({ stationId }: { stationId: string }) {
   const summary = readingSummary(profile, reading, threshold);
   const chartData = chartDataFrom(profile, effectiveTrend, signal);
   const status = stationStatusLabel(station?.status);
+  const statusVariant =
+    station?.status === "maintenance" ? "watch" : station?.status === "inactive" ? "offline" : "healthy";
 
   return (
     <div className="space-y-8">
       <section className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge variant="success">{status}</Badge>
+          <Badge variant={statusVariant}>{status}</Badge>
           <p className="text-sm text-muted">Cập nhật gần nhất: {formatTimestamp(latestTimestamp)}</p>
         </div>
         <div className="max-w-3xl">
