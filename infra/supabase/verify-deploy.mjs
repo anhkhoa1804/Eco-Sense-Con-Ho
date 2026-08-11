@@ -29,6 +29,12 @@ function jwtRole(jwt) {
   }
 }
 
+function apiKeyKind(value) {
+  if (value.startsWith("sb_publishable_")) return "publishable";
+  if (value.startsWith("sb_secret_")) return "secret";
+  return `legacy:${jwtRole(value)}`;
+}
+
 const env = { ...loadLocalEnv(), ...process.env };
 const databaseUrl = env.DATABASE_URL ?? env.DATABASE_POOLER_URL;
 
@@ -61,21 +67,21 @@ if (!env.SUPABASE_ACCESS_TOKEN) {
 }
 
 if (env.SUPABASE_ANON_KEY) {
-  const anonRole = jwtRole(env.SUPABASE_ANON_KEY);
-  if (anonRole === "anon") {
-    console.log("OK      SUPABASE_ANON_KEY role=anon");
+  const kind = apiKeyKind(env.SUPABASE_ANON_KEY);
+  if (kind === "publishable" || kind === "legacy:anon") {
+    console.log(`OK      SUPABASE_ANON_KEY kind=${kind}`);
   } else {
-    console.log(`FAIL    SUPABASE_ANON_KEY must be the anon JWT (got role=${anonRole})`);
+    console.log(`FAIL    SUPABASE_ANON_KEY must be publishable or legacy anon (got ${kind})`);
     ok = false;
   }
 }
 
 if (env.SUPABASE_SERVICE_ROLE_KEY) {
-  const serviceRole = jwtRole(env.SUPABASE_SERVICE_ROLE_KEY);
-  if (serviceRole === "service_role") {
-    console.log("OK      SUPABASE_SERVICE_ROLE_KEY role=service_role");
+  const kind = apiKeyKind(env.SUPABASE_SERVICE_ROLE_KEY);
+  if (kind === "secret" || kind === "legacy:service_role") {
+    console.log(`OK      SUPABASE_SERVICE_ROLE_KEY kind=${kind}`);
   } else {
-    console.log(`WARN    SUPABASE_SERVICE_ROLE_KEY expected service_role (got ${serviceRole})`);
+    console.log(`WARN    SUPABASE_SERVICE_ROLE_KEY expected secret or legacy service_role (got ${kind})`);
   }
 }
 
