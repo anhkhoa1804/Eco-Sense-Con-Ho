@@ -32,8 +32,31 @@ function buildCanonicalString(payload) {
     str(payload.contract_version)
   ].join("|");
 }
+function buildSoilCanonicalString(payload) {
+  const str = (v) => v !== void 0 && v !== null ? String(v) : "";
+  const num = (v) => typeof v === "number" ? fmtNumber(v) : "";
+  const soil = payload.soil;
+  return [
+    str(payload.device_id),
+    str(payload.message_id),
+    str(payload.timestamp),
+    "soil",
+    num(soil?.air_temp_c),
+    num(soil?.air_humidity_pct),
+    num(soil?.soil_temp_c),
+    num(soil?.soil_moisture_pct),
+    num(soil?.soil_ec_ms_cm),
+    num(soil?.soil_ph),
+    str(payload.fault_flags),
+    str(payload.firmware_version),
+    str(payload.contract_version)
+  ].join("|");
+}
+function selectCanonicalString(payload) {
+  return payload.reading_kind === "soil" ? buildSoilCanonicalString(payload) : buildCanonicalString(payload);
+}
 async function signPayload(payload, deviceSecret) {
-  const canonical = buildCanonicalString(payload);
+  const canonical = selectCanonicalString(payload);
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -45,21 +68,67 @@ async function signPayload(payload, deviceSecret) {
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(canonical));
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+function timingSafeEqualHex(a, b) {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
 
 // src/ingest.ts
 function inRange(value, min, max) {
   return value >= min && value <= max;
 }
+function readingKind(payload) {
+  return payload.reading_kind === "soil" ? "soil" : "water";
+}
 function hasRequiredFields(payload) {
+  const baseFieldsOk = Boolean(
+    payload.contract_version && payload.device_id && payload.message_id && Number.isFinite(payload.timestamp) && payload.firmware_version && Number.isFinite(payload.fault_flags)
+  );
+  if (!baseFieldsOk) {
+    return false;
+  }
+  if (readingKind(payload) === "soil") {
+    const soil = payload.soil;
+    if (!soil) {
+      return false;
+    }
+    return [soil.air_temp_c, soil.air_humidity_pct, soil.soil_temp_c, soil.soil_moisture_pct, soil.soil_ec_ms_cm, soil.soil_ph].some(
+      (v) => typeof v === "number" && Number.isFinite(v)
+    );
+  }
   return Boolean(
-    payload.contract_version && payload.device_id && payload.message_id && Number.isFinite(payload.timestamp) && payload.firmware_version && payload.sensor_status?.ec_probe && payload.sensor_status?.ultrasonic && Number.isFinite(payload.salinity) && Number.isFinite(payload.water_level) && Number.isFinite(payload.fault_flags) && Number.isFinite(payload.battery_voltage) && Number.isFinite(payload.signal_strength_dbm)
+    payload.sensor_status?.ec_probe && payload.sensor_status?.ultrasonic && Number.isFinite(payload.salinity) && Number.isFinite(payload.water_level)
   );
 }
 function isFaulty(payload) {
+  if (readingKind(payload) === "soil") {
+    return false;
+  }
   if (payload.fault_flags > 0) {
     return true;
   }
-  return payload.sensor_status.ec_probe === "fault" || payload.sensor_status.ultrasonic === "fault";
+  return payload.sensor_status?.ec_probe === "fault" || payload.sensor_status?.ultrasonic === "fault";
+}
+function soilValuesInRange(payload) {
+  const soil = payload.soil;
+  if (!soil) {
+    return false;
+  }
+  const checks = [
+    [soil.air_temp_c, -10, 60],
+    [soil.air_humidity_pct, 0, 100],
+    [soil.soil_temp_c, -10, 60],
+    [soil.soil_moisture_pct, 0, 100],
+    [soil.soil_ec_ms_cm, 0, 20],
+    [soil.soil_ph, 0, 14]
+  ];
+  return checks.every(([value, min, max]) => value === null || inRange(value, min, max));
 }
 function auditRow(payload, status, reason, timestamp) {
   return {
@@ -76,26 +145,28 @@ async function emitAlertEvents(db, payload, config, nowEpochSeconds) {
   const lowBatteryVoltage = config.lowBatteryVoltage ?? 3.6;
   const lowSignalStrengthDbm = config.lowSignalStrengthDbm ?? -95;
   const events = [];
-  if (payload.salinity >= salinityCriticalLevel) {
-    events.push({
-      station_id: payload.device_id,
-      event_type: "HIGH_SALINITY",
-      severity: "critical",
-      message_id: payload.message_id,
-      details: { salinity: payload.salinity, threshold: salinityCriticalLevel },
-      timestamp: nowEpochSeconds
-    });
-  } else if (payload.salinity >= salinityWarningLevel) {
-    events.push({
-      station_id: payload.device_id,
-      event_type: "HIGH_SALINITY",
-      severity: "warning",
-      message_id: payload.message_id,
-      details: { salinity: payload.salinity, threshold: salinityWarningLevel },
-      timestamp: nowEpochSeconds
-    });
+  if (readingKind(payload) === "water" && typeof payload.salinity === "number") {
+    if (payload.salinity >= salinityCriticalLevel) {
+      events.push({
+        station_id: payload.device_id,
+        event_type: "HIGH_SALINITY",
+        severity: "critical",
+        message_id: payload.message_id,
+        details: { salinity: payload.salinity, threshold: salinityCriticalLevel },
+        timestamp: nowEpochSeconds
+      });
+    } else if (payload.salinity >= salinityWarningLevel) {
+      events.push({
+        station_id: payload.device_id,
+        event_type: "HIGH_SALINITY",
+        severity: "warning",
+        message_id: payload.message_id,
+        details: { salinity: payload.salinity, threshold: salinityWarningLevel },
+        timestamp: nowEpochSeconds
+      });
+    }
   }
-  if (payload.battery_voltage < lowBatteryVoltage) {
+  if (typeof payload.battery_voltage === "number" && payload.battery_voltage < lowBatteryVoltage) {
     events.push({
       station_id: payload.device_id,
       event_type: "LOW_BATTERY",
@@ -105,7 +176,7 @@ async function emitAlertEvents(db, payload, config, nowEpochSeconds) {
       timestamp: nowEpochSeconds
     });
   }
-  if (payload.signal_strength_dbm < lowSignalStrengthDbm) {
+  if (typeof payload.signal_strength_dbm === "number" && payload.signal_strength_dbm < lowSignalStrengthDbm) {
     events.push({
       station_id: payload.device_id,
       event_type: "OFFLINE",
@@ -122,6 +193,7 @@ async function emitAlertEvents(db, payload, config, nowEpochSeconds) {
 async function ingestTelemetry(request, db, config, nowEpochSeconds = Math.floor(Date.now() / 1e3)) {
   try {
     const payload = request.payload;
+    const kind = readingKind(payload);
     if (!hasRequiredFields(payload)) {
       await db.insertAuditLog(auditRow(payload, "missing_field", "required field missing", nowEpochSeconds));
       return { ok: false, error_code: "MISSING_FIELD", message: "required field missing", retryable: false };
@@ -130,15 +202,24 @@ async function ingestTelemetry(request, db, config, nowEpochSeconds = Math.floor
       await db.insertAuditLog(auditRow(payload, "contract_mismatch", "unsupported contract version", nowEpochSeconds));
       return { ok: false, error_code: "MISSING_FIELD", message: "unsupported contract version", retryable: false };
     }
-    const knownSecret = await db.getDeviceSecret(payload.device_id);
+    const authenticatingDeviceId = request.headers["x-device-id"];
+    if (!authenticatingDeviceId) {
+      await db.insertAuditLog(auditRow(payload, "missing_field", "missing x-device-id header", nowEpochSeconds));
+      return { ok: false, error_code: "MISSING_FIELD", message: "missing x-device-id header", retryable: false };
+    }
+    const knownSecret = await db.getDeviceSecret(authenticatingDeviceId);
     if (!knownSecret) {
-      await db.insertAuditLog(auditRow(payload, "device_not_registered", "unknown device", nowEpochSeconds));
-      return { ok: false, error_code: "DEVICE_NOT_REGISTERED", message: "unknown device", retryable: false };
+      await db.insertAuditLog(auditRow(payload, "device_not_registered", "unknown or inactive authenticating device", nowEpochSeconds));
+      return { ok: false, error_code: "DEVICE_NOT_REGISTERED", message: "unknown or inactive authenticating device", retryable: false };
     }
     const expectedSig = await signPayload(payload, knownSecret);
-    if (expectedSig !== request.headers["x-signature"]) {
+    if (!timingSafeEqualHex(expectedSig, request.headers["x-signature"] ?? "")) {
       await db.insertAuditLog(auditRow(payload, "invalid_signature", "signature verification failed", nowEpochSeconds));
       return { ok: false, error_code: "INVALID_SIGNATURE", message: "signature verification failed", retryable: false };
+    }
+    if (authenticatingDeviceId !== payload.device_id && !await db.isDeviceRegistered(payload.device_id)) {
+      await db.insertAuditLog(auditRow(payload, "device_not_registered", "attributed station is not a known, active device", nowEpochSeconds));
+      return { ok: false, error_code: "DEVICE_NOT_REGISTERED", message: "attributed station is not a known, active device", retryable: false };
     }
     const headerTimestamp = Number.parseInt(request.headers["x-timestamp"], 10);
     const isHeaderValid = !Number.isNaN(headerTimestamp) && Math.abs(nowEpochSeconds - headerTimestamp) <= config.maxTimestampDriftSeconds;
@@ -153,7 +234,8 @@ async function ingestTelemetry(request, db, config, nowEpochSeconds = Math.floor
         retryable: false
       };
     }
-    if (!inRange(payload.salinity, 0, 50) || !inRange(payload.water_level, -100, 1e3) || !inRange(payload.battery_voltage, 2.5, 5.5) || !inRange(payload.signal_strength_dbm, -130, -30)) {
+    const valuesInRange = kind === "soil" ? soilValuesInRange(payload) : inRange(payload.salinity, 0, 50) && inRange(payload.water_level, -100, 1e3) && (typeof payload.battery_voltage !== "number" || inRange(payload.battery_voltage, 2.5, 5.5)) && (typeof payload.signal_strength_dbm !== "number" || inRange(payload.signal_strength_dbm, -130, -30));
+    if (!valuesInRange) {
       await db.insertAuditLog(auditRow(payload, "value_out_of_range", "value out of accepted range", nowEpochSeconds));
       return { ok: false, error_code: "VALUE_OUT_OF_RANGE", message: "value out of accepted range", retryable: false };
     }
@@ -169,7 +251,18 @@ async function ingestTelemetry(request, db, config, nowEpochSeconds = Math.floor
       });
       return { ok: false, error_code: "SENSOR_FAULT", message: "sensor fault reported by node", retryable: false };
     }
-    const status = await db.insertEnvironmental({
+    const status = kind === "soil" ? await db.insertSoilReading({
+      message_id: payload.message_id,
+      station_id: payload.device_id,
+      air_temp_c: payload.soil?.air_temp_c ?? null,
+      air_humidity_pct: payload.soil?.air_humidity_pct ?? null,
+      soil_temp_c: payload.soil?.soil_temp_c ?? null,
+      soil_moisture_pct: payload.soil?.soil_moisture_pct ?? null,
+      soil_ec_ms_cm: payload.soil?.soil_ec_ms_cm ?? null,
+      soil_ph: payload.soil?.soil_ph ?? null,
+      fault_flags: payload.fault_flags,
+      timestamp: payload.timestamp
+    }) : await db.insertEnvironmental({
       message_id: payload.message_id,
       station_id: payload.device_id,
       salinity: payload.salinity,
@@ -180,13 +273,15 @@ async function ingestTelemetry(request, db, config, nowEpochSeconds = Math.floor
       timestamp: payload.timestamp
     });
     if (status === "inserted") {
-      await db.insertHealth({
-        station_id: payload.device_id,
-        battery_voltage: payload.battery_voltage,
-        signal_strength_dbm: payload.signal_strength_dbm,
-        firmware_version: payload.firmware_version,
-        timestamp: payload.timestamp
-      });
+      if (typeof payload.battery_voltage === "number" || typeof payload.signal_strength_dbm === "number") {
+        await db.insertHealth({
+          station_id: payload.device_id,
+          battery_voltage: payload.battery_voltage ?? null,
+          signal_strength_dbm: payload.signal_strength_dbm ?? null,
+          firmware_version: payload.firmware_version,
+          timestamp: payload.timestamp
+        });
+      }
       await db.touchDeviceSeen(payload.device_id, payload.firmware_version, nowEpochSeconds);
       await emitAlertEvents(db, payload, config, nowEpochSeconds);
       await db.insertAuditLog(auditRow(payload, "accepted", "payload inserted", nowEpochSeconds));
@@ -297,6 +392,22 @@ var SupabaseDb = class _SupabaseDb {
     }
     return rows[0].device_secret ?? null;
   }
+  async isDeviceRegistered(deviceId) {
+    const result = await this.request(
+      "devices",
+      "GET",
+      void 0,
+      `?device_id=eq.${encodeURIComponent(deviceId)}&select=status&limit=1`
+    );
+    if (!result.ok) {
+      return false;
+    }
+    const rows = JSON.parse(result.text);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return false;
+    }
+    return !rows[0].status || rows[0].status === "active";
+  }
   async insertEnvironmental(row) {
     const result = await this.request("environmental_readings", "POST", {
       message_id: row.message_id,
@@ -306,6 +417,27 @@ var SupabaseDb = class _SupabaseDb {
       fault_flags: row.fault_flags,
       ec_probe_status: row.ec_probe_status,
       ultrasonic_status: row.ultrasonic_status,
+      timestamp: new Date(row.timestamp * 1e3).toISOString()
+    });
+    if (result.ok) {
+      return "inserted";
+    }
+    if (result.status === 409 || result.text.includes("duplicate") || result.text.includes("23505")) {
+      return "duplicate_ignored";
+    }
+    throw new Error(result.text || `insert failed with status ${result.status}`);
+  }
+  async insertSoilReading(row) {
+    const result = await this.request("soil_readings", "POST", {
+      message_id: row.message_id,
+      station_id: row.station_id,
+      air_temp_c: row.air_temp_c,
+      air_humidity_pct: row.air_humidity_pct,
+      soil_temp_c: row.soil_temp_c,
+      soil_moisture_pct: row.soil_moisture_pct,
+      soil_ec_ms_cm: row.soil_ec_ms_cm,
+      soil_ph: row.soil_ph,
+      fault_flags: row.fault_flags,
       timestamp: new Date(row.timestamp * 1e3).toISOString()
     });
     if (result.ok) {

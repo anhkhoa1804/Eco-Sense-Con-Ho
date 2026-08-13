@@ -10,8 +10,3 @@ export function resolveIngestConfig(env: Record<string, string | undefined> = pr
     lowSignalStrengthDbm: Number(env.LOW_SIGNAL_STRENGTH_DBM ?? "-95"),
   };
 }
-
-export function parseDeviceSecretsJson(env: Record<string, string | undefined> = process.env): Record<string, string> {
-  const raw = env.DEVICE_SECRETS_JSON ?? '{"STATION_01":"station-secret-01","STATION_02":"station-secret-02"}';
-  return JSON.parse(raw) as Record<string, string>;
-}

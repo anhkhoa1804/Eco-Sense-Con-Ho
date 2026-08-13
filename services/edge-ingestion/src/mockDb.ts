@@ -1,12 +1,17 @@
 import type { DbPort } from "./dbPort.js";
-import type { EnvironmentalEventRow, EnvironmentalReadingRow, IngestionAuditLogRow, OtaInfo, StationHealthRow } from "./types.js";
+import type { EnvironmentalEventRow, EnvironmentalReadingRow, IngestionAuditLogRow, OtaInfo, SoilReadingRow, StationHealthRow } from "./types.js";
 
 export class MockDb implements DbPort {
   private readonly messageIds = new Set<string>();
+  // Separate from messageIds: soil_readings.message_id (migration 019) is a
+  // unique constraint scoped to its own table, independent of
+  // environmental_readings.message_id — mirroring the real schema.
+  private readonly soilMessageIds = new Set<string>();
   private readonly healthKeys = new Set<string>();
   private readonly eventKeys = new Set<string>();
   private readonly auditKeys = new Set<string>();
   private readonly environmentalReadings: EnvironmentalReadingRow[] = [];
+  private readonly soilReadings: SoilReadingRow[] = [];
   private readonly environmentalEvents: EnvironmentalEventRow[] = [];
   private readonly auditLogs: IngestionAuditLogRow[] = [];
   private readonly healthLogs: StationHealthRow[] = [];
@@ -14,10 +19,16 @@ export class MockDb implements DbPort {
   public constructor(
     private readonly deviceSecrets: Record<string, string> = {},
     private readonly otaCatalog: Record<string, OtaInfo> = {},
+    /** Stations registered but with no signing secret of their own — attributed via a relaying gateway's authentication instead. */
+    private readonly registeredOnlyDevices: string[] = [],
   ) {}
 
   public async getDeviceSecret(deviceId: string): Promise<string | null> {
     return this.deviceSecrets[deviceId] ?? null;
+  }
+
+  public async isDeviceRegistered(deviceId: string): Promise<boolean> {
+    return deviceId in this.deviceSecrets || this.registeredOnlyDevices.includes(deviceId);
   }
 
   public async insertEnvironmental(row: EnvironmentalReadingRow): Promise<"inserted" | "duplicate_ignored"> {
@@ -27,6 +38,16 @@ export class MockDb implements DbPort {
 
     this.messageIds.add(row.message_id);
     this.environmentalReadings.push(row);
+    return "inserted";
+  }
+
+  public async insertSoilReading(row: SoilReadingRow): Promise<"inserted" | "duplicate_ignored"> {
+    if (this.soilMessageIds.has(row.message_id)) {
+      return "duplicate_ignored";
+    }
+
+    this.soilMessageIds.add(row.message_id);
+    this.soilReadings.push(row);
     return "inserted";
   }
 
@@ -70,12 +91,14 @@ export class MockDb implements DbPort {
 
   public getSnapshot(): {
     environmentalReadings: EnvironmentalReadingRow[];
+    soilReadings: SoilReadingRow[];
     environmentalEvents: EnvironmentalEventRow[];
     auditLogs: IngestionAuditLogRow[];
     healthLogs: StationHealthRow[];
   } {
     return {
       environmentalReadings: [...this.environmentalReadings],
+      soilReadings: [...this.soilReadings],
       environmentalEvents: [...this.environmentalEvents],
       auditLogs: [...this.auditLogs],
       healthLogs: [...this.healthLogs],

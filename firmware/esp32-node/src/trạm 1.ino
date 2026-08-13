@@ -3,6 +3,7 @@
 #include <SD.h>
 #include <esp_sleep.h>
 #include <esp_task_wdt.h>
+#include <esp_system.h>
 
 /*
   HORIZON - Station 1, upstream water node
@@ -93,7 +94,15 @@ struct StationReading {
   const char *ecStatus;
 };
 
+// Survives deep sleep (which preserves RTC memory) but resets to 0 on a
+// true power loss / battery swap. On its own this would produce a repeat
+// message_id ("STATION_01-1", ...) after a power cycle, which the
+// backend's unique constraint would then silently treat as a duplicate of
+// the ORIGINAL reading rather than storing the new one. bootNonce (below,
+// re-randomized every boot including deep-sleep wake) makes message_id
+// unique regardless of whether sequenceNumber has reset.
 RTC_DATA_ATTR static uint32_t sequenceNumber = 0;
+static uint32_t bootNonce = 0;
 static bool sdReady = false;
 static uint32_t lastSampleMs = 0;
 static uint32_t configuredSampleIntervalMs = DEFAULT_SAMPLE_INTERVAL_MS;
@@ -333,6 +342,8 @@ String buildPayload(const StationReading &reading) {
   payload += "\",\"message_id\":\"";
   payload += STATION_ID;
   payload += "-";
+  payload += String(bootNonce, HEX);
+  payload += "-";
   payload += String(reading.sequence);
   payload += "\",\"uptime_ms\":";
   payload += String(millis());
@@ -380,6 +391,7 @@ void setup() {
   delay(300);
 
   setupWatchdog();
+  bootNonce = esp_random();
 
   pinMode(EC_RS485_DE_RE_PIN, OUTPUT);
   pinMode(PIR_SENSOR_PIN, INPUT);

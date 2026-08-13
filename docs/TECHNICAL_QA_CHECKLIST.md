@@ -113,7 +113,7 @@ Required pages:
 - UI uses token values from `docs/DESIGN_TOKENS.md`.
 - Reusable UI follows `docs/COMPONENT_SPECIFICATION.md`.
 - Page structure follows `docs/PAGE_BLUEPRINTS.md`.
-- Motion and loading follow `docs/INTERACTION_GUIDELINES.md`.
+- Motion and loading follow `docs/INTERACTION_GUIDELINE.md`.
 - Public and admin copy follows `docs/COPYWRITING_GUIDE.md`.
 - Missing-data states follow `docs/EMPTY_STATES.md`.
 - API contract matches edge ingestion behavior.

@@ -1,26 +1,13 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { ArrowRight, BarChart3, HeartHandshake, Radar, Waves } from "lucide-react";
+import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-
-const stations = [
-  {
-    name: "Đầu Cồn",
-    desc: "Khu đầu cù lao, nơi mặt nước tác động trực tiếp đến sinh hoạt và sản xuất.",
-    href: "/s/STATION_01",
-  },
-  {
-    name: "Homestay Cô Ba",
-    desc: "Khu đón khách, giúp du khách hiểu cách theo dõi môi trường nước tại Cồn Hô.",
-    href: "/s/STATION_02",
-  },
-  {
-    name: "Cuối Cồn",
-    desc: "Khu cuối cù lao, nơi mực nước và xói lở có tác động rõ hơn đến bờ sông.",
-    href: "/s/STATION_03",
-  },
-];
+import { Skeleton } from "@/components/ui/skeleton";
+import { freshnessStatus } from "@/components/ui/status-indicator";
+import { getPublicRepositories } from "@/lib/publicRead";
 
 const milestones = [
   { label: "Thách thức khí hậu", desc: "Độ mặn, xói lở, ngập nước và biến động thủy văn." },
@@ -29,6 +16,29 @@ const milestones = [
   { label: "Giá trị nghiên cứu", desc: "Dữ liệu có thể đọc, so sánh và theo dõi dài hạn." },
   { label: "Lộ trình tương lai", desc: "Mở rộng lớp bản đồ, cảnh báo và trải nghiệm di động." },
 ];
+
+async function AboutNetworkMap() {
+  const context = getPublicRepositories();
+  if (!context) return <StationNetworkMap stations={[]} />;
+
+  try {
+    const snapshots = await context.repos.readings.getSnapshots(context.scope);
+    const mapStations: MapStation[] = snapshots.map((snapshot) => ({
+      id: snapshot.station.id,
+      name: snapshot.station.name,
+      lat: snapshot.station.lat,
+      lng: snapshot.station.lng,
+      freshness: freshnessStatus(snapshot.reading?.timestamp ?? snapshot.health?.timestamp ?? null),
+    }));
+    return <StationNetworkMap stations={mapStations} />;
+  } catch {
+    return <StationNetworkMap stations={[]} />;
+  }
+}
+
+function AboutNetworkMapFallback() {
+  return <Skeleton className="h-[420px] w-full rounded-lg" />;
+}
 
 export default function AboutPage() {
   return (
@@ -42,7 +52,7 @@ export default function AboutPage() {
 
           <div className="space-y-4">
             <p className="text-xs uppercase tracking-[0.22em] text-accent">Câu chuyện dự án</p>
-            <h2 className="max-w-3xl text-5xl font-semibold tracking-tight md:text-7xl">
+            <h2 className="max-w-3xl text-3xl font-semibold tracking-tight md:text-4xl">
               Cồn Hô được kể bằng dữ liệu, không phải bằng tài liệu kỹ thuật.
             </h2>
             <p className="max-w-2xl text-lg leading-relaxed text-muted">
@@ -64,33 +74,9 @@ export default function AboutPage() {
           </div>
         </div>
 
-        <div className="relative min-h-[560px] overflow-hidden rounded-[42px] bg-[linear-gradient(180deg,#f6faf6_0%,#edf5ef_100%)] shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-border/70">
-          <div className="absolute inset-x-10 top-20 h-px bg-border/70" />
-          <div className="absolute inset-y-10 left-1/2 w-px bg-border/70" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(31,138,76,0.16),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(15,118,110,0.08),transparent_28%)]" />
-          <div className="absolute left-8 top-8 rounded-full bg-background/80 px-4 py-1.5 text-xs font-medium text-muted shadow-sm backdrop-blur">
-            Mạng lưới quan trắc
-          </div>
-          {stations.map((station, index) => (
-            <Link
-              key={station.name}
-              href={station.href}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${20 + index * 24}%`, top: `${30 + index * 20}%` }}
-            >
-              <div className="rounded-full bg-background/80 px-4 py-2 text-sm font-medium text-foreground shadow-sm backdrop-blur">
-                {station.name}
-              </div>
-            </Link>
-          ))}
-          <div className="absolute inset-x-8 bottom-8 grid gap-3 sm:grid-cols-3">
-            {["Độ mặn", "Mực nước", "Trạng thái trạm"].map((item) => (
-              <div key={item} className="text-sm text-muted">
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
+        <Suspense fallback={<AboutNetworkMapFallback />}>
+          <AboutNetworkMap />
+        </Suspense>
       </section>
 
       <section className="mt-20 grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">

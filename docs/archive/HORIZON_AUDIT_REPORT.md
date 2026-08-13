@@ -1,5 +1,7 @@
 # HORIZON — Repository Audit
 
+**HISTORICAL SNAPSHOT — superseded by [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) for current architecture/auth/data-model reality.** Written before three later passes (Phase A correctness fixes, the auth/ingestion architecture realignment, and the production-readiness hardening pass that added `soil_readings`). Several findings below are now resolved — most notably §7's unauthenticated gateway route (removed), §18's report-form accessibility gap (fixed), and the RLS-bypass-via-service-role finding for public reads (fixed — public reads now use anon-key + RLS). Other findings — the stub salinity sensor, the firmware/backend payload mismatch that existed at the time, dead components, branding cleanup — were accurate as of this writing and many still are; treat this as a dated data point, not current truth, and cross-check against `ARCHITECTURE_DECISIONS.md` or the source before relying on any specific claim.
+
 *Prepared as a lead-engineer / architect / product / UI-UX review. No implementation, redesign, rename, commit, or push was performed beyond the git conflict reconciliation described in §3, which was explicitly authorized. Everything else below is findings and a proposed plan awaiting approval.*
 
 ---

@@ -22,16 +22,7 @@ export function MetricCard({
   trend,
   className,
 }: MetricCardProps) {
-  const statusVariant =
-    status === "healthy"
-      ? "success"
-      : status === "watch"
-        ? "warning"
-        : status === "risk"
-          ? "critical"
-          : status === "offline"
-            ? "secondary"
-            : "fault";
+  const statusVariant = status;
 
   return (
     <div

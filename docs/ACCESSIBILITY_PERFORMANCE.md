@@ -128,7 +128,7 @@ Accessibility and performance rules are implemented through the rest of the hand
 
 - Use token values from [`DESIGN_TOKENS.md`](DESIGN_TOKENS.md).
 - Use component behavior from [`COMPONENT_SPECIFICATION.md`](COMPONENT_SPECIFICATION.md).
-- Use motion and loading rules from [`INTERACTION_GUIDELINES.md`](INTERACTION_GUIDELINES.md).
+- Use motion and loading rules from [`INTERACTION_GUIDELINE.md`](INTERACTION_GUIDELINE.md).
 - Use wording from [`COPYWRITING_GUIDE.md`](COPYWRITING_GUIDE.md).
 - Use missing-data patterns from [`EMPTY_STATES.md`](EMPTY_STATES.md).
 

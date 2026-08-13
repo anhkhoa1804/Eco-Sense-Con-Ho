@@ -4,6 +4,7 @@
 #include <SD.h>
 #include <esp_sleep.h>
 #include <esp_task_wdt.h>
+#include <esp_system.h>
 
 /*
   HORIZON - Station 2, grapefruit soil node
@@ -117,7 +118,9 @@ struct StationReading {
   const char *grapefruitAdvice;
 };
 
+// See trạm 1.ino for why bootNonce exists alongside sequenceNumber.
 RTC_DATA_ATTR static uint32_t sequenceNumber = 0;
+static uint32_t bootNonce = 0;
 static bool sdReady = false;
 static uint32_t lastSampleMs = 0;
 static uint32_t configuredSampleIntervalMs = DEFAULT_SAMPLE_INTERVAL_MS;
@@ -484,6 +487,8 @@ String buildPayload(const StationReading &reading) {
   payload += "\",\"message_id\":\"";
   payload += STATION_ID;
   payload += "-";
+  payload += String(bootNonce, HEX);
+  payload += "-";
   payload += String(reading.sequence);
   payload += "\",\"uptime_ms\":";
   payload += String(millis());
@@ -534,6 +539,7 @@ void setup() {
   delay(300);
 
   setupWatchdog();
+  bootNonce = esp_random();
 
   pinMode(RS485_DE_RE_PIN, OUTPUT);
   pinMode(CABINET_PROX_PIN, INPUT_PULLUP);

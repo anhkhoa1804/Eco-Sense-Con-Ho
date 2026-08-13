@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Activity, ArrowRight, Battery, Droplets, Radio, Send, Sprout, Waves } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import {
   StationLiveChart,
   type StationLiveChartPoint,
@@ -8,12 +8,16 @@ import {
 } from "@/components/stations/station-live-chart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Metric } from "@/components/ui/metric";
+import { SectionHeader } from "@/components/ui/section-header";
+import { freshnessStatus, QualityIndicator, StatusIndicator, type QualityState } from "@/components/ui/status-indicator";
 import { getPublicRepositories } from "@/lib/publicRead";
-import { formatSalinity, formatTimestamp, formatWaterLevel } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 import type { EnvironmentalReading, SensorStatus, Station, StationHealthLog, TrendPoint } from "@/types";
 
 type StationKind = "water" | "soil" | "gateway";
+
+const NO_DATA_LABEL = "Chưa có dữ liệu";
 
 interface StationProfile {
   id: string;
@@ -24,14 +28,6 @@ interface StationProfile {
   chartTitle: string;
   chartNote: string;
   chartSeries: StationLiveChartSeries[];
-  demo: {
-    salinity: number;
-    waterLevel: number;
-    soilEc: number;
-    battery: number;
-    signal: number;
-    deliveryRate: number;
-  };
 }
 
 const stationProfiles: Record<string, StationProfile> = {
@@ -47,7 +43,6 @@ const stationProfiles: Record<string, StationProfile> = {
       { key: "waterLevel", name: "Mực nước", color: "#0f766e", unit: "cm" },
       { key: "salinity", name: "Độ mặn", color: "#b45309", unit: "‰" },
     ],
-    demo: { salinity: 1.42, waterLevel: 52, soilEc: 1.02, battery: 3.91, signal: -72, deliveryRate: 96 },
   },
   STATION_02: {
     id: "STATION_02",
@@ -61,7 +56,6 @@ const stationProfiles: Record<string, StationProfile> = {
       { key: "soilEc", name: "EC đất", color: "#166534", unit: "mS/cm" },
       { key: "waterLevel", name: "Độ ẩm đất", color: "#0f766e", unit: "%" },
     ],
-    demo: { salinity: 1.18, waterLevel: 61, soilEc: 1.08, battery: 3.87, signal: -76, deliveryRate: 94 },
   },
   STATION_03: {
     id: "STATION_03",
@@ -75,7 +69,6 @@ const stationProfiles: Record<string, StationProfile> = {
       { key: "deliveryRate", name: "Tỷ lệ gửi", color: "#166534", unit: "%" },
       { key: "waterLevel", name: "Tín hiệu", color: "#0f766e", unit: "%" },
     ],
-    demo: { salinity: 1.25, waterLevel: 88, soilEc: 1.0, battery: 3.95, signal: -68, deliveryRate: 98 },
   },
 };
 
@@ -89,28 +82,24 @@ function stationStatusLabel(status?: string): string {
     case "inactive":
       return "Ngoại tuyến";
     default:
-      return "Đang hoạt động";
+      return "Không rõ trạng thái";
   }
 }
 
-function signalPercent(signalDbm: number): number {
-  return Math.max(0, Math.min(100, Math.round(((signalDbm + 110) / 55) * 100)));
+function formatSalinityValue(value: number | null): string {
+  return value === null ? NO_DATA_LABEL : `${value.toFixed(2)}‰`;
 }
 
-function formatSalinityValue(value: number): string {
-  return `${value.toFixed(2)}‰`;
+function formatWaterValue(value: number | null): string {
+  return value === null ? NO_DATA_LABEL : `${Math.round(value)} cm`;
 }
 
-function formatWaterValue(value: number): string {
-  return `${Math.round(value)} cm`;
+function formatVoltage(value: number | null): string {
+  return value === null ? NO_DATA_LABEL : `${value.toFixed(2)} V`;
 }
 
-function formatSoilEc(value: number): string {
-  return `${value.toFixed(2)} mS/cm`;
-}
-
-function formatPercent(value: number): string {
-  return `${Math.round(value)}%`;
+function formatSignal(value: number | null): string {
+  return value === null ? NO_DATA_LABEL : `${value} dBm`;
 }
 
 function profileFor(stationId: string, station?: Station | null): StationProfile | null {
@@ -129,48 +118,25 @@ function profileFor(stationId: string, station?: Station | null): StationProfile
       { key: "waterLevel", name: "Mực nước", color: "#0f766e", unit: "cm" },
       { key: "salinity", name: "Độ mặn", color: "#b45309", unit: "‰" },
     ],
-    demo: { salinity: 1.2, waterLevel: 50, soilEc: 1, battery: 3.8, signal: -78, deliveryRate: 92 },
   };
 }
 
-function demoTrend(profile: StationProfile): TrendPoint[] {
-  return Array.from({ length: 12 }, (_, index) => {
-    const timestamp = new Date(Date.now() - (11 - index) * 2 * 60 * 60 * 1000).toISOString();
-    const wave = Math.sin(index / 2) * 3;
+/**
+ * Only "water" stations have real per-point trend data today
+ * (environmental_readings carries salinity/water_level only). Soil and
+ * gateway kinds have no backing columns yet — render the empty state
+ * rather than inventing values for series the schema can't support.
+ */
+function chartDataFrom(profile: StationProfile, trend: TrendPoint[]): StationLiveChartPoint[] {
+  if (profile.kind !== "water") {
+    return [];
+  }
 
-    return {
-      timestamp,
-      salinity: Number((profile.demo.salinity + index * 0.03 + Math.max(0, wave) * 0.03).toFixed(2)),
-      water_level: Number((profile.demo.waterLevel + wave + index * 0.6).toFixed(1)),
-    };
-  });
-}
-
-function soilEcFrom(reading: Pick<EnvironmentalReading, "salinity" | "water_level">, profile: StationProfile): number {
-  if (profile.kind !== "soil") return profile.demo.soilEc;
-  return Math.max(0.2, Number((reading.salinity * 0.72 + reading.water_level / 140).toFixed(2)));
-}
-
-function chartDataFrom(profile: StationProfile, trend: TrendPoint[], signal: number): StationLiveChartPoint[] {
-  return trend.map((point, index) => {
-    const label = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(
-      new Date(point.timestamp),
-    );
-    const signalScore = signalPercent(signal) + (index % 3) - 1;
-
-    return {
-      label,
-      salinity: Number(point.salinity.toFixed(2)),
-      waterLevel:
-        profile.kind === "soil"
-          ? Math.max(25, Math.min(92, Number((point.water_level + 8).toFixed(1))))
-          : profile.kind === "gateway"
-            ? Math.max(0, Math.min(100, signalScore))
-            : Number(point.water_level.toFixed(1)),
-      soilEc: Number((point.salinity * 0.72 + point.water_level / 140).toFixed(2)),
-      deliveryRate: Math.max(70, Math.min(100, profile.demo.deliveryRate - (index % 4) + 1)),
-    };
-  });
+  return trend.map((point) => ({
+    label: new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(point.timestamp)),
+    salinity: Number(point.salinity.toFixed(2)),
+    waterLevel: Number(point.water_level.toFixed(1)),
+  }));
 }
 
 function readingSummary(
@@ -178,19 +144,20 @@ function readingSummary(
   reading: EnvironmentalReading | null | undefined,
   threshold?: { warningLevel: number; criticalLevel: number } | null,
 ) {
-  const salinity = reading?.salinity ?? profile.demo.salinity;
-  const waterLevel = reading?.water_level ?? profile.demo.waterLevel;
-  const soilEc = reading ? soilEcFrom(reading, profile) : profile.demo.soilEc;
+  const salinity = reading?.salinity ?? null;
+  const waterLevel = reading?.water_level ?? null;
+  // Soil EC / moisture have no real column anywhere in the current schema —
+  // never derive them from unrelated water fields.
+  const soilEc: number | null = null;
 
   if (profile.kind === "soil") {
-    const recommendation =
-      soilEc >= 1.4
-        ? "EC đất đang cao, nên ưu tiên tưới rửa nhẹ và hạn chế bón thêm phân trong thời điểm này."
-        : soilEc >= 0.9
-          ? "Đất đang ở mức phù hợp, có thể tiếp tục chăm sóc và theo dõi thêm sau mỗi đợt nước."
-          : "EC đất còn thấp, có thể cân nhắc bổ sung dinh dưỡng theo lịch canh tác.";
-
-    return { salinity, waterLevel, soilEc, recommendation, riskLabel: null as string | null };
+    return {
+      salinity,
+      waterLevel,
+      soilEc,
+      recommendation: "Chưa có dữ liệu đất thực tế từ trạm này để đưa ra khuyến nghị.",
+      riskLabel: null as string | null,
+    };
   }
 
   if (profile.kind === "gateway") {
@@ -205,13 +172,16 @@ function readingSummary(
 
   const criticalLevel = threshold?.criticalLevel ?? 1.8;
   const warningLevel = threshold?.warningLevel ?? 1.2;
-  const riskLabel = salinity >= criticalLevel ? "Nguy cơ cao" : salinity >= warningLevel ? "Đang tăng" : "An toàn";
+  const riskLabel =
+    salinity === null ? null : salinity >= criticalLevel ? "Nguy cơ cao" : salinity >= warningLevel ? "Đang tăng" : "An toàn";
   const recommendation =
-    salinity >= criticalLevel
-      ? "Độ mặn đang cao, bà con nên hạn chế lấy nước trực tiếp cho cây nhạy mặn."
-      : salinity >= warningLevel
-        ? "Độ mặn có dấu hiệu tăng, nên theo dõi thêm trước khi tưới hoặc lấy nước."
-        : "Dữ liệu nước đang ở mức tương đối ổn định, tiếp tục quan sát theo từng con nước.";
+    salinity === null
+      ? "Chưa có dữ liệu độ mặn mới nhất từ trạm này."
+      : salinity >= criticalLevel
+        ? "Độ mặn đang cao, bà con nên hạn chế lấy nước trực tiếp cho cây nhạy mặn."
+        : salinity >= warningLevel
+          ? "Độ mặn có dấu hiệu tăng, nên theo dõi thêm trước khi tưới hoặc lấy nước."
+          : "Dữ liệu nước đang ở mức tương đối ổn định, tiếp tục quan sát theo từng con nước.";
 
   return { salinity, waterLevel, soilEc, recommendation, riskLabel };
 }
@@ -229,31 +199,18 @@ function sensorStatusLabel(status?: SensorStatus | null): string {
   }
 }
 
-function MetricTile({
-  title,
-  value,
-  note,
-  icon: Icon,
-}: {
-  title: string;
-  value: string;
-  note: string;
-  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
-        <CardTitle className="text-base">{title}</CardTitle>
-        <Icon className="h-5 w-5 text-accent" aria-hidden />
-      </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-semibold tracking-tight">{value}</p>
-        <p className="mt-2 text-sm leading-relaxed text-muted">{note}</p>
-      </CardContent>
-    </Card>
-  );
+function qualityFor(profile: StationProfile, reading: EnvironmentalReading | null): QualityState {
+  if (profile.kind !== "water" || !reading) return "valid";
+  const hasFault = reading.fault_flags > 0 || reading.ec_probe_status === "fault" || reading.ultrasonic_status === "fault";
+  return hasFault ? "error" : "valid";
 }
 
+/**
+ * Bare metric grid with top/bottom rules instead of one card per value —
+ * matches the dashboard's global-status pattern (Phase D: station detail
+ * was the audit's worst "boxes inside boxes" offender, four independently
+ * bordered+shadowed cards for what's really one reading).
+ */
 function StationMetrics({
   profile,
   reading,
@@ -266,38 +223,37 @@ function StationMetrics({
   threshold?: { warningLevel: number; criticalLevel: number } | null;
 }) {
   const summary = readingSummary(profile, reading, threshold);
-  const signal = health?.signal_strength_dbm ?? profile.demo.signal;
-  const battery = health?.battery_voltage ?? profile.demo.battery;
+  const signal = health?.signal_strength_dbm ?? null;
+  const battery = health?.battery_voltage ?? null;
 
-  if (profile.kind === "soil") {
-    return (
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricTile title="EC đất" value={formatSoilEc(summary.soilEc)} note="Chỉ số dẫn điện của đất tại vùng canh tác." icon={Sprout} />
-        <MetricTile title="Độ ẩm đất" value={formatPercent(summary.waterLevel)} note="Ước tính từ cảm biến đất của trạm 2." icon={Droplets} />
-        <MetricTile title="Tình trạng đất" value={summary.soilEc >= 1.4 ? "Cần chú ý" : "Phù hợp"} note="Dùng để hỗ trợ quyết định tưới và chăm sóc." icon={Activity} />
-        <MetricTile title="Pin trạm" value={`${battery.toFixed(2)} V`} note="Nguồn hiện tại của trạm đo đất." icon={Battery} />
-      </section>
-    );
-  }
-
-  if (profile.kind === "gateway") {
-    return (
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricTile title="Tỷ lệ gửi" value={formatPercent(profile.demo.deliveryRate)} note="Tỷ lệ gói dữ liệu được gateway chuyển về hệ thống." icon={Send} />
-        <MetricTile title="Tín hiệu" value={`${signal} dBm`} note="Cường độ kết nối SIM tại gateway." icon={Radio} />
-        <MetricTile title="Pin gateway" value={`${battery.toFixed(2)} V`} note="Nguồn hoạt động của bộ gửi dữ liệu." icon={Battery} />
-        <MetricTile title="Kênh gửi" value="SIM / Zalo" note="Kênh thông tin dự kiến để trả dữ liệu về cho bà con." icon={Activity} />
-      </section>
-    );
-  }
+  const items =
+    profile.kind === "soil"
+      ? [
+          { label: "EC đất", value: NO_DATA_LABEL },
+          { label: "Độ ẩm đất", value: NO_DATA_LABEL },
+          { label: "Tình trạng đất", value: NO_DATA_LABEL },
+          { label: "Pin trạm", value: formatVoltage(battery) },
+        ]
+      : profile.kind === "gateway"
+        ? [
+            { label: "Tỷ lệ gửi", value: NO_DATA_LABEL },
+            { label: "Tín hiệu", value: formatSignal(signal) },
+            { label: "Pin gateway", value: formatVoltage(battery) },
+            { label: "Kênh gửi", value: "SIM / Zalo" },
+          ]
+        : [
+            { label: "Mực nước", value: formatWaterValue(summary.waterLevel) },
+            { label: "Độ mặn", value: formatSalinityValue(summary.salinity) },
+            { label: "Trạng thái nước", value: summary.riskLabel ?? NO_DATA_LABEL },
+            { label: "Pin trạm", value: formatVoltage(battery) },
+          ];
 
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <MetricTile title="Mực nước" value={formatWaterValue(summary.waterLevel)} note="Theo dõi triều cường và dao động nước ven sông." icon={Waves} />
-      <MetricTile title="Độ mặn" value={formatSalinityValue(summary.salinity)} note="Dấu hiệu xâm nhập mặn ảnh hưởng sinh hoạt và canh tác." icon={Droplets} />
-      <MetricTile title="Trạng thái nước" value={summary.riskLabel ?? "Theo dõi"} note="Đánh giá nhanh từ dữ liệu mới nhất, dựa trên ngưỡng cảnh báo hiện hành." icon={Activity} />
-      <MetricTile title="Pin trạm" value={`${battery.toFixed(2)} V`} note="Nguồn hiện tại của trạm ven sông." icon={Battery} />
-    </section>
+    <dl className="grid gap-6 border-y border-border/60 py-6 sm:grid-cols-2 xl:grid-cols-4">
+      {items.map((item) => (
+        <Metric key={item.label} label={item.label} value={item.value} size="md" />
+      ))}
+    </dl>
   );
 }
 
@@ -311,13 +267,17 @@ export async function StationDetail({ stationId }: { stationId: string }) {
 
   if (context) {
     const { repos, scope } = context;
-    [station, reading, health, trend, threshold] = await Promise.all([
-      repos.stations.getById(stationId, scope),
-      repos.readings.getLatestByStation(stationId, scope),
-      repos.readings.getLatestHealthByStation(stationId, scope),
-      repos.readings.getTrend24h(stationId, scope),
-      repos.readings.getDefaultSalinityThreshold(),
-    ]);
+    try {
+      [station, reading, health, trend, threshold] = await Promise.all([
+        repos.stations.getById(stationId, scope),
+        repos.readings.getLatestByStation(stationId, scope),
+        repos.readings.getLatestHealthByStation(stationId, scope),
+        repos.readings.getTrend24h(stationId, scope),
+        repos.readings.getDefaultSalinityThreshold(),
+      ]);
+    } catch {
+      // Leave station/reading/health/trend/threshold at their honest "no data" defaults below.
+    }
   }
 
   const profile = profileFor(stationId, station);
@@ -325,78 +285,96 @@ export async function StationDetail({ stationId }: { stationId: string }) {
     notFound();
   }
 
-  const effectiveTrend = trend.length > 0 ? trend : demoTrend(profile);
-  const signal = health?.signal_strength_dbm ?? profile.demo.signal;
-  const latestTimestamp = reading?.timestamp ?? health?.timestamp ?? new Date().toISOString();
+  const signal = health?.signal_strength_dbm ?? null;
+  const battery = health?.battery_voltage ?? null;
+  const latestTimestamp = reading?.timestamp ?? health?.timestamp ?? null;
   const summary = readingSummary(profile, reading, threshold);
-  const chartData = chartDataFrom(profile, effectiveTrend, signal);
+  const chartData = chartDataFrom(profile, trend);
   const status = stationStatusLabel(station?.status);
   const statusVariant =
-    station?.status === "maintenance" ? "watch" : station?.status === "inactive" ? "offline" : "healthy";
+    station?.status === "maintenance" ? "watch" : station?.status === "inactive" ? "offline" : station?.status === "active" ? "healthy" : "offline";
+
+  const quality = qualityFor(profile, reading);
 
   return (
     <div className="space-y-8">
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge variant={statusVariant}>{status}</Badge>
-          <p className="text-sm text-muted">Cập nhật gần nhất: {formatTimestamp(latestTimestamp)}</p>
-        </div>
+      <section className="space-y-5">
         <div className="max-w-3xl">
           <p className="mb-3 text-xs uppercase tracking-[0.18em] text-accent">{profile.location}</p>
           <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{profile.name}</h2>
           <p className="mt-3 text-lg leading-relaxed text-muted">{profile.intro}</p>
         </div>
+
+        {/* Three independent axes, never collapsed into one badge — see docs/TELEMETRY_STATE_MODEL.md */}
+        <div className="grid gap-4 border-y border-border/60 py-4 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Trạng thái vận hành</p>
+            <Badge variant={statusVariant}>{status}</Badge>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Độ mới dữ liệu</p>
+            <StatusIndicator
+              status={freshnessStatus(latestTimestamp)}
+              detail={latestTimestamp ? formatTimestamp(latestTimestamp) : "Không có bản ghi đo nào"}
+              compact
+            />
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Chất lượng đo</p>
+            {reading ? (
+              <QualityIndicator status={quality} compact />
+            ) : (
+              <p className="text-xs font-medium text-muted">Chưa có phép đo để đánh giá</p>
+            )}
+          </div>
+        </div>
       </section>
 
       <StationMetrics profile={profile} reading={reading} health={health} threshold={threshold} />
 
-      <section className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+      <section className="grid gap-8 lg:grid-cols-[1.35fr_0.65fr]">
         <StationLiveChart
           title={profile.chartTitle}
           note={profile.chartNote}
           data={chartData}
           series={profile.chartSeries}
         />
-        <Card>
-          <CardHeader>
-            <CardTitle>Khuyến nghị nhanh</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="leading-relaxed text-muted">{summary.recommendation}</p>
-            <div className="rounded-xl border border-border bg-muted/20 p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Thông tin kỹ thuật</p>
-              <div className="mt-3 space-y-2 text-sm text-muted">
-                <p>Mã trạm: {profile.id}</p>
-                <p>Tín hiệu: {signal} dBm</p>
-                <p>Pin: {(health?.battery_voltage ?? profile.demo.battery).toFixed(2)} V</p>
-                {profile.kind !== "gateway" ? (
-                  <>
-                    <p>Cảm biến EC/độ mặn: {sensorStatusLabel(reading?.ec_probe_status)}</p>
-                    <p>Cảm biến mực nước/độ ẩm: {sensorStatusLabel(reading?.ultrasonic_status)}</p>
-                  </>
-                ) : (
-                  <>
-                    <p>Kênh chính: SIM</p>
-                    <p>Kênh thông báo: Zalo</p>
-                  </>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <SectionHeader eyebrow="Đề xuất" title="Khuyến nghị nhanh" />
+          <p className="leading-relaxed text-muted">{summary.recommendation}</p>
+          <div className="space-y-2 border-t border-border/50 pt-4 text-sm text-muted">
+            <p>Mã trạm: {profile.id}</p>
+            <p>Tín hiệu: {formatSignal(signal)}</p>
+            <p>Pin: {formatVoltage(battery)}</p>
+            {profile.kind !== "gateway" ? (
+              <>
+                <p>Cảm biến EC/độ mặn: {sensorStatusLabel(reading?.ec_probe_status)}</p>
+                <p>Cảm biến mực nước/độ ẩm: {sensorStatusLabel(reading?.ultrasonic_status)}</p>
+              </>
+            ) : (
+              <>
+                <p>Kênh chính: SIM</p>
+                <p>Kênh thông báo: Zalo</p>
+              </>
+            )}
+          </div>
+        </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        {Object.values(stationProfiles).map((item) => (
-          <Link key={item.id} href={`/s/${item.id}`} className="block rounded-2xl focus-visible:ring-2 focus-visible:ring-accent">
-            <Card className={`h-full transition hover:border-accent/30 ${item.id === profile.id ? "border-accent/40 bg-accent/5" : ""}`}>
-              <CardContent>
-                <p className="text-sm font-medium text-accent">{item.name}</p>
-                <p className="mt-2 text-sm leading-relaxed text-muted">{item.location}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      <section className="space-y-4">
+        <SectionHeader eyebrow="Mạng lưới" title="Trạm khác" />
+        <div className="space-y-0">
+          {Object.values(stationProfiles).map((item) => (
+            <Link
+              key={item.id}
+              href={`/s/${item.id}`}
+              className={`flex items-center justify-between border-b border-border/50 py-3 transition-opacity hover:opacity-70 ${item.id === profile.id ? "text-accent" : ""}`}
+            >
+              <span className="font-medium">{item.name}</span>
+              <span className="text-sm text-muted">{item.location}</span>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section className="flex flex-wrap gap-3">

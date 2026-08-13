@@ -1,8 +1,8 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { ADMIN_SESSION_COOKIE_NAME as COOKIE_NAME } from "./adminSessionCookie";
 
-const COOKIE_NAME = "horizon_admin_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
 interface SessionPayload {
@@ -19,15 +19,23 @@ function base64UrlDecode(value: string): string {
 }
 
 function sessionSecret(): string {
-  return (
-    process.env.ADMIN_SESSION_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "horizon-local-admin-dev-secret"
-  );
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret) {
+    throw new Error(
+      "ADMIN_SESSION_SECRET is not configured. Admin login is disabled until it is set — no insecure default is used.",
+    );
+  }
+  return secret;
 }
 
 function configuredPassword(): string {
-  return process.env.ADMIN_PASSWORD || "horizon2026";
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) {
+    throw new Error(
+      "ADMIN_PASSWORD is not configured. Admin login is disabled until it is set — no insecure default is used.",
+    );
+  }
+  return password;
 }
 
 function signPayload(encodedPayload: string): string {

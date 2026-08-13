@@ -5,12 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatSalinity(value: number): string {
-  return `${value.toFixed(2)}‰`;
+export function formatSalinity(value: number | null): string {
+  return value === null ? "—" : `${value.toFixed(2)}‰`;
 }
 
-export function formatWaterLevel(value: number): string {
-  return `${value.toFixed(0)} cm`;
+export function formatWaterLevel(value: number | null): string {
+  return value === null ? "—" : `${value.toFixed(0)} cm`;
 }
 
 export function formatTimestamp(value: string): string {

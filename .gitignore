@@ -14,3 +14,4 @@ firmware/**/build/
 Thumbs.db
 *.log
 *.tsbuildinfo
+docs/archive

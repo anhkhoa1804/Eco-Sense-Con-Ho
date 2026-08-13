@@ -178,7 +178,7 @@ Authenticate as an administrator without confusion.
 
 1. Product/admin identity.
 2. Short explanation: admin access only.
-3. Email or magic-link form.
+3. Email and password form (current implementation is shared-password + allowlist, not magic-link — see `ARCHITECTURE_DECISIONS.md`).
 4. Submit button.
 5. Help text for unauthorized users.
 6. Return to public site link.

@@ -23,7 +23,7 @@ export default async function AdminLoginPage({
   const message = errorMessage(params.error);
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
+    <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
       <Link href="/" className="mb-8 text-center">
         <p className="text-xs uppercase tracking-[0.18em] text-accent">Horizon</p>
         <p className="text-lg font-semibold">Cồn Hô · Quản trị</p>
@@ -40,6 +40,6 @@ export default async function AdminLoginPage({
       <p className="mt-4 max-w-md text-center text-sm text-muted">
         Email được phép lấy từ ADMIN_ALLOWED_EMAILS. Mật khẩu lấy từ ADMIN_PASSWORD trong file .env.local.
       </p>
-    </div>
+    </main>
   );
 }

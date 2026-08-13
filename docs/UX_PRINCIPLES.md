@@ -184,6 +184,6 @@ Use these documents when turning principles into UI:
 
 - [`PAGE_BLUEPRINTS.md`](PAGE_BLUEPRINTS.md) defines screen order and layout.
 - [`COMPONENT_SPECIFICATION.md`](COMPONENT_SPECIFICATION.md) defines component anatomy and states.
-- [`INTERACTION_GUIDELINES.md`](INTERACTION_GUIDELINES.md) defines exact motion behavior.
+- [`INTERACTION_GUIDELINE.md`](INTERACTION_GUIDELINE.md) defines exact motion behavior.
 - [`COPYWRITING_GUIDE.md`](COPYWRITING_GUIDE.md) defines public and admin wording.
 - [`EMPTY_STATES.md`](EMPTY_STATES.md) defines missing-data states.

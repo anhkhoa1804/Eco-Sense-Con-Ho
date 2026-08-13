@@ -4,7 +4,7 @@ import { eventTitle, formatAlertDetails, formatTimestamp, severityLabel } from "
 import type { EnvironmentalEvent } from "@/types";
 
 export function AlertCard({ alert, stationName }: { alert: EnvironmentalEvent; stationName?: string }) {
-  const variant = alert.severity === "critical" ? "critical" : alert.severity === "warning" ? "warning" : "default";
+  const variant = alert.severity === "critical" ? "risk" : alert.severity === "warning" ? "watch" : "default";
 
   return (
     <Card>

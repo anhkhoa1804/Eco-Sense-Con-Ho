@@ -335,8 +335,8 @@ Supabase Dashboard
 
 Linear
 
-* interaction quality
-* dark UI philosophy
+* interaction quality (not its dark-first aesthetic — HORIZON is a light,
+  field-readable surface; see `VISUAL_REFERENCES.md`)
 * typography
 
 Apple Weather

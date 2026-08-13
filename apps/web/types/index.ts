@@ -25,11 +25,28 @@ export interface EnvironmentalReading {
   created_at: string;
 }
 
+export interface SoilReading {
+  id: string;
+  message_id: string;
+  station_id: string;
+  /** Six independent Trạm 2 sensors — each nullable; a faulted probe reports null, never a substituted number (infra/supabase/migrations/019_soil_readings.sql). */
+  air_temp_c: number | null;
+  air_humidity_pct: number | null;
+  soil_temp_c: number | null;
+  soil_moisture_pct: number | null;
+  soil_ec_ms_cm: number | null;
+  soil_ph: number | null;
+  fault_flags: number;
+  timestamp: string;
+  created_at: string;
+}
+
 export interface StationHealthLog {
   id: string;
   station_id: string;
-  battery_voltage: number;
-  signal_strength_dbm: number;
+  /** Not every station can report these (see docs/ARCHITECTURE_DECISIONS.md) — null means genuinely unmeasured, never fabricated. */
+  battery_voltage: number | null;
+  signal_strength_dbm: number | null;
   firmware_version: string;
   timestamp: string;
   created_at: string;
@@ -55,16 +72,16 @@ export interface StationReadingSnapshot {
 export interface DashboardMetrics {
   activeStations: number;
   totalStations: number;
-  averageSalinity: number;
+  averageSalinity: number | null;
   criticalAlerts: number;
   weakSignalNodes: number;
 }
 
 export interface DailyComparisonPoint {
   date: string;
-  tideLevel: number;
-  salinity: number;
-  soilEc: number;
+  tideLevel: number | null;
+  salinity: number | null;
+  soilEc: number | null;
   readingCount: number;
 }
 

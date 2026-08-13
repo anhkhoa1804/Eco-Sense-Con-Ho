@@ -8,7 +8,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ title, description, cta }: EmptyStateProps) {
   return (
-    <div className="rounded-[24px] border border-border bg-muted/20 p-6 text-center shadow-sm sm:p-8">
+    <div className="rounded-xl border border-border bg-muted/20 p-6 text-center shadow-xs sm:p-8">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-background text-accent">
         <span className="text-xl" aria-hidden>
           •

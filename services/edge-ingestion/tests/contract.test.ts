@@ -152,3 +152,313 @@ describe("ingest contract", () => {
     assert.equal(db.getSnapshot().auditLogs.at(-1)?.status, "expired_timestamp");
   });
 });
+
+describe("gateway relay authentication", () => {
+  const GATEWAY_SECRET = "gateway-secret-01";
+
+  it("accepts a station reading signed by its relaying gateway's secret", async () => {
+    // STATION_02 is a registered, active device with NO signing secret of
+    // its own — only the gateway that relays it authenticates the request.
+    const db = new MockDb({ GATEWAY_01: GATEWAY_SECRET }, otaCatalog, ["STATION_02"]);
+    const payload = basePayload({ device_id: "STATION_02", message_id: "gateway-relay-001" });
+    const request: IngestRequest = {
+      headers: {
+        "x-device-id": "GATEWAY_01",
+        "x-timestamp": String(payload.timestamp),
+        "x-signature": await signPayload(payload, GATEWAY_SECRET),
+        "x-contract-version": payload.contract_version,
+      },
+      payload,
+    };
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+
+    assert.equal(response.ok, true);
+    if (response.ok) {
+      assert.equal(response.station_id, "STATION_02");
+    }
+    assert.equal(db.getSnapshot().environmentalReadings[0]?.station_id, "STATION_02");
+  });
+
+  it("rejects a relayed reading attributed to an unregistered station", async () => {
+    const db = new MockDb({ GATEWAY_01: GATEWAY_SECRET }, otaCatalog, []); // STATION_99 not registered
+    const payload = basePayload({ device_id: "STATION_99", message_id: "gateway-relay-002" });
+    const request: IngestRequest = {
+      headers: {
+        "x-device-id": "GATEWAY_01",
+        "x-timestamp": String(payload.timestamp),
+        "x-signature": await signPayload(payload, GATEWAY_SECRET),
+        "x-contract-version": payload.contract_version,
+      },
+      payload,
+    };
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "DEVICE_NOT_REGISTERED");
+    }
+    assert.equal(db.getSnapshot().environmentalReadings.length, 0);
+  });
+
+  it("rejects when the authenticating device (gateway) is unknown", async () => {
+    const db = new MockDb({}, otaCatalog, ["STATION_02"]);
+    const payload = basePayload({ device_id: "STATION_02", message_id: "gateway-relay-003" });
+    const request: IngestRequest = {
+      headers: {
+        "x-device-id": "GATEWAY_UNKNOWN",
+        "x-timestamp": String(payload.timestamp),
+        "x-signature": await signPayload(payload, "some-guess"),
+        "x-contract-version": payload.contract_version,
+      },
+      payload,
+    };
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "DEVICE_NOT_REGISTERED");
+    }
+  });
+
+  it("rejects a request missing the x-device-id header", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const payload = basePayload({ message_id: "gateway-relay-004" });
+    const request: IngestRequest = {
+      headers: {
+        "x-device-id": "",
+        "x-timestamp": String(payload.timestamp),
+        "x-signature": await signPayload(payload, DEVICE_SECRET),
+        "x-contract-version": payload.contract_version,
+      },
+      payload,
+    };
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "MISSING_FIELD");
+    }
+  });
+
+  it("rejects a request with a missing (not just stale) x-timestamp header", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const payload = basePayload({ message_id: "gateway-relay-005" });
+    const request: IngestRequest = {
+      headers: {
+        "x-device-id": "STATION_01",
+        "x-timestamp": "",
+        "x-signature": await signPayload(payload, DEVICE_SECRET),
+        "x-contract-version": payload.contract_version,
+      },
+      payload,
+    };
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "TIMESTAMP_OUT_OF_WINDOW");
+    }
+    assert.equal(db.getSnapshot().environmentalReadings.length, 0);
+  });
+});
+
+describe("optional health fields", () => {
+  it("accepts a payload with no battery_voltage or signal_strength_dbm and skips the health log", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const payload = basePayload({ message_id: "no-health-001" });
+    delete payload.battery_voltage;
+    delete payload.signal_strength_dbm;
+
+    const response = await ingestTelemetry(await buildRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, true);
+    const snapshot = db.getSnapshot();
+    assert.equal(snapshot.environmentalReadings.length, 1);
+    assert.equal(snapshot.healthLogs.length, 0);
+    // No fabricated LOW_BATTERY/OFFLINE alert from fields that were never reported.
+    assert.equal(snapshot.environmentalEvents.some((e) => e.event_type === "LOW_BATTERY" || e.event_type === "OFFLINE"), false);
+  });
+
+  it("still records a health log when only one of battery/signal is present", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const payload = basePayload({ message_id: "partial-health-001" });
+    delete payload.signal_strength_dbm;
+
+    const response = await ingestTelemetry(await buildRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, true);
+    const snapshot = db.getSnapshot();
+    assert.equal(snapshot.healthLogs.length, 1);
+    assert.equal(snapshot.healthLogs[0]?.battery_voltage, 3.9);
+    assert.equal(snapshot.healthLogs[0]?.signal_strength_dbm, null);
+  });
+});
+
+describe("soil readings (reading_kind: soil)", () => {
+  const SOIL_SECRET = "station-secret-02";
+
+  function soilPayload(overrides: Partial<TelemetryPayloadV1> = {}): TelemetryPayloadV1 {
+    return {
+      contract_version: "v1",
+      reading_kind: "soil",
+      device_id: "STATION_02",
+      message_id: "soil-test-001",
+      timestamp: NOW,
+      fault_flags: 0,
+      soil: {
+        air_temp_c: 29.4,
+        air_humidity_pct: 78.2,
+        soil_temp_c: 27.1,
+        soil_moisture_pct: 41.5,
+        soil_ec_ms_cm: 1.08,
+        soil_ph: 6.2,
+      },
+      firmware_version: "station2-grapefruit-soil-0.1.0",
+      ...overrides,
+    };
+  }
+
+  async function buildSoilRequest(payload: TelemetryPayloadV1): Promise<IngestRequest> {
+    return {
+      headers: {
+        "x-device-id": payload.device_id,
+        "x-timestamp": String(payload.timestamp),
+        "x-signature": await signPayload(payload, SOIL_SECRET),
+        "x-contract-version": payload.contract_version,
+      },
+      payload,
+    };
+  }
+
+  it("accepts a valid soil payload and stores it in soil_readings, not environmental_readings", async () => {
+    const db = new MockDb({ STATION_02: SOIL_SECRET }, otaCatalog);
+    const payload = soilPayload();
+    const response = await ingestTelemetry(await buildSoilRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, true);
+    const snapshot = db.getSnapshot();
+    assert.equal(snapshot.soilReadings.length, 1);
+    assert.equal(snapshot.environmentalReadings.length, 0);
+    assert.equal(snapshot.soilReadings[0]?.soil_moisture_pct, 41.5);
+    assert.equal(snapshot.soilReadings[0]?.soil_ec_ms_cm, 1.08);
+  });
+
+  it("accepts a soil payload with some sensors null, preserving null (not 0) for the ones that faulted", async () => {
+    const db = new MockDb({ STATION_02: SOIL_SECRET }, otaCatalog);
+    const payload = soilPayload({
+      message_id: "soil-test-002",
+      soil: {
+        air_temp_c: 29.4,
+        air_humidity_pct: 78.2,
+        soil_temp_c: null,
+        soil_moisture_pct: 41.5,
+        soil_ec_ms_cm: 1.08,
+        soil_ph: null, // pH probe faulted — must not become 0
+      },
+    });
+
+    const response = await ingestTelemetry(await buildSoilRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, true);
+    const row = db.getSnapshot().soilReadings[0];
+    assert.equal(row?.soil_ph, null);
+    assert.equal(row?.soil_temp_c, null);
+    assert.equal(row?.soil_moisture_pct, 41.5);
+  });
+
+  it("rejects a soil payload where every sensor is null (no information at all)", async () => {
+    const db = new MockDb({ STATION_02: SOIL_SECRET }, otaCatalog);
+    const payload = soilPayload({
+      message_id: "soil-test-003",
+      soil: {
+        air_temp_c: null,
+        air_humidity_pct: null,
+        soil_temp_c: null,
+        soil_moisture_pct: null,
+        soil_ec_ms_cm: null,
+        soil_ph: null,
+      },
+    });
+
+    const response = await ingestTelemetry(await buildSoilRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "MISSING_FIELD");
+    }
+  });
+
+  it("rejects a soil payload signed with the water canonical string (cross-format signature confusion)", async () => {
+    const db = new MockDb({ STATION_02: SOIL_SECRET }, otaCatalog);
+    const payload = soilPayload({ message_id: "soil-test-004" });
+    // Deliberately sign with the WATER canonical-string function to prove
+    // the two formats are not interchangeable — this must fail, not
+    // silently succeed with a coincidentally-valid signature.
+    const { buildCanonicalString } = await import("../src/canonical.js");
+    const wrongCanonical = buildCanonicalString(payload);
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", enc.encode(SOIL_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(wrongCanonical));
+    const wrongSignature = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    const request: IngestRequest = {
+      headers: {
+        "x-device-id": "STATION_02",
+        "x-timestamp": String(payload.timestamp),
+        "x-signature": wrongSignature,
+        "x-contract-version": payload.contract_version,
+      },
+      payload,
+    };
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "INVALID_SIGNATURE");
+    }
+  });
+
+  it("does not affect water-payload validation — salinity/water_level still required when reading_kind is absent", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const payload = soilPayload({
+      device_id: "STATION_01",
+      message_id: "soil-test-005",
+      reading_kind: undefined,
+    });
+    delete (payload as Partial<TelemetryPayloadV1>).soil;
+
+    const response = await ingestTelemetry(await buildSoilRequest({ ...payload, device_id: "STATION_01" }), db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "MISSING_FIELD");
+    }
+  });
+
+  it("soil values out of physical range are rejected", async () => {
+    const db = new MockDb({ STATION_02: SOIL_SECRET }, otaCatalog);
+    const payload = soilPayload({
+      message_id: "soil-test-006",
+      soil: {
+        air_temp_c: 29.4,
+        air_humidity_pct: 78.2,
+        soil_temp_c: 27.1,
+        soil_moisture_pct: 41.5,
+        soil_ec_ms_cm: 1.08,
+        soil_ph: 25, // impossible pH
+      },
+    });
+
+    const response = await ingestTelemetry(await buildSoilRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "VALUE_OUT_OF_RANGE");
+    }
+  });
+});

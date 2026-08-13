@@ -32,7 +32,7 @@ export async function getDashboardMetrics(repos: Repositories, scope: Repository
   return {
     activeStations: counts.active,
     totalStations: counts.total,
-    averageSalinity: getValue(1, 0),
+    averageSalinity: getValue<number | null>(1, null),
     criticalAlerts: getValue(2, 0),
     weakSignalNodes: getValue(3, 0),
   };

@@ -1,8 +1,22 @@
 # Authorization Model
 
+**Current implementation state — read this before the rest of the doc.**
+Everything below this section is written in "should"/"recommended" language
+because it mixes what's live today with the target model. Full reasoning:
+[`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) §2.
+
+| Role in the table below | Status |
+|---|---|
+| `public` | **Implemented.** Anon-key Supabase client + RLS (migration 018) — not service-role. |
+| `admin` | **Implemented**, but via a custom password-based session (`lib/auth/localAdminSession.ts`), not Supabase Auth. A single shared operator account, not per-user. Backed by service-role for privileged operations. |
+| `operator`, `researcher` | **Not implemented.** No code path constructs these roles. Aspirational. |
+| `service` | **Implemented** as "service-role, server-only" — used by admin operations and ingestion, never reachable from the browser. |
+| Farmer / station-scoped human access | **Designed, not built.** `station_assignments` and `has_station_access()` are correct and ready in the database; there is no sign-up/login UI and no session layer that would populate `auth.uid()` for a real farmer. See `ARCHITECTURE_DECISIONS.md` §2 for the intended shape when this is built. |
+| Device (gateway / station) ingestion auth | **Implemented** — HMAC-SHA256, see `API_CONTRACTS.md`. |
+
 ## Purpose
 
-Eco-Sense separates public environmental transparency from privileged operations. Public users should be able to understand station status without login, while administrators need protected access to station management, thresholds, reports, and audit history.
+HORIZON separates public environmental transparency from privileged operations. Public users should be able to understand station status without login, while administrators need protected access to station management, thresholds, reports, and audit history.
 
 ## Access principles
 

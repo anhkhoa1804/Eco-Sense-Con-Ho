@@ -11,14 +11,19 @@ set name = excluded.name,
     lng = excluded.lng,
     status = excluded.status;
 
-insert into public.devices (device_id, station_id, device_secret, status)
+-- Dev/pilot secrets only — matches the placeholders used throughout
+-- tests/scripts (services/edge-ingestion/tests, scripts/simulator.ts).
+-- Real deployments must set unique, non-guessable secrets per device.
+insert into public.devices (device_id, station_id, device_secret, status, kind)
 values
-  ('STATION_01', 'STATION_01', 'station-secret-01', 'active'),
-  ('STATION_02', 'STATION_02', 'station-secret-02', 'active'),
-  ('STATION_03', 'STATION_03', 'station-secret-03', 'active'),
-  ('STATION_04', 'STATION_04', 'station-secret-04', 'active'),
-  ('STATION_05', 'STATION_05', 'station-secret-05', 'active')
+  ('GATEWAY_01', null, 'gateway-secret-01', 'active', 'gateway'),
+  ('STATION_01', 'STATION_01', 'station-secret-01', 'active', 'station'),
+  ('STATION_02', 'STATION_02', 'station-secret-02', 'active', 'station'),
+  ('STATION_03', 'STATION_03', 'station-secret-03', 'active', 'station'),
+  ('STATION_04', 'STATION_04', 'station-secret-04', 'active', 'station'),
+  ('STATION_05', 'STATION_05', 'station-secret-05', 'active', 'station')
 on conflict (device_id) do update
 set station_id = excluded.station_id,
     device_secret = excluded.device_secret,
-    status = excluded.status;
+    status = excluded.status,
+    kind = excluded.kind;

@@ -10,6 +10,7 @@ import type {
   EnvironmentalReading,
   RepositoryScope,
   SalinityThreshold,
+  SoilReading,
   StationHealthLog,
   StationReadingSnapshot,
   TrendPoint,
@@ -32,25 +33,6 @@ function shortDateLabel(key: string): string {
   return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(date);
 }
 
-function numberFromRecord(record: Record<string, unknown>, key: string): number | null {
-  const value = record[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function rawStationPayload(row: Record<string, unknown>): Record<string, unknown> | null {
-  const rawPayload = row.raw_payload;
-  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
-    return null;
-  }
-
-  const stationPayload = (rawPayload as Record<string, unknown>).raw_station_payload;
-  if (!stationPayload || typeof stationPayload !== "object" || Array.isArray(stationPayload)) {
-    return null;
-  }
-
-  return stationPayload as Record<string, unknown>;
-}
-
 function mapReading(row: Record<string, unknown>): EnvironmentalReading {
   return {
     id: row.id as string,
@@ -66,13 +48,37 @@ function mapReading(row: Record<string, unknown>): EnvironmentalReading {
   };
 }
 
+function numberOrNull(value: unknown): number | null {
+  // Number(null) is 0 in JS — that would silently turn "not measured" into
+  // a fabricated-looking zero reading, so null must be checked explicitly
+  // before coercing.
+  return value === null || value === undefined ? null : Number(value);
+}
+
 function mapHealth(row: Record<string, unknown>): StationHealthLog {
   return {
     id: row.id as string,
     station_id: row.station_id as string,
-    battery_voltage: Number(row.battery_voltage),
-    signal_strength_dbm: Number(row.signal_strength_dbm),
+    battery_voltage: numberOrNull(row.battery_voltage),
+    signal_strength_dbm: numberOrNull(row.signal_strength_dbm),
     firmware_version: row.firmware_version as string,
+    timestamp: row.timestamp as string,
+    created_at: row.created_at as string,
+  };
+}
+
+function mapSoilReading(row: Record<string, unknown>): SoilReading {
+  return {
+    id: row.id as string,
+    message_id: row.message_id as string,
+    station_id: row.station_id as string,
+    air_temp_c: numberOrNull(row.air_temp_c),
+    air_humidity_pct: numberOrNull(row.air_humidity_pct),
+    soil_temp_c: numberOrNull(row.soil_temp_c),
+    soil_moisture_pct: numberOrNull(row.soil_moisture_pct),
+    soil_ec_ms_cm: numberOrNull(row.soil_ec_ms_cm),
+    soil_ph: numberOrNull(row.soil_ph),
+    fault_flags: Number(row.fault_flags),
     timestamp: row.timestamp as string,
     created_at: row.created_at as string,
   };
@@ -81,19 +87,18 @@ function mapHealth(row: Record<string, unknown>): StationHealthLog {
 export class ReadingRepository {
   constructor(private readonly supabase: AppSupabase) {}
 
-  private demoDailyComparison(days: number): DailyComparisonPoint[] {
-    const keys = Array.from({ length: days }, (_, index) => {
+  /** No fabricated curve — genuinely missing data renders as null, not invented values. */
+  private emptyDailyComparison(days: number): DailyComparisonPoint[] {
+    return Array.from({ length: days }, (_, index) => {
       const date = new Date(Date.now() - (days - index - 1) * 24 * 60 * 60 * 1000);
-      return dateKey(date.toISOString());
+      return {
+        date: shortDateLabel(dateKey(date.toISOString())),
+        tideLevel: null,
+        salinity: null,
+        soilEc: null,
+        readingCount: 0,
+      };
     });
-
-    return keys.map((key, index) => ({
-      date: shortDateLabel(key),
-      tideLevel: Number((48 + index * 2 + (index % 2 === 0 ? 3 : -2)).toFixed(1)),
-      salinity: Number((1.1 + index * 0.12 + (index % 3) * 0.08).toFixed(2)),
-      soilEc: Number((0.85 + index * 0.06 + (index % 2) * 0.05).toFixed(2)),
-      readingCount: 0,
-    }));
   }
 
   async getLatestByStation(stationId: string, scope: RepositoryScope): Promise<EnvironmentalReading | null> {
@@ -112,6 +117,24 @@ export class ReadingRepository {
     if (isMissingTableError(error)) return null;
     if (error) throw error;
     return data ? mapReading(data) : null;
+  }
+
+  async getLatestSoilReadingByStation(stationId: string, scope: RepositoryScope): Promise<SoilReading | null> {
+    if (!canAccessStation(scope, stationId)) {
+      return null;
+    }
+
+    const { data, error } = await this.supabase
+      .from("soil_readings")
+      .select("*")
+      .eq("station_id", stationId)
+      .order("timestamp", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (isMissingTableError(error)) return null;
+    if (error) throw error;
+    return data ? mapSoilReading(data) : null;
   }
 
   async getLatestHealthByStation(stationId: string, scope: RepositoryScope): Promise<StationHealthLog | null> {
@@ -246,7 +269,7 @@ export class ReadingRepository {
     query = applyStationScope(query, scope);
 
     const { data, error } = await query;
-    if (isMissingTableError(error)) return this.demoDailyComparison(days);
+    if (isMissingTableError(error)) return this.emptyDailyComparison(days);
     if (error) throw error;
 
     const buckets = new Map<
@@ -261,51 +284,13 @@ export class ReadingRepository {
     for (const row of data ?? []) {
       const key = dateKey(row.timestamp as string);
       const bucket = buckets.get(key) ?? { salinity: [], tideLevel: [], soilEc: [] };
-      const salinity = Number(row.salinity);
-      const waterLevel = Number(row.water_level);
 
-      bucket.salinity.push(salinity);
-      bucket.tideLevel.push(waterLevel);
-
-      if (row.station_id === "STATION_02") {
-        bucket.soilEc.push(Math.max(0.2, salinity * 0.72 + waterLevel / 140));
-      }
+      // environmental_readings only carries salinity/water_level — soil EC
+      // has no real column here and must never be derived from these fields.
+      bucket.salinity.push(Number(row.salinity));
+      bucket.tideLevel.push(Number(row.water_level));
 
       buckets.set(key, bucket);
-    }
-
-    const { data: gatewayRows, error: gatewayError } = await this.supabase
-      .from("gateway_observations")
-      .select("received_at, station_id, raw_payload")
-      .gte("received_at", since)
-      .order("received_at", { ascending: true });
-
-    if (!gatewayError) {
-      for (const row of gatewayRows ?? []) {
-        const stationPayload = rawStationPayload(row as Record<string, unknown>);
-        if (!stationPayload) {
-          continue;
-        }
-
-        const key = dateKey(row.received_at as string);
-        const bucket = buckets.get(key) ?? { salinity: [], tideLevel: [], soilEc: [] };
-        const stationId = row.station_id as string;
-
-        if (stationId === "STATION_01") {
-          const waterLevel = numberFromRecord(stationPayload, "water_level_cm");
-          const salinity = numberFromRecord(stationPayload, "salinity_ppt");
-
-          if (waterLevel !== null) bucket.tideLevel.push(waterLevel);
-          if (salinity !== null) bucket.salinity.push(salinity);
-        }
-
-        if (stationId === "STATION_02") {
-          const soilEc = numberFromRecord(stationPayload, "soil_ec_ms_cm");
-          if (soilEc !== null) bucket.soilEc.push(soilEc);
-        }
-
-        buckets.set(key, bucket);
-      }
     }
 
     const keys = Array.from({ length: days }, (_, index) => {
@@ -313,35 +298,37 @@ export class ReadingRepository {
       return dateKey(date.toISOString());
     });
 
-    return keys.map((key, index) => {
-      const bucket = buckets.get(key);
-      const fallbackTide = 48 + index * 2 + (index % 2 === 0 ? 3 : -2);
-      const fallbackSalinity = 1.1 + index * 0.12 + (index % 3) * 0.08;
-      const fallbackSoilEc = 0.85 + index * 0.06 + (index % 2) * 0.05;
+    const average = (values: number[], decimals: number): number | null =>
+      values.length > 0
+        ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(decimals))
+        : null;
 
-      const average = (values: number[], fallback: number) =>
-        values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : fallback;
+    return keys.map((key) => {
+      const bucket = buckets.get(key);
 
       return {
         date: shortDateLabel(key),
-        tideLevel: Number(average(bucket?.tideLevel ?? [], fallbackTide).toFixed(1)),
-        salinity: Number(average(bucket?.salinity ?? [], fallbackSalinity).toFixed(2)),
-        soilEc: Number(average(bucket?.soilEc ?? [], fallbackSoilEc).toFixed(2)),
+        tideLevel: average(bucket?.tideLevel ?? [], 1),
+        salinity: average(bucket?.salinity ?? [], 2),
+        soilEc: average(bucket?.soilEc ?? [], 2),
         readingCount: (bucket?.tideLevel.length ?? 0) + (bucket?.salinity.length ?? 0),
       };
     });
   }
 
-  async getAverageSalinity(scope: RepositoryScope): Promise<number> {
+  /** null, not 0 — an average of zero readings is undefined, not a measured zero. */
+  async getAverageSalinity(scope: RepositoryScope): Promise<number | null> {
     const readings = await this.getLatestForAllStations(scope);
     const values = [...readings.values()].map((r) => r.salinity);
-    if (values.length === 0) return 0;
+    if (values.length === 0) return null;
     return values.reduce((sum, v) => sum + v, 0) / values.length;
   }
 
   async countWeakSignalNodes(scope: RepositoryScope): Promise<number> {
     const health = await this.getLatestHealthForAllStations(scope);
-    return [...health.values()].filter((h) => h.signal_strength_dbm <= WEAK_SIGNAL_DBM).length;
+    return [...health.values()].filter(
+      (h) => typeof h.signal_strength_dbm === "number" && h.signal_strength_dbm <= WEAK_SIGNAL_DBM,
+    ).length;
   }
 
   async getDefaultSalinityThreshold(): Promise<SalinityThreshold | null> {

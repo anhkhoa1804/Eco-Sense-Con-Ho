@@ -4,7 +4,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,6 +15,18 @@ import type { DailyComparisonPoint } from "@/types";
 const formatter = new Intl.NumberFormat("vi-VN", {
   maximumFractionDigits: 2,
 });
+
+/**
+ * Three separate small-multiple charts, not one combo chart — tide level
+ * (cm), salinity (‰), and soil EC (mS/cm) are different physical
+ * measurements at different scales, and forcing them onto one shared bar
+ * axis would visually flatten whichever series has the smallest range.
+ */
+const metricConfigs = [
+  { key: "tideLevel", name: "Thủy triều", unit: "cm", color: "#0f766e" },
+  { key: "salinity", name: "Độ mặn", unit: "‰", color: "#b45309" },
+  { key: "soilEc", name: "EC đất", unit: "mS/cm", color: "#166534" },
+] as const;
 
 const standardRows = [
   {
@@ -55,10 +66,15 @@ const standardRows = [
   },
 ];
 
-function tooltipValue(value: number, name: string) {
+function tooltipValue(value: number | null | undefined, name: string) {
+  if (value === null || value === undefined) return ["Chưa có dữ liệu", name];
   if (name === "Thủy triều") return [`${formatter.format(value)} cm`, name];
   if (name === "Độ mặn") return [`${formatter.format(value)}‰`, name];
   return [`${formatter.format(value)} mS/cm`, name];
+}
+
+function cellValue(value: number | null, unit: string): string {
+  return value === null ? "—" : `${formatter.format(value)} ${unit}`;
 }
 
 export function DailyComparisonChart({ data }: { data: DailyComparisonPoint[] }) {
@@ -69,34 +85,43 @@ export function DailyComparisonChart({ data }: { data: DailyComparisonPoint[] })
         <p className="text-sm text-muted">Thủy triều, độ xâm nhập mặn và EC đất trong 7 ngày gần nhất.</p>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="#e5eaed" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" stroke="#66707a" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis
-                stroke="#66707a"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value) => formatter.format(Number(value))}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#ffffff",
-                  border: "1px solid #dbe3e6",
-                  borderRadius: 12,
-                  boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
-                }}
-                labelStyle={{ color: "#12202a", fontWeight: 600 }}
-                formatter={(value, name) => tooltipValue(Number(value), String(name))}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 13 }} />
-              <Bar dataKey="tideLevel" name="Thủy triều" fill="#0f766e" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="salinity" name="Độ mặn" fill="#b45309" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="soilEc" name="EC đất" fill="#166534" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="grid gap-6 sm:grid-cols-3">
+          {metricConfigs.map((metric) => (
+            <div key={metric.key} className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
+                {metric.name} <span className="normal-case text-muted/70">({metric.unit})</span>
+              </p>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke="#e5eaed" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="date" stroke="#66707a" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis
+                      stroke="#66707a"
+                      fontSize={10}
+                      width={30}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(value) => formatter.format(Number(value))}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#ffffff",
+                        border: "1px solid #dbe3e6",
+                        borderRadius: 12,
+                        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+                      }}
+                      labelStyle={{ color: "#12202a", fontWeight: 600 }}
+                      formatter={(value) =>
+                        tooltipValue(value === null || value === undefined ? null : Number(value), metric.name)
+                      }
+                    />
+                    <Bar dataKey={metric.key} name={metric.name} fill={metric.color} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="overflow-x-auto">
@@ -114,9 +139,9 @@ export function DailyComparisonChart({ data }: { data: DailyComparisonPoint[] })
               {data.map((point) => (
                 <tr key={point.date} className="border-b border-border/70 last:border-0">
                   <td className="py-2 pr-4 font-medium">{point.date}</td>
-                  <td className="py-2 pr-4">{formatter.format(point.tideLevel)} cm</td>
-                  <td className="py-2 pr-4">{formatter.format(point.salinity)}‰</td>
-                  <td className="py-2 pr-4">{formatter.format(point.soilEc)} mS/cm</td>
+                  <td className="py-2 pr-4">{cellValue(point.tideLevel, "cm")}</td>
+                  <td className="py-2 pr-4">{point.salinity === null ? "—" : `${formatter.format(point.salinity)}‰`}</td>
+                  <td className="py-2 pr-4">{cellValue(point.soilEc, "mS/cm")}</td>
                   <td className="py-2 pr-4 text-muted">{point.readingCount}</td>
                 </tr>
               ))}

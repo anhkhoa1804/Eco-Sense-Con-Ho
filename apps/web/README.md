@@ -54,7 +54,7 @@ After signing in with an email from `ADMIN_ALLOWED_EMAILS`, open `/admin`. If Su
 
 ## Admin Routes
 
-- `/admin/login` - Magic-link login
+- `/admin/login` - Email + shared password login
 - `/admin` - Operations console, admin email allowlist, report notifications, and sleep-mode control
 
 ## Data Retention

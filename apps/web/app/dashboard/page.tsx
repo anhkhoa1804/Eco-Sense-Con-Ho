@@ -1,115 +1,37 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowRight, Gauge, Radar } from "lucide-react";
 import { DailyComparisonChart } from "@/components/dashboard/daily-comparison-chart";
+import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { PublicShell } from "@/components/layout/public-shell";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { SalinityChart } from "@/components/stations/salinity-chart";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Metric } from "@/components/ui/metric";
+import { SectionHeader } from "@/components/ui/section-header";
+import { freshnessStatus, StatusIndicator } from "@/components/ui/status-indicator";
 import { getPublicRepositories } from "@/lib/publicRead";
 import { getDashboardMetrics } from "@/lib/repositories";
 import { formatSalinity, formatWaterLevel, severityLabel } from "@/lib/utils";
-import type { DailyComparisonPoint, EnvironmentalEvent, StationReadingSnapshot, TrendPoint } from "@/types";
+import type { EnvironmentalEvent, StationReadingSnapshot, TrendPoint } from "@/types";
 import DashboardLoading from "./loading";
 
 export const revalidate = 60;
 
-const stationZones = [
-  {
-    id: "STATION_01",
-    href: "/s/STATION_01",
-    label: "Trạm 1",
-    title: "Gần sông",
-    description: "Mực nước, độ mặn và biến động ven sông",
-    position: "left-[11%] top-[31%] h-[22%] w-[15%]",
-  },
-  {
-    id: "STATION_02",
-    href: "/s/STATION_02",
-    label: "Trạm 2",
-    title: "Giữa cồn",
-    description: "Dữ liệu đất và gợi ý chăm sóc trồng trọt",
-    position: "left-[35%] top-[39%] h-[22%] w-[15%]",
-  },
-  {
-    id: "STATION_03",
-    href: "/s/STATION_03",
-    label: "Trạm 3",
-    title: "Gateway",
-    description: "Tổng hợp và gửi dữ liệu qua SIM, Zalo",
-    position: "left-[68%] top-[49%] h-[22%] w-[16%]",
-  },
-];
+function StationNetwork({ snapshots }: { snapshots: StationReadingSnapshot[] }) {
+  const mapStations: MapStation[] = snapshots.map((snapshot) => ({
+    id: snapshot.station.id,
+    name: snapshot.station.name,
+    lat: snapshot.station.lat,
+    lng: snapshot.station.lng,
+    freshness: freshnessStatus(snapshot.reading?.timestamp ?? snapshot.health?.timestamp ?? null),
+  }));
 
-function demoDailyComparison(): DailyComparisonPoint[] {
-  const formatter = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" });
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(Date.now() - (6 - index) * 24 * 60 * 60 * 1000);
-    return {
-      date: formatter.format(date),
-      tideLevel: 46 + index * 3 + (index % 2 === 0 ? 4 : -1),
-      salinity: Number((1.05 + index * 0.14 + (index % 3) * 0.07).toFixed(2)),
-      soilEc: Number((0.82 + index * 0.07 + (index % 2) * 0.04).toFixed(2)),
-      readingCount: 0,
-    };
-  });
-}
-
-function StationMap() {
   return (
-    <section className="mb-8">
-      <div className="mb-4 max-w-3xl">
-        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-accent">Bản đồ quan trắc</p>
-        <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
-          Chạm vào từng trạm để xem dữ liệu trực tiếp
-        </h2>
-        <p className="mt-3 text-lg leading-relaxed text-muted">
-          Bản đồ mô phỏng các điểm quan trắc trên Cồn Hô: trạm nước gần sông, trạm đất ở giữa cồn và gateway gửi thông
-          tin về cho bà con.
-        </p>
-      </div>
-
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <Image
-          src="/images/con-ho-station-map.png"
-          alt="Bản đồ Cồn Hô với ba trạm quan trắc Horizon"
-          width={1632}
-          height={967}
-          priority
-          className="h-auto w-full"
-        />
-
-        {stationZones.map((station) => (
-          <Link
-            key={station.id}
-            href={station.href}
-            aria-label={`${station.label} - ${station.title}: ${station.description}`}
-            title={`${station.label} - ${station.title}`}
-            className={`absolute ${station.position} z-10 rounded-xl opacity-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-          >
-            <span className="sr-only">{station.label}</span>
-          </Link>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {stationZones.map((station) => (
-          <Link key={station.id} href={station.href} className="block rounded-2xl focus-visible:ring-2 focus-visible:ring-accent">
-            <Card className="h-full transition hover:border-accent/30">
-              <CardContent>
-                <p className="text-sm font-medium text-accent">{station.label}</p>
-                <h3 className="mt-1 text-lg font-semibold tracking-tight">{station.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">{station.description}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+    <section className="space-y-4">
+      <SectionHeader eyebrow="Mạng lưới trạm" title="Vị trí quan trắc" trailing="Danh sách đầy đủ có ở phần điều kiện hiện tại bên dưới." />
+      <StationNetworkMap stations={mapStations} />
     </section>
   );
 }
@@ -127,14 +49,12 @@ async function DashboardContent() {
     const publicRepos = getPublicRepositories();
     if (!publicRepos) {
       return (
-        <>
-          <StationMap />
-          <DailyComparisonChart data={demoDailyComparison()} />
+        <div className="space-y-10">
           <EmptyState
-            title="Horizon Dashboard"
-            description="Bản đồ đã sẵn sàng. Dữ liệu trực tiếp sẽ hiện khi cấu hình Supabase local hoặc backend triển khai được kết nối."
+            title="Chưa kết nối dữ liệu trực tiếp"
+            description="Bảng quan trắc chưa được cấu hình kết nối tới Supabase trên môi trường này, nên không có số liệu thật để hiển thị. Không có bản đồ, biểu đồ hay chỉ số nào bên dưới là dữ liệu thực."
           />
-        </>
+        </div>
       );
     }
 
@@ -152,10 +72,6 @@ async function DashboardContent() {
     const threshold = await repos.readings.getDefaultSalinityThreshold();
 
     const readingValues = snapshots.flatMap((snapshot) => (snapshot.reading ? [snapshot.reading] : []));
-    const averageWaterLevel =
-      readingValues.length > 0
-        ? readingValues.reduce((sum, reading) => sum + reading.water_level, 0) / readingValues.length
-        : 0;
     const latestTimestamp = readingValues
       .map((reading) => new Date(reading.timestamp).getTime())
       .filter(Number.isFinite)
@@ -176,6 +92,7 @@ async function DashboardContent() {
     const stationNames = new Map(
       snapshots.map((snapshot) => [snapshot.station.id, snapshot.station.name]),
     );
+    const latestTimestampIso = latestTimestamp ? new Date(latestTimestamp).toISOString() : null;
     const freshness = latestTimestamp
       ? `Cập nhật ${new Intl.DateTimeFormat("vi-VN", {
           dateStyle: "medium",
@@ -186,176 +103,160 @@ async function DashboardContent() {
     const trendSummary = await buildTrendSummary(repos, scope, featuredSnapshot?.station.id);
 
     return (
-      <>
+      <div className="space-y-10">
         <InstallPrompt />
-        <StationMap />
-        <DailyComparisonChart data={dailyComparison} />
 
-        <section className="mb-10 space-y-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="healthy">Mạng lưới thời gian thực</Badge>
-            <Badge variant="default">Bảng quan trắc Cồn Hô</Badge>
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-accent">Quan trắc trực tiếp</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Bảng quan trắc Cồn Hô</h1>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/report">Gửi báo cáo hiện trường</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/about">Xem câu chuyện dự án</Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* Global status */}
+        <dl className="grid gap-6 border-y border-border/60 py-6 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Cập nhật gần nhất" value={freshness} status={freshnessStatus(latestTimestampIso)} size="sm" />
+          <Metric label="Trạm hoạt động" value={`${metrics.activeStations}/${metrics.totalStations}`} size="sm" />
+          <Metric label="Tín hiệu yếu" value={metrics.weakSignalNodes} size="sm" />
+          <Metric label="Cảnh báo cần chú ý" value={metrics.criticalAlerts} size="sm" />
+        </dl>
+
+        {/* Station network */}
+        <StationNetwork snapshots={snapshots} />
+
+        {/* Current conditions + anomalies */}
+        <section className="grid gap-10 lg:grid-cols-2 lg:items-start">
+          <div className="space-y-4">
+            <SectionHeader
+              eyebrow="Điều kiện hiện tại"
+              title="Trạm theo mức ưu tiên"
+              trailing={
+                <span className="inline-flex items-center gap-2">
+                  <Radar className="h-3.5 w-3.5 text-accent" aria-hidden />
+                  Xếp theo mức rủi ro
+                </span>
+              }
+            />
+
+            <div className="space-y-0">
+              {sortedSnapshots.map((snapshot, index) => (
+                <Link
+                  key={snapshot.station.id}
+                  href={`/s/${snapshot.station.id}`}
+                  className="flex items-center justify-between border-b border-border/50 py-4 transition-opacity hover:opacity-70"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium">{snapshot.station.name}</p>
+                    <p className="text-sm text-muted">
+                      {snapshot.reading
+                        ? `Độ mặn ${formatSalinity(snapshot.reading.salinity)} · Mực nước ${formatWaterLevel(snapshot.reading.water_level)}`
+                        : "Chưa có dữ liệu gần nhất"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs uppercase tracking-[0.14em] text-muted">
+                      {index === 0 ? "Ưu tiên hàng đầu" : "Theo dõi"}
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-muted" aria-hidden />
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-2xl space-y-3">
-              <p className="text-xs uppercase tracking-[0.22em] text-accent">Quan trắc trực tiếp</p>
-              <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Tình hình môi trường hôm nay</h2>
-              <p className="text-sm leading-relaxed text-muted">
-                Bảng dưới đây cho biết mạng lưới đang ổn hay cần chú ý, và điều gì vừa thay đổi gần nhất.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild variant="outline">
-                <Link href="/report">Gửi báo cáo hiện trường</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/about">Xem câu chuyện dự án</Link>
-              </Button>
-            </div>
-          </div>
+          <div className="space-y-4">
+            <SectionHeader
+              eyebrow="Bất thường"
+              title="Cảnh báo"
+              trailing={
+                <span className="inline-flex items-center gap-2">
+                  <Gauge className="h-3.5 w-3.5 text-accent" aria-hidden />
+                  {allAlerts.length} sự kiện gần đây
+                </span>
+              }
+            />
 
-          <dl className="grid gap-6 border-y border-border/40 py-6 sm:grid-cols-2 xl:grid-cols-4">
-            <TelemetryStat label="Cập nhật gần nhất" value={freshness} />
-            <TelemetryStat label="Trạm hoạt động" value={`${metrics.activeStations}/${metrics.totalStations}`} />
-            <TelemetryStat label="Tín hiệu yếu" value={`${metrics.weakSignalNodes}`} />
-            <TelemetryStat label="Cảnh báo cần chú ý" value={`${metrics.criticalAlerts}`} />
-          </dl>
+            {alerts.length === 0 ? (
+              <EmptyState
+                title="Không có cảnh báo mới"
+                description="Mạng lưới đang vận hành bình thường. Cảnh báo sẽ xuất hiện ở đây khi một trạm cần chú ý."
+              />
+            ) : (
+              <div className="space-y-3">
+                {alerts.map((alert) => (
+                  <div key={alert.id} className="flex items-start justify-between gap-4 border-b border-border/50 py-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {stationNames.get(alert.station_id) ?? alert.station_id}
+                      </p>
+                      <p className="mt-1 text-sm text-muted">{alert.message_id ?? alert.event_type}</p>
+                    </div>
+                    <div className="text-right text-sm">
+                      <p className="font-medium">{severityLabel(alert.severity)}</p>
+                      <p className="text-muted">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(alert.timestamp))}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
-        <section className="grid gap-14 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
-          <div className="space-y-8">
+        {/* Trends */}
+        <section className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+          <div>
             <SalinityChart
               data={trendSummary?.points ?? []}
               stationName={featuredSnapshot?.station.name ?? "Cồn Hô"}
               threshold={threshold}
             />
-
-            <div className="space-y-4">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Cập nhật ưu tiên</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">Cảnh báo</h3>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted">
-                  <Gauge className="h-3.5 w-3.5 text-accent" aria-hidden />
-                  {allAlerts.length} sự kiện gần đây
-                </div>
-              </div>
-
-              {alerts.length === 0 ? (
-                <EmptyState
-                  title="Không có cảnh báo mới"
-                  description="Mạng lưới đang vận hành bình thường. Cảnh báo sẽ xuất hiện ở đây khi một trạm cần chú ý."
-                />
-              ) : (
-                <div className="space-y-3">
-                  {alerts.map((alert) => (
-                    <div key={alert.id} className="flex items-start justify-between gap-4 border-b border-border/30 py-4">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">
-                          {stationNames.get(alert.station_id) ?? alert.station_id}
-                        </p>
-                        <p className="mt-1 text-sm text-muted">{alert.message_id ?? alert.event_type}</p>
-                      </div>
-                      <div className="text-right text-sm">
-                        <p className="font-medium">{severityLabel(alert.severity)}</p>
-                        <p className="text-muted">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(alert.timestamp))}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
-          <div className="space-y-8">
+          {trendSummary ? (
             <div className="space-y-4">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Trạm trực tiếp</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">Danh sách trạm theo mức ưu tiên</h3>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted">
-                  <Radar className="h-3.5 w-3.5 text-accent" aria-hidden />
-                  Xếp theo mức rủi ro
-                </div>
-              </div>
-
-              <div className="space-y-0">
-                {sortedSnapshots.map((snapshot, index) => (
-                  <Link
-                    key={snapshot.station.id}
-                    href={`/s/${snapshot.station.id}`}
-                    className="flex items-center justify-between border-b border-border/30 py-4 transition-opacity hover:opacity-70"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium">{snapshot.station.name}</p>
-                      <p className="text-sm text-muted">
-                        {snapshot.reading
-                          ? `Độ mặn ${formatSalinity(snapshot.reading.salinity)} · Mực nước ${formatWaterLevel(snapshot.reading.water_level)}`
-                          : "Chưa có dữ liệu gần nhất"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs uppercase tracking-[0.14em] text-muted">
-                        {index === 0 ? "Ưu tiên hàng đầu" : "Theo dõi"}
-                      </span>
-                      <ArrowRight className="h-4 w-4 text-muted" aria-hidden />
-                    </div>
-                  </Link>
+              <SectionHeader eyebrow="Xu hướng 24 giờ" title="Biên độ và chênh lệch" />
+              <div className="space-y-4 border-t border-border/50 pt-4">
+                {[
+                  { label: "Hiện tại", value: formatSalinity(trendSummary.current) },
+                  { label: "Trung bình", value: formatSalinity(trendSummary.average) },
+                  {
+                    label: "Chênh lệch",
+                    value: `${trendSummary.delta >= 0 ? "+" : ""}${formatSalinity(Math.abs(trendSummary.delta))}`,
+                  },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-baseline justify-between gap-4">
+                    <p className="text-sm uppercase tracking-[0.14em] text-muted">{item.label}</p>
+                    <p className="text-2xl font-semibold tracking-tight tabular-nums">{item.value}</p>
+                  </div>
                 ))}
               </div>
             </div>
-
-            {trendSummary ? (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-accent">Xu hướng hiện tại</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">Biên độ và chênh lệch</h3>
-                </div>
-                <div className="space-y-4 border-t border-border/40 pt-4">
-                  {[
-                    { label: "Hiện tại", value: formatSalinity(trendSummary.current) },
-                    { label: "Trung bình", value: formatSalinity(trendSummary.average) },
-                    {
-                      label: "Chênh lệch",
-                      value: `${trendSummary.delta >= 0 ? "+" : ""}${formatSalinity(Math.abs(trendSummary.delta))}`,
-                    },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-baseline justify-between gap-4">
-                      <p className="text-sm uppercase tracking-[0.14em] text-muted">{item.label}</p>
-                      <p className="text-2xl font-semibold tracking-tight">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
+          ) : null}
         </section>
-      </>
+
+        {/* Detail */}
+        <DailyComparisonChart data={dailyComparison} />
+      </div>
     );
   } catch {
     return (
-      <>
-        <StationMap />
-        <DailyComparisonChart data={demoDailyComparison()} />
+      <div className="space-y-10">
         <EmptyState
-          title="Horizon Dashboard"
-          description="Hệ thống đang ở chế độ demo hoặc chưa được cấu hình Supabase trên môi trường triển khai. Dashboard sẽ hiển thị dữ liệu thực khi các biến môi trường được cấu hình đầy đủ."
+          title="Không thể tải dữ liệu trực tiếp"
+          description="Đã xảy ra lỗi khi kết nối tới nguồn dữ liệu. Không có bản đồ hay số liệu nào bên dưới là dữ liệu thực — vui lòng thử tải lại trang hoặc kiểm tra cấu hình backend."
         />
-      </>
+      </div>
     );
   }
-}
-
-function TelemetryStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-1">
-      <dt className="text-xs uppercase tracking-[0.16em] text-muted">{label}</dt>
-      <dd className="text-xl font-semibold tracking-tight">{value}</dd>
-    </div>
-  );
 }
 
 async function buildTrendSummary(

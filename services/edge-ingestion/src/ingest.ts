@@ -1,4 +1,4 @@
-import { signPayload } from "./canonical.js";
+import { signPayload, timingSafeEqualHex } from "./canonical.js";
 import type { DbPort } from "./dbPort.js";
 import type { IngestRequest, IngestResponse, IngestionAuditLogRow, EnvironmentalEventRow, TelemetryPayloadV1 } from "./types.js";
 
@@ -15,29 +15,78 @@ function inRange(value: number, min: number, max: number): boolean {
   return value >= min && value <= max;
 }
 
+function readingKind(payload: TelemetryPayloadV1): "water" | "soil" {
+  // Absent reading_kind means "water" — every caller that predates this
+  // field (tests, scripts/simulator.ts, scripts/mock_ingest.ts) never sets
+  // it, and must keep behaving exactly as before.
+  return payload.reading_kind === "soil" ? "soil" : "water";
+}
+
 function hasRequiredFields(payload: TelemetryPayloadV1): boolean {
-  return Boolean(
+  const baseFieldsOk = Boolean(
     payload.contract_version &&
       payload.device_id &&
       payload.message_id &&
       Number.isFinite(payload.timestamp) &&
       payload.firmware_version &&
-      payload.sensor_status?.ec_probe &&
+      Number.isFinite(payload.fault_flags),
+  );
+  if (!baseFieldsOk) {
+    return false;
+  }
+
+  if (readingKind(payload) === "soil") {
+    const soil = payload.soil;
+    if (!soil) {
+      return false;
+    }
+    // At least one sensor must have reported something — an entirely-null
+    // reading carries no information and would just be noise.
+    return [soil.air_temp_c, soil.air_humidity_pct, soil.soil_temp_c, soil.soil_moisture_pct, soil.soil_ec_ms_cm, soil.soil_ph].some(
+      (v) => typeof v === "number" && Number.isFinite(v),
+    );
+  }
+
+  return Boolean(
+    payload.sensor_status?.ec_probe &&
       payload.sensor_status?.ultrasonic &&
       Number.isFinite(payload.salinity) &&
-      Number.isFinite(payload.water_level) &&
-      Number.isFinite(payload.fault_flags) &&
-      Number.isFinite(payload.battery_voltage) &&
-      Number.isFinite(payload.signal_strength_dbm),
+      Number.isFinite(payload.water_level),
   );
 }
 
 function isFaulty(payload: TelemetryPayloadV1): boolean {
+  // Soil readings don't use the whole-row ec_probe/ultrasonic fault model —
+  // each of the six soil sensors independently reports null instead of a
+  // value when it faults (see SoilMeasurements), rather than rejecting an
+  // otherwise-good reading because one unrelated sensor is broken.
+  if (readingKind(payload) === "soil") {
+    return false;
+  }
+
   if (payload.fault_flags > 0) {
     return true;
   }
 
-  return payload.sensor_status.ec_probe === "fault" || payload.sensor_status.ultrasonic === "fault";
+  return payload.sensor_status?.ec_probe === "fault" || payload.sensor_status?.ultrasonic === "fault";
+}
+
+function soilValuesInRange(payload: TelemetryPayloadV1): boolean {
+  const soil = payload.soil;
+  if (!soil) {
+    return false;
+  }
+
+  const checks: Array<[number | null, number, number]> = [
+    [soil.air_temp_c, -10, 60],
+    [soil.air_humidity_pct, 0, 100],
+    [soil.soil_temp_c, -10, 60],
+    [soil.soil_moisture_pct, 0, 100],
+    [soil.soil_ec_ms_cm, 0, 20],
+    [soil.soil_ph, 0, 14],
+  ];
+
+  return checks.every(([value, min, max]) => value === null || inRange(value, min, max));
 }
 
 function auditRow(payload: TelemetryPayloadV1, status: IngestionAuditLogRow["status"], reason: string, timestamp: number): IngestionAuditLogRow {
@@ -58,27 +107,33 @@ async function emitAlertEvents(db: DbPort, payload: TelemetryPayloadV1, config: 
 
   const events: EnvironmentalEventRow[] = [];
 
-  if (payload.salinity >= salinityCriticalLevel) {
-    events.push({
-      station_id: payload.device_id,
-      event_type: "HIGH_SALINITY",
-      severity: "critical",
-      message_id: payload.message_id,
-      details: { salinity: payload.salinity, threshold: salinityCriticalLevel },
-      timestamp: nowEpochSeconds,
-    });
-  } else if (payload.salinity >= salinityWarningLevel) {
-    events.push({
-      station_id: payload.device_id,
-      event_type: "HIGH_SALINITY",
-      severity: "warning",
-      message_id: payload.message_id,
-      details: { salinity: payload.salinity, threshold: salinityWarningLevel },
-      timestamp: nowEpochSeconds,
-    });
+  // Salinity thresholds only apply to water readings — soil payloads have
+  // no payload.salinity at all.
+  if (readingKind(payload) === "water" && typeof payload.salinity === "number") {
+    if (payload.salinity >= salinityCriticalLevel) {
+      events.push({
+        station_id: payload.device_id,
+        event_type: "HIGH_SALINITY",
+        severity: "critical",
+        message_id: payload.message_id,
+        details: { salinity: payload.salinity, threshold: salinityCriticalLevel },
+        timestamp: nowEpochSeconds,
+      });
+    } else if (payload.salinity >= salinityWarningLevel) {
+      events.push({
+        station_id: payload.device_id,
+        event_type: "HIGH_SALINITY",
+        severity: "warning",
+        message_id: payload.message_id,
+        details: { salinity: payload.salinity, threshold: salinityWarningLevel },
+        timestamp: nowEpochSeconds,
+      });
+    }
   }
 
-  if (payload.battery_voltage < lowBatteryVoltage) {
+  // Battery/signal are optional (see TelemetryPayloadV1) — only alert on
+  // thresholds the device actually reported.
+  if (typeof payload.battery_voltage === "number" && payload.battery_voltage < lowBatteryVoltage) {
     events.push({
       station_id: payload.device_id,
       event_type: "LOW_BATTERY",
@@ -89,7 +144,7 @@ async function emitAlertEvents(db: DbPort, payload: TelemetryPayloadV1, config: 
     });
   }
 
-  if (payload.signal_strength_dbm < lowSignalStrengthDbm) {
+  if (typeof payload.signal_strength_dbm === "number" && payload.signal_strength_dbm < lowSignalStrengthDbm) {
     events.push({
       station_id: payload.device_id,
       event_type: "OFFLINE",
@@ -113,6 +168,7 @@ export async function ingestTelemetry(
 ): Promise<IngestResponse> {
   try {
     const payload = request.payload;
+    const kind = readingKind(payload);
 
     if (!hasRequiredFields(payload)) {
       await db.insertAuditLog(auditRow(payload, "missing_field", "required field missing", nowEpochSeconds));
@@ -124,16 +180,33 @@ export async function ingestTelemetry(
       return { ok: false, error_code: "MISSING_FIELD", message: "unsupported contract version", retryable: false };
     }
 
-    const knownSecret = await db.getDeviceSecret(payload.device_id);
+    // The device presenting the signature (x-device-id) authenticates the
+    // request; it may be a gateway relaying on behalf of a station named in
+    // payload.device_id, or the same device connecting directly.
+    const authenticatingDeviceId = request.headers["x-device-id"];
+    if (!authenticatingDeviceId) {
+      await db.insertAuditLog(auditRow(payload, "missing_field", "missing x-device-id header", nowEpochSeconds));
+      return { ok: false, error_code: "MISSING_FIELD", message: "missing x-device-id header", retryable: false };
+    }
+
+    const knownSecret = await db.getDeviceSecret(authenticatingDeviceId);
     if (!knownSecret) {
-      await db.insertAuditLog(auditRow(payload, "device_not_registered", "unknown device", nowEpochSeconds));
-      return { ok: false, error_code: "DEVICE_NOT_REGISTERED", message: "unknown device", retryable: false };
+      await db.insertAuditLog(auditRow(payload, "device_not_registered", "unknown or inactive authenticating device", nowEpochSeconds));
+      return { ok: false, error_code: "DEVICE_NOT_REGISTERED", message: "unknown or inactive authenticating device", retryable: false };
     }
 
     const expectedSig = await signPayload(payload, knownSecret);
-    if (expectedSig !== request.headers["x-signature"]) {
+    if (!timingSafeEqualHex(expectedSig, request.headers["x-signature"] ?? "")) {
       await db.insertAuditLog(auditRow(payload, "invalid_signature", "signature verification failed", nowEpochSeconds));
       return { ok: false, error_code: "INVALID_SIGNATURE", message: "signature verification failed", retryable: false };
+    }
+
+    // A valid signature only proves the authenticating device is real — the
+    // station this reading is attributed to (which may differ, e.g. a
+    // gateway relay) must independently be a known, active device too.
+    if (authenticatingDeviceId !== payload.device_id && !(await db.isDeviceRegistered(payload.device_id))) {
+      await db.insertAuditLog(auditRow(payload, "device_not_registered", "attributed station is not a known, active device", nowEpochSeconds));
+      return { ok: false, error_code: "DEVICE_NOT_REGISTERED", message: "attributed station is not a known, active device", retryable: false };
     }
 
     const headerTimestamp = Number.parseInt(request.headers["x-timestamp"], 10);
@@ -151,12 +224,15 @@ export async function ingestTelemetry(
       };
     }
 
-    if (
-      !inRange(payload.salinity, 0, 50) ||
-      !inRange(payload.water_level, -100, 1000) ||
-      !inRange(payload.battery_voltage, 2.5, 5.5) ||
-      !inRange(payload.signal_strength_dbm, -130, -30)
-    ) {
+    const valuesInRange =
+      kind === "soil"
+        ? soilValuesInRange(payload)
+        : inRange(payload.salinity as number, 0, 50) &&
+          inRange(payload.water_level as number, -100, 1000) &&
+          (typeof payload.battery_voltage !== "number" || inRange(payload.battery_voltage, 2.5, 5.5)) &&
+          (typeof payload.signal_strength_dbm !== "number" || inRange(payload.signal_strength_dbm, -130, -30));
+
+    if (!valuesInRange) {
       await db.insertAuditLog(auditRow(payload, "value_out_of_range", "value out of accepted range", nowEpochSeconds));
       return { ok: false, error_code: "VALUE_OUT_OF_RANGE", message: "value out of accepted range", retryable: false };
     }
@@ -174,25 +250,43 @@ export async function ingestTelemetry(
       return { ok: false, error_code: "SENSOR_FAULT", message: "sensor fault reported by node", retryable: false };
     }
 
-    const status = await db.insertEnvironmental({
-      message_id: payload.message_id,
-      station_id: payload.device_id,
-      salinity: payload.salinity,
-      water_level: payload.water_level,
-      fault_flags: payload.fault_flags,
-      ec_probe_status: payload.sensor_status.ec_probe,
-      ultrasonic_status: payload.sensor_status.ultrasonic,
-      timestamp: payload.timestamp,
-    });
+    const status =
+      kind === "soil"
+        ? await db.insertSoilReading({
+            message_id: payload.message_id,
+            station_id: payload.device_id,
+            air_temp_c: payload.soil?.air_temp_c ?? null,
+            air_humidity_pct: payload.soil?.air_humidity_pct ?? null,
+            soil_temp_c: payload.soil?.soil_temp_c ?? null,
+            soil_moisture_pct: payload.soil?.soil_moisture_pct ?? null,
+            soil_ec_ms_cm: payload.soil?.soil_ec_ms_cm ?? null,
+            soil_ph: payload.soil?.soil_ph ?? null,
+            fault_flags: payload.fault_flags,
+            timestamp: payload.timestamp,
+          })
+        : await db.insertEnvironmental({
+            message_id: payload.message_id,
+            station_id: payload.device_id,
+            salinity: payload.salinity as number,
+            water_level: payload.water_level as number,
+            fault_flags: payload.fault_flags,
+            ec_probe_status: payload.sensor_status!.ec_probe,
+            ultrasonic_status: payload.sensor_status!.ultrasonic,
+            timestamp: payload.timestamp,
+          });
 
     if (status === "inserted") {
-      await db.insertHealth({
-        station_id: payload.device_id,
-        battery_voltage: payload.battery_voltage,
-        signal_strength_dbm: payload.signal_strength_dbm,
-        firmware_version: payload.firmware_version,
-        timestamp: payload.timestamp,
-      });
+      // Only record a health log when the device actually reported at
+      // least one health field — an empty row would just be noise.
+      if (typeof payload.battery_voltage === "number" || typeof payload.signal_strength_dbm === "number") {
+        await db.insertHealth({
+          station_id: payload.device_id,
+          battery_voltage: payload.battery_voltage ?? null,
+          signal_strength_dbm: payload.signal_strength_dbm ?? null,
+          firmware_version: payload.firmware_version,
+          timestamp: payload.timestamp,
+        });
+      }
       await db.touchDeviceSeen(payload.device_id, payload.firmware_version, nowEpochSeconds);
       await emitAlertEvents(db, payload, config, nowEpochSeconds);
       await db.insertAuditLog(auditRow(payload, "accepted", "payload inserted", nowEpochSeconds));

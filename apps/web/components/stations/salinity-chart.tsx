@@ -69,7 +69,7 @@ export function SalinityChart({
         ) : null}
       </div>
 
-      <div className="relative h-[22rem] overflow-hidden rounded-[32px] bg-[linear-gradient(180deg,rgba(15,23,42,0.02)_0%,rgba(15,23,42,0)_100%)] ring-1 ring-border/70">
+      <div className="relative h-[22rem] overflow-hidden rounded-xl bg-[linear-gradient(180deg,rgba(15,23,42,0.02)_0%,rgba(15,23,42,0)_100%)] ring-1 ring-border/70">
         {chartData.length === 0 ? (
           <div className="flex h-full items-center">
             <EmptyState

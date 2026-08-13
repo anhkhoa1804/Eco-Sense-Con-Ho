@@ -13,11 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { freshnessStatus, StatusIndicator } from "@/components/ui/status-indicator";
 import { getSessionContext } from "@/lib/auth/session";
 import { createRepositories } from "@/lib/repositories";
 import { listDemoReports, markDemoReportViewed } from "@/lib/reports/demoReportStore";
 import { createServiceClient } from "@/lib/supabase/service";
-import type { Station } from "@/types";
+import type { Station, StationReadingSnapshot } from "@/types";
 
 const managedStationIds = ["STATION_01", "STATION_02", "STATION_03"];
 
@@ -136,30 +137,47 @@ async function loadRuntimeConfigs(): Promise<RuntimeConfig[]> {
 async function loadAdminStations(
   repos: ReturnType<typeof createRepositories> | null,
   scope: Awaited<ReturnType<typeof requireAdmin>>["scope"],
-): Promise<Station[]> {
+): Promise<{ stations: Station[]; demo: boolean }> {
   if (!repos) {
-    return demoAdminStations();
+    return { stations: demoAdminStations(), demo: true };
   }
 
   try {
-    return await repos.stations.getAll(scope);
+    return { stations: await repos.stations.getAll(scope), demo: false };
   } catch {
-    return demoAdminStations();
+    return { stations: demoAdminStations(), demo: true };
+  }
+}
+
+async function loadAdminSnapshots(
+  repos: ReturnType<typeof createRepositories> | null,
+  scope: Awaited<ReturnType<typeof requireAdmin>>["scope"],
+  fallbackStations: Station[],
+): Promise<StationReadingSnapshot[]> {
+  if (!repos) {
+    return fallbackStations.map((station) => ({ station, reading: null, health: null }));
+  }
+
+  try {
+    return await repos.readings.getSnapshots(scope);
+  } catch {
+    return fallbackStations.map((station) => ({ station, reading: null, health: null }));
   }
 }
 
 async function loadAdminMetrics(
   repos: ReturnType<typeof createRepositories> | null,
   scope: Awaited<ReturnType<typeof requireAdmin>>["scope"],
-): Promise<{ active: number; total: number }> {
+): Promise<{ active: number; total: number; demo: boolean }> {
   if (!repos) {
-    return { active: 3, total: 3 };
+    return { active: 3, total: 3, demo: true };
   }
 
   try {
-    return await repos.stations.getActiveCount(scope);
+    const counts = await repos.stations.getActiveCount(scope);
+    return { ...counts, demo: false };
   } catch {
-    return { active: 3, total: 3 };
+    return { active: 3, total: 3, demo: true };
   }
 }
 
@@ -399,15 +417,17 @@ export default async function AdminPage({
 
   const supabase = createServiceClient();
   const repos = supabase ? createRepositories(supabase) : null;
-  const [stations, metrics, runtimeConfigs, reports, allowedEmailEntries] = await Promise.all([
+  const [{ stations, demo: stationsAreDemo }, metrics, runtimeConfigs, reports, allowedEmailEntries] = await Promise.all([
     loadAdminStations(repos, scope),
     loadAdminMetrics(repos, scope),
     loadRuntimeConfigs(),
     loadCommunityReports(),
     loadAdminAllowedEmailEntries(),
   ]);
+  const snapshots = await loadAdminSnapshots(repos, scope, stations);
   const unreadReports = reports.filter((report) => !report.viewed_at).length;
   const errorMessage = adminErrorMessage(params.error);
+  const isDemoMode = stationsAreDemo || metrics.demo;
 
   return (
     <div className="min-h-dvh bg-background px-4 py-8">
@@ -431,7 +451,7 @@ export default async function AdminPage({
                   ) : null}
                 </span>
               </summary>
-              <div className="absolute right-0 z-50 mt-2 w-[min(92vw,520px)] rounded-2xl border border-border bg-background p-3 shadow-xl">
+              <div className="absolute right-0 z-[var(--z-dropdown)] mt-2 w-[min(92vw,520px)] rounded-lg border border-border bg-background p-3 shadow-md">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <p className="font-semibold">Báo cáo hiện trường</p>
                   <p className="text-xs text-muted">{unreadReports} chưa xem</p>
@@ -455,10 +475,15 @@ export default async function AdminPage({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="font-medium">{reportTitle(report.description)}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium">{reportTitle(report.description)}</p>
+                                {report.id.startsWith("demo-") ? (
+                                  <Badge variant="watch">Lưu tạm — chưa vào Supabase</Badge>
+                                ) : null}
+                              </div>
                               <p className="mt-1 text-xs text-muted">{formatReportTime(report.timestamp)}</p>
                             </div>
-                            {unread ? <Badge variant="critical">Mới</Badge> : <Badge>Đã xem</Badge>}
+                            {unread ? <Badge variant="risk">Mới</Badge> : <Badge>Đã xem</Badge>}
                           </div>
                           <p className="mt-3 text-sm leading-relaxed text-muted">
                             {cleanReportDescription(report.description)}
@@ -491,10 +516,21 @@ export default async function AdminPage({
           </p>
         ) : null}
 
+        {isDemoMode ? (
+          <p className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+            <strong className="font-semibold">Dữ liệu mẫu — chưa kết nối Supabase.</strong> Số liệu trạm và số trạm
+            hoạt động bên dưới không phải dữ liệu thật; chúng sẽ được thay bằng dữ liệu thực khi backend được cấu
+            hình và kết nối.
+          </p>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Tổng quan trạm</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>Tổng quan trạm</CardTitle>
+                {isDemoMode ? <Badge variant="watch">Dữ liệu mẫu</Badge> : null}
+              </div>
               <CardDescription>Số trạm đang hiển thị trong phạm vi quản trị</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">
@@ -525,7 +561,7 @@ export default async function AdminPage({
             <CardHeader>
               <CardTitle>Gmail được phép quản trị</CardTitle>
               <CardDescription>
-                Thêm email tại đây để người đó đăng nhập magic-link và mở được trang quản trị.
+                Thêm email tại đây để người đó đăng nhập bằng mật khẩu và mở được trang quản trị.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -555,7 +591,7 @@ export default async function AdminPage({
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="break-all text-sm font-medium">{entry.email}</p>
                           {entry.source === "env" ? (
-                            <Badge variant="success">Gốc</Badge>
+                            <Badge variant="healthy">Gốc</Badge>
                           ) : (
                             <Badge>Database</Badge>
                           )}
@@ -616,6 +652,9 @@ export default async function AdminPage({
                 <div className="mb-4">
                   <p className="font-semibold">{config.station_id}</p>
                   <p className="mt-1 text-sm text-muted">Chế độ hiện tại: {modeLabel(config.mode)}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {config.updated_at ? `Cập nhật lần cuối: ${formatReportTime(config.updated_at)}` : "Chưa từng chỉnh cấu hình"}
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-1.5">
@@ -664,17 +703,26 @@ export default async function AdminPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Danh sách trạm</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle>Danh sách trạm</CardTitle>
+              {stationsAreDemo ? <Badge variant="watch">Dữ liệu mẫu</Badge> : null}
+            </div>
             <CardDescription>Thông tin nhanh về mạng lưới trạm công khai</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2 text-sm">
-              {stations.map((station) => (
-                <li key={station.id} className="flex justify-between gap-4 border-b border-border/60 py-2">
-                  <span>{station.name}</span>
-                  <span className="text-muted">
-                    {station.id} · {stationStatusLabel(station.status)}
-                  </span>
+            <ul className="space-y-0">
+              {snapshots.map((snapshot) => (
+                <li key={snapshot.station.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 py-3 text-sm">
+                  <div>
+                    <span className="font-medium">{snapshot.station.name}</span>
+                    <span className="ml-2 text-muted">
+                      {snapshot.station.id} · {stationStatusLabel(snapshot.station.status)}
+                    </span>
+                  </div>
+                  <StatusIndicator
+                    status={freshnessStatus(snapshot.reading?.timestamp ?? snapshot.health?.timestamp ?? null)}
+                    compact
+                  />
                 </li>
               ))}
             </ul>

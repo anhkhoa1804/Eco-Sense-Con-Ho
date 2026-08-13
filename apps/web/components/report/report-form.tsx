@@ -31,7 +31,7 @@ export function ReportForm() {
   const [locating, setLocating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successId, setSuccessId] = useState<string | null>(null);
+  const [result, setResult] = useState<{ id: string; demo: boolean } | null>(null);
 
   async function handleGetLocation() {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -67,7 +67,7 @@ export function ReportForm() {
 
     setLoading(true);
     setError(null);
-    setSuccessId(null);
+    setResult(null);
 
     const res = await fetch("/api/public/reports", {
       method: "POST",
@@ -81,7 +81,7 @@ export function ReportForm() {
       }),
     });
 
-    const response = (await res.json()) as { ok?: boolean; id?: string };
+    const response = (await res.json()) as { ok?: boolean; id?: string; demo?: boolean };
     setLoading(false);
 
     if (!res.ok) {
@@ -89,26 +89,35 @@ export function ReportForm() {
       return;
     }
 
-    setSuccessId(response.id ?? "đã-gửi");
+    setResult({ id: response.id ?? "đã-gửi", demo: response.demo === true });
     setDescription("");
     setLocation(null);
   }
 
-  if (successId) {
+  if (result) {
     return (
-      <div className="space-y-6 rounded-[36px] bg-background">
+      <div className="space-y-6 rounded-xl bg-background">
         <div className="space-y-3">
-          <Badge variant="healthy" className="w-fit">
-            Đã gửi
+          <Badge variant={result.demo ? "watch" : "healthy"} className="w-fit">
+            {result.demo ? "Đã lưu tạm" : "Đã gửi"}
           </Badge>
           <h3 className="text-3xl font-semibold tracking-tight">Cảm ơn bạn</h3>
-          <p className="max-w-2xl text-sm leading-relaxed text-muted">
-            Báo cáo của bạn đã được ghi nhận. Chúng tôi sẽ dùng nó để bổ sung ngữ cảnh cho mạng lưới quan trắc.
-          </p>
+          {result.demo ? (
+            <p className="max-w-2xl text-sm leading-relaxed text-muted">
+              Hệ thống hiện chưa kết nối được tới cơ sở dữ liệu chính, nên báo cáo của bạn đang được lưu tạm trên máy
+              chủ này thay vì lưu trong Supabase. Nội dung bạn gửi là thật và sẽ được đội vận hành xem, nhưng có thể
+              không được giữ lâu dài — vui lòng gửi lại khi hệ thống kết nối ổn định nếu vấn đề vẫn còn.
+            </p>
+          ) : (
+            <p className="max-w-2xl text-sm leading-relaxed text-muted">
+              Báo cáo của bạn đã được ghi nhận trong cơ sở dữ liệu. Chúng tôi sẽ dùng nó để bổ sung ngữ cảnh cho mạng
+              lưới quan trắc.
+            </p>
+          )}
         </div>
 
-        <div className="flex flex-wrap gap-3 rounded-[28px] bg-muted/25 px-5 py-5">
-          <p className="text-sm text-muted">Tham chiếu: <span className="font-medium text-foreground">{successId}</span></p>
+        <div className="flex flex-wrap gap-3 rounded-lg bg-muted/25 px-5 py-5">
+          <p className="text-sm text-muted">Tham chiếu: <span className="font-medium text-foreground">{result.id}</span></p>
           <p className="text-sm text-muted">Trạng thái: chờ xem xét</p>
         </div>
 
@@ -116,7 +125,7 @@ export function ReportForm() {
           <Button asChild>
             <Link href="/dashboard">Về bảng quan trắc</Link>
           </Button>
-          <Button variant="outline" onClick={() => setSuccessId(null)}>
+          <Button variant="outline" onClick={() => setResult(null)}>
             Gửi báo cáo khác
           </Button>
         </div>
@@ -147,9 +156,9 @@ export function ReportForm() {
                 aria-checked={active}
                 onClick={() => setCategory(item.value)}
                 className={cn(
-                  "rounded-full px-4 py-3 text-sm font-medium transition-colors",
+                  "rounded-full px-4 py-3 text-sm font-medium transition-colors duration-[var(--motion-base)]",
                   active
-                    ? "bg-foreground text-background"
+                    ? "bg-accent/10 text-accent"
                     : "bg-muted/25 text-foreground hover:bg-muted/40",
                 )}
               >
@@ -179,18 +188,13 @@ export function ReportForm() {
             </p>
           )}
         </div>
-      </div>
-
-      <div className="space-y-3">
-        <Label htmlFor="station" className="text-sm font-medium">
-          Mã trạm liên quan
-        </Label>
         <Input
           id="station"
           value={stationId}
           onChange={(e) => setStationId(e.target.value)}
-          placeholder="Ví dụ: STATION_02"
-          className="h-14 rounded-full bg-background px-5 text-base"
+          placeholder="Không có GPS? Nhập mã trạm gần nhất, ví dụ STATION_02"
+          className="h-12 rounded-full bg-background px-5 text-sm"
+          aria-label="Mã trạm liên quan"
           aria-invalid={!!error}
           aria-describedby={error ? "form-error" : undefined}
         />
@@ -211,20 +215,21 @@ export function ReportForm() {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Bạn nhìn thấy gì, ở đâu, và khi nào?"
-          className="min-h-[180px] rounded-[28px] bg-background px-5 py-4 text-base"
+          className="min-h-[180px] rounded-lg bg-background px-5 py-4 text-base"
           aria-invalid={!!error}
           aria-describedby={error ? "form-error" : undefined}
         />
       </div>
 
-      <div className="rounded-[32px] border border-dashed border-border bg-muted/10 px-5 py-8 text-center">
-        <ImagePlus className="mx-auto h-6 w-6 text-accent" aria-hidden />
-        <p className="mt-3 text-sm font-medium">Ảnh hiện trường / ghi chú nhanh</p>
-        <p className="mt-1 text-sm text-muted">Dùng mô tả này để thay cho ảnh nếu cần.</p>
+      <div className="flex items-start gap-3 rounded-lg bg-muted/10 px-5 py-4">
+        <ImagePlus className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden />
+        <p className="text-sm text-muted">
+          Chưa hỗ trợ đính kèm ảnh — hãy mô tả càng cụ thể càng tốt (vị trí, hiện trạng, mức độ) để thay thế.
+        </p>
       </div>
 
       {location ? (
-        <div className="rounded-[28px] bg-muted/20 px-5 py-4 text-sm text-muted">
+        <div className="rounded-lg bg-muted/20 px-5 py-4 text-sm text-muted">
           <p className="font-medium text-foreground">Xem trước vị trí</p>
           <p className="mt-1">
             Báo cáo hiện được ghim tại {location.lat.toFixed(4)}, {location.lng.toFixed(4)}.

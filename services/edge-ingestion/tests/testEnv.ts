@@ -45,6 +45,19 @@ export function loadSupabaseEnv(): Record<string, string> {
   return merged;
 }
 
+/**
+ * Gate for `tests/integration.test.ts` — requires explicit opt-in via
+ * LIVE_SUPABASE_INTEGRATION=1, never inferred from env presence alone.
+ *
+ * WARNING: as of the Phase E/F reconciliation, `infra/supabase/.env.supabase`
+ * (if present) points at a REAL, LIVE Supabase project. Setting
+ * LIVE_SUPABASE_INTEGRATION=1 with that file present does not simulate
+ * anything — it POSTs real signed telemetry through the live edge-ingest
+ * endpoint and writes real rows to `environmental_readings`/
+ * `ingestion_audit_logs`. Do not set this flag casually, and never as part
+ * of a default/CI test run. Run only `npm run test` (contract.test.ts,
+ * fully mocked) unless you specifically intend to write live test data.
+ */
 export function hasLiveSupabaseEnv(env: Record<string, string>): boolean {
   return Boolean(
     env.LIVE_SUPABASE_INTEGRATION === "1" &&

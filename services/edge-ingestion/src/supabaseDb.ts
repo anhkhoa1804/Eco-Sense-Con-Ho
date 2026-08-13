@@ -1,5 +1,5 @@
 import type { DbPort } from "./dbPort.js";
-import type { EnvironmentalEventRow, EnvironmentalReadingRow, IngestionAuditLogRow, OtaInfo, StationHealthRow } from "./types.js";
+import type { EnvironmentalEventRow, EnvironmentalReadingRow, IngestionAuditLogRow, OtaInfo, SoilReadingRow, StationHealthRow } from "./types.js";
 
 interface RestResult {
   ok: boolean;
@@ -66,6 +66,26 @@ export class SupabaseDb implements DbPort {
     return rows[0].device_secret ?? null;
   }
 
+  public async isDeviceRegistered(deviceId: string): Promise<boolean> {
+    const result = await this.request(
+      "devices",
+      "GET",
+      undefined,
+      `?device_id=eq.${encodeURIComponent(deviceId)}&select=status&limit=1`,
+    );
+
+    if (!result.ok) {
+      return false;
+    }
+
+    const rows = JSON.parse(result.text) as Array<{ status?: string }>;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return false;
+    }
+
+    return !rows[0].status || rows[0].status === "active";
+  }
+
   public async insertEnvironmental(row: EnvironmentalReadingRow): Promise<"inserted" | "duplicate_ignored"> {
     const result = await this.request("environmental_readings", "POST", {
       message_id: row.message_id,
@@ -75,6 +95,31 @@ export class SupabaseDb implements DbPort {
       fault_flags: row.fault_flags,
       ec_probe_status: row.ec_probe_status,
       ultrasonic_status: row.ultrasonic_status,
+      timestamp: new Date(row.timestamp * 1000).toISOString(),
+    });
+
+    if (result.ok) {
+      return "inserted";
+    }
+
+    if (result.status === 409 || result.text.includes("duplicate") || result.text.includes("23505")) {
+      return "duplicate_ignored";
+    }
+
+    throw new Error(result.text || `insert failed with status ${result.status}`);
+  }
+
+  public async insertSoilReading(row: SoilReadingRow): Promise<"inserted" | "duplicate_ignored"> {
+    const result = await this.request("soil_readings", "POST", {
+      message_id: row.message_id,
+      station_id: row.station_id,
+      air_temp_c: row.air_temp_c,
+      air_humidity_pct: row.air_humidity_pct,
+      soil_temp_c: row.soil_temp_c,
+      soil_moisture_pct: row.soil_moisture_pct,
+      soil_ec_ms_cm: row.soil_ec_ms_cm,
+      soil_ph: row.soil_ph,
+      fault_flags: row.fault_flags,
       timestamp: new Date(row.timestamp * 1000).toISOString(),
     });
 

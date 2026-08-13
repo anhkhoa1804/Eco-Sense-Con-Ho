@@ -26,6 +26,12 @@ export interface StationLiveChartSeries {
   unit: string;
 }
 
+/**
+ * Assumes at most 2 distinct units across `series` (true for every current
+ * station profile) — each gets its own Y axis (left/right) rather than
+ * sharing one scale, which would visually flatten whichever series has the
+ * smaller range (e.g. salinity in ‰ next to water level in cm).
+ */
 export function StationLiveChart({
   title,
   note,
@@ -37,6 +43,9 @@ export function StationLiveChart({
   data: StationLiveChartPoint[];
   series: StationLiveChartSeries[];
 }) {
+  const units = [...new Set(series.map((item) => item.unit))].slice(0, 2);
+  const seriesByUnit = new Map(units.map((unit) => [unit, series.filter((item) => item.unit === unit)]));
+
   return (
     <Card>
       <CardHeader>
@@ -51,14 +60,20 @@ export function StationLiveChart({
             <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="#e5eaed" strokeDasharray="3 3" />
               <XAxis dataKey="label" stroke="#66707a" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis
-                stroke="#66707a"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                domain={["auto", "auto"]}
-                tickFormatter={(value) => Number(value).toFixed(1)}
-              />
+              {units.map((unit, index) => (
+                <YAxis
+                  key={unit}
+                  yAxisId={unit}
+                  orientation={index === 0 ? "left" : "right"}
+                  stroke={seriesByUnit.get(unit)?.[0]?.color ?? "#66707a"}
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={["auto", "auto"]}
+                  tickFormatter={(value) => Number(value).toFixed(1)}
+                  label={{ value: unit, position: index === 0 ? "insideTopLeft" : "insideTopRight", fontSize: 11, fill: "#66707a" }}
+                />
+              ))}
               <Tooltip
                 contentStyle={{
                   background: "#ffffff",
@@ -75,6 +90,7 @@ export function StationLiveChart({
               {series.map((item) => (
                 <Line
                   key={item.key}
+                  yAxisId={item.unit}
                   type="monotone"
                   dataKey={item.key}
                   stroke={item.color}

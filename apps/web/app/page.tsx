@@ -1,22 +1,18 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowRight, Droplets, MapPinned, Send, Sprout, Users, Waves } from "lucide-react";
+import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { freshnessStatus } from "@/components/ui/status-indicator";
 import { getPublicRepositories } from "@/lib/publicRead";
 import { getDashboardMetrics } from "@/lib/repositories";
 import { formatSalinity, formatWaterLevel } from "@/lib/utils";
 
 export const revalidate = 60;
-
-const networkNodes = [
-  { label: "Đầu Cồn", status: "healthy", x: "20%", y: "26%" },
-  { label: "Homestay Cô Ba", status: "watch", x: "58%", y: "40%" },
-  { label: "Cuối Cồn", status: "healthy", x: "76%", y: "74%" },
-];
 
 const storyBlocks = [
   {
@@ -64,40 +60,45 @@ async function LiveSummary() {
   const context = getPublicRepositories();
   if (!context) return null;
 
-  const { repos, scope } = context;
-  const [metrics, snapshots] = await Promise.all([
-    getDashboardMetrics(repos, scope),
-    repos.readings.getSnapshots(scope),
-  ]);
+  try {
+    const { repos, scope } = context;
+    const [metrics, snapshots] = await Promise.all([
+      getDashboardMetrics(repos, scope),
+      repos.readings.getSnapshots(scope),
+    ]);
 
-  const readingValues = snapshots.flatMap((snapshot) => (snapshot.reading ? [snapshot.reading] : []));
-  const averageWaterLevel =
-    readingValues.length > 0
-      ? readingValues.reduce((sum, reading) => sum + reading.water_level, 0) / readingValues.length
-      : 0;
-  const latestTimestamp = readingValues
-    .map((reading) => new Date(reading.timestamp).getTime())
-    .filter(Number.isFinite)
-    .sort((a, b) => b - a)[0];
+    const readingValues = snapshots.flatMap((snapshot) => (snapshot.reading ? [snapshot.reading] : []));
+    // null, not 0 — an average of zero readings is undefined, not a measured zero.
+    const averageWaterLevel =
+      readingValues.length > 0
+        ? readingValues.reduce((sum, reading) => sum + reading.water_level, 0) / readingValues.length
+        : null;
+    const latestTimestamp = readingValues
+      .map((reading) => new Date(reading.timestamp).getTime())
+      .filter(Number.isFinite)
+      .sort((a, b) => b - a)[0];
 
-  const freshness = latestTimestamp
-    ? `Cập nhật ${new Intl.DateTimeFormat("vi-VN", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(latestTimestamp))}`
-    : "Chưa có dữ liệu đo";
+    const freshness = latestTimestamp
+      ? `Cập nhật ${new Intl.DateTimeFormat("vi-VN", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(latestTimestamp))}`
+      : "Chưa có dữ liệu đo";
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-baseline gap-x-8 gap-y-4 border-y border-border/40 py-4">
-        <RibbonStat label="Độ mặn trung bình" value={formatSalinity(metrics.averageSalinity)} />
-        <RibbonStat label="Mực nước trung bình" value={formatWaterLevel(averageWaterLevel)} />
-        <RibbonStat label="Trạm đang hoạt động" value={`${metrics.activeStations}/${metrics.totalStations}`} />
-        <RibbonStat label="Cảnh báo cần chú ý" value={String(metrics.criticalAlerts)} />
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-4 border-y border-border/40 py-4">
+          <RibbonStat label="Độ mặn trung bình" value={formatSalinity(metrics.averageSalinity)} />
+          <RibbonStat label="Mực nước trung bình" value={formatWaterLevel(averageWaterLevel)} />
+          <RibbonStat label="Trạm đang hoạt động" value={`${metrics.activeStations}/${metrics.totalStations}`} />
+          <RibbonStat label="Cảnh báo cần chú ý" value={String(metrics.criticalAlerts)} />
+        </div>
+        <p className="text-sm text-muted">{freshness}</p>
       </div>
-      <p className="text-sm text-muted">{freshness}</p>
-    </div>
-  );
+    );
+  } catch {
+    return <p className="text-sm text-muted">Không thể kết nối tới nguồn dữ liệu trực tiếp lúc này.</p>;
+  }
 }
 
 function SummaryFallback() {
@@ -114,58 +115,36 @@ function SummaryFallback() {
   );
 }
 
-function NetworkPreview() {
+async function NetworkPreview() {
+  const context = getPublicRepositories();
+  if (!context) return <StationNetworkMap stations={[]} />;
+
+  let snapshots: Awaited<ReturnType<typeof context.repos.readings.getSnapshots>>;
+  try {
+    snapshots = await context.repos.readings.getSnapshots(context.scope);
+  } catch {
+    return <StationNetworkMap stations={[]} />;
+  }
+
+  const mapStations: MapStation[] = snapshots.map((snapshot) => ({
+    id: snapshot.station.id,
+    name: snapshot.station.name,
+    lat: snapshot.station.lat,
+    lng: snapshot.station.lng,
+    freshness: freshnessStatus(snapshot.reading?.timestamp ?? snapshot.health?.timestamp ?? null),
+  }));
+
+  return <StationNetworkMap stations={mapStations} />;
+}
+
+function NetworkPreviewFallback() {
   return (
-    <div className="relative min-h-[640px] overflow-hidden rounded-[42px] bg-[linear-gradient(180deg,#f6faf6_0%,#edf5ef_100%)] shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-border/70">
-      <div className="absolute inset-x-12 top-20 h-px bg-border/70" />
-      <div className="absolute inset-y-12 left-1/2 w-px bg-border/70" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(31,138,76,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(15,118,110,0.1),transparent_28%)]" />
-      <div className="absolute left-8 top-8 rounded-full bg-background/80 px-4 py-1.5 text-xs font-medium text-muted shadow-sm backdrop-blur">
-        Mạng lưới thời gian thực
-      </div>
-      <div className="absolute inset-x-8 top-28 h-[1px] bg-foreground/5" />
-      <div className="absolute inset-y-28 left-8 right-8 w-[1px] bg-foreground/5" />
-      {networkNodes.map((node) => (
-        <div
-          key={node.label}
-          className="absolute -translate-x-1/2 -translate-y-1/2"
-          style={{ left: node.x, top: node.y }}
-        >
-          <div className="relative">
-            <span
-              className={[
-                "absolute inset-0 rounded-full blur-2xl transition-opacity",
-                node.status === "healthy" ? "bg-healthy/20 opacity-70" : "bg-watch/20 opacity-80",
-              ].join(" ")}
-              aria-hidden
-            />
-            <div
-              className={[
-                "relative flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium backdrop-blur transition-transform duration-300",
-                node.status === "healthy" ? "bg-healthy-bg text-healthy" : "bg-watch-bg text-watch",
-              ].join(" ")}
-            >
-              <span
-                className={[
-                  "h-2.5 w-2.5 rounded-full",
-                  node.status === "healthy" ? "bg-healthy" : "bg-watch",
-                ].join(" ")}
-              />
-              {node.label}
-            </div>
-          </div>
-        </div>
-      ))}
-      <div className="absolute inset-x-8 bottom-8 grid gap-3 sm:grid-cols-3">
-        {[
-          "Độ mặn theo dõi liên tục",
-          "Mực nước phản ánh nhịp thủy văn",
-          "Cảnh báo nổi bật theo mức độ",
-        ].map((item) => (
-          <div key={item} className="text-sm text-muted">
-            {item}
-          </div>
-        ))}
+    <div className="h-[420px] overflow-hidden rounded-lg border border-border bg-muted/10 p-8">
+      <Skeleton className="h-6 w-40 rounded-full" />
+      <div className="mt-24 space-y-6">
+        <Skeleton className="h-10 w-48 rounded-full" />
+        <Skeleton className="h-10 w-56 rounded-full" />
+        <Skeleton className="h-10 w-44 rounded-full" />
       </div>
     </div>
   );
@@ -217,36 +196,29 @@ export default function HomePage() {
           </Suspense>
         </div>
 
-        <NetworkPreview />
+        <Suspense fallback={<NetworkPreviewFallback />}>
+          <NetworkPreview />
+        </Suspense>
       </section>
 
-      <section className="mt-20">
-        <Card className="border-accent/15 bg-muted/20">
-          <CardContent className="space-y-5">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">Thông điệp</p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight">Ba điểm chạm, cùng lên đèn.</p>
+      <section className="mt-20 space-y-6 border-y border-border/60 py-10">
+        <SectionHeader eyebrow="Thông điệp" title="Ba điểm chạm, cùng lên đèn." />
+        <p className="max-w-2xl leading-relaxed text-muted">
+          Horizon không chỉ ghi nhận dữ liệu môi trường, mà còn đưa dữ liệu ấy trở lại với đời sống hằng ngày của
+          bà con. Một trạm nhìn dòng nước, một trạm nhìn thửa đất, và gateway giúp thông tin đến đúng lúc qua những
+          kênh bà con dễ dùng.
+        </p>
+        <div className="grid gap-6 sm:grid-cols-3">
+          {focusItems.map(({ title, desc, icon: Icon }) => (
+            <div key={title} className="flex gap-3">
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+              <div>
+                <p className="font-medium">{title}</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted">{desc}</p>
+              </div>
             </div>
-            <p className="leading-relaxed text-muted">
-              Horizon không chỉ ghi nhận dữ liệu môi trường, mà còn đưa dữ liệu ấy trở lại với đời sống hằng ngày của
-              bà con. Một trạm nhìn dòng nước, một trạm nhìn thửa đất, và gateway giúp thông tin đến đúng lúc qua những
-              kênh bà con dễ dùng.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {focusItems.map(({ title, desc, icon: Icon }) => (
-                <div key={title} className="flex gap-3 rounded-lg border border-border bg-background p-4">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                    <Icon className="h-5 w-5" aria-hidden />
-                  </span>
-                  <div>
-                    <p className="font-medium">{title}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-muted">{desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+          ))}
+        </div>
       </section>
 
       <section className="mt-20 space-y-14">
@@ -287,7 +259,7 @@ export default function HomePage() {
         })}
       </section>
 
-      <section className="mt-20 grid gap-4 md:grid-cols-3">
+      <section className="mt-20 grid gap-8 border-t border-border/60 pt-10 md:grid-cols-3">
         {[
           {
             title: "Ghi nhận mỗi ngày",
@@ -302,28 +274,28 @@ export default function HomePage() {
             desc: "Người dân có thể xem thông tin công khai và gửi báo cáo khi thấy bất thường.",
           },
         ].map((item) => (
-          <Card key={item.title}>
-            <CardContent>
-              <h4 className="text-lg font-semibold tracking-tight">{item.title}</h4>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{item.desc}</p>
-            </CardContent>
-          </Card>
+          <div key={item.title}>
+            <h4 className="text-lg font-semibold tracking-tight">{item.title}</h4>
+            <p className="mt-2 text-sm leading-relaxed text-muted">{item.desc}</p>
+          </div>
         ))}
       </section>
 
-      <section className="mt-20 flex flex-col gap-6 border-t border-border/40 pt-8 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-accent">Bắt đầu</p>
-          <h3 className="mt-2 text-2xl font-semibold tracking-tight">Khám phá mạng lưới quan trắc.</h3>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href="/dashboard">Vào bảng quan trắc</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/about">Đọc câu chuyện dự án</Link>
-          </Button>
-        </div>
+      <section className="mt-20 border-t border-border/60 pt-10">
+        <SectionHeader
+          eyebrow="Bắt đầu"
+          title="Khám phá mạng lưới quan trắc."
+          trailing={
+            <div className="flex flex-wrap gap-3">
+              <Button asChild>
+                <Link href="/dashboard">Vào bảng quan trắc</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/about">Đọc câu chuyện dự án</Link>
+              </Button>
+            </div>
+          }
+        />
       </section>
     </PublicShell>
   );

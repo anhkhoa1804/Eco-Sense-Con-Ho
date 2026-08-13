@@ -2,7 +2,12 @@
 
 ## Scope
 
-This document defines the v1 telemetry contract between field devices and the Eco-Sense ingestion service. Public and admin application APIs may evolve separately, but they must preserve the product principles in the handbook: trustworthy data, clear status, access control, and fast UI.
+This document defines the v1 telemetry contract between field devices and the HORIZON ingestion service. Public and admin application APIs may evolve separately, but they must preserve the product principles in the handbook: trustworthy data, clear status, access control, and fast UI.
+
+This is the ONE canonical ingestion contract — see
+[`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) §1 for why the
+previously-separate `/api/public/gateway` route was removed rather than
+kept as a second path.
 
 ## Telemetry ingestion endpoint
 
@@ -30,7 +35,7 @@ Device HMAC is validated inside the edge function. Gateway authentication and de
 | `Content-Type` | Yes | Must be `application/json`. |
 | `Authorization` | Yes | Supabase gateway token. |
 | `apikey` | Yes | Supabase gateway key. |
-| `x-device-id` | Yes | Device identifier; should match `payload.device_id`. |
+| `x-device-id` | Yes | The device presenting this request's signature. Equal to `payload.device_id` for a device connecting directly; different when a gateway relays on behalf of a station (`x-device-id` = the gateway's own ID, `payload.device_id` = the station's). Both must independently be known, active `devices` rows. |
 | `x-timestamp` | Yes | Unix epoch seconds UTC; used for replay-window validation. |
 | `x-signature` | Yes | HMAC-SHA256 lowercase hexadecimal digest. |
 | `x-contract-version` | Yes | Contract version; expected `v1`. |
@@ -73,18 +78,14 @@ Example `TelemetryPayloadV1`:
 | `fault_flags` | integer | Bitmask; values greater than 0 indicate fault path. |
 | `sensor_status.ec_probe` | enum | `ok`, `warn`, or `fault`. |
 | `sensor_status.ultrasonic` | enum | `ok`, `warn`, or `fault`. |
-| `battery_voltage` | number | 2.5–5.5 V. |
-| `signal_strength_dbm` | integer | -130 to -30 dBm. |
 | `firmware_version` | string | Semantic version string. |
 
 ## Optional fields
 
-Optional fields are allowed only when the ingestion service explicitly tolerates them. They must not be used for authorization-critical logic unless added to a future canonical signature string.
-
-Potential reserved fields:
-
 | Field | Type | Notes |
 |-------|------|-------|
+| `battery_voltage` | number | 2.5–5.5 V when present. **Not required as of the gateway-relay architecture** — a LoRa-only station has no cellular modem, and a relaying gateway can't honestly measure a remote station's battery. Omitted rather than fabricated when unmeasurable. Included in the HMAC canonical string as an empty segment when absent. |
+| `signal_strength_dbm` | integer | -130 to -30 dBm when present. **Not required** for the same reason — "signal strength" in the cellular sense doesn't apply to a LoRa-only device. Empty canonical-string segment when absent. |
 | `temperature_c` | number | Future environmental measurement. |
 | `calibration.k_value` | number | Future calibration metadata. |
 | `calibration.last_calibrated_at` | integer | Future calibration timestamp. |
@@ -150,6 +151,36 @@ Canonical string:
 ```text
 STATION_01|contract-test-message-001|1700000000|1.1|50|0|ok|ok|3.9|-85|1.0.2|v1
 ```
+
+### Gateway-relay test vector (battery/signal omitted)
+
+This is the actual shape a gateway sends when relaying a LoRa-only station's
+reading — `x-device-id` is the gateway's ID, signed with the **gateway's**
+secret, not the station's:
+
+```json
+{
+  "contract_version": "v1",
+  "device_id": "STATION_02",
+  "message_id": "STATION_02-gateway-relay-001",
+  "timestamp": 1700000000,
+  "salinity": 1.18,
+  "water_level": 61,
+  "fault_flags": 0,
+  "sensor_status": { "ec_probe": "ok", "ultrasonic": "ok" },
+  "firmware_version": "station2-grapefruit-soil-0.1.0"
+}
+```
+
+Canonical string — 12 pipe-delimited fields, always; battery/signal are
+present as consecutive empty segments (not skipped) when omitted from the
+payload:
+
+```text
+STATION_02|STATION_02-gateway-relay-001|1700000000|1.18|61|0|ok|ok|||station2-grapefruit-soil-0.1.0|v1
+```
+
+Signed with `GATEWAY_01`'s secret; sent with `x-device-id: GATEWAY_01`.
 
 ## Replay protection
 

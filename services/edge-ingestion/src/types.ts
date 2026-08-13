@@ -10,23 +10,64 @@ export interface CalibrationInfo {
   last_calibrated_at?: number;
 }
 
+/**
+ * Per-field measurement for a soil station (Trạm 2 / soil-kind devices).
+ * Every field is independently nullable: six independent sensors, each
+ * with its own fault status — a broken pH probe shouldn't block otherwise-
+ * valid EC/moisture data. Never fabricate a value here — null means the
+ * sensor didn't report, not zero.
+ */
+export interface SoilMeasurements {
+  air_temp_c: number | null;
+  air_humidity_pct: number | null;
+  soil_temp_c: number | null;
+  soil_moisture_pct: number | null;
+  soil_ec_ms_cm: number | null;
+  soil_ph: number | null;
+}
+
 export interface TelemetryPayloadV1 {
   contract_version: "v1";
+  /**
+   * Discriminates which measurement shape this payload carries. Optional
+   * and defaults to "water" for backward compatibility with every existing
+   * caller (tests, scripts/simulator.ts, scripts/mock_ingest.ts) that
+   * predates this field and never sets it — omitting it is exactly
+   * equivalent to "water", not a different, unvalidated third state.
+   */
+  reading_kind?: "water" | "soil";
+  /** The station this reading is attributed to — may differ from the authenticating device (see IngestHeaders["x-device-id"]). */
   device_id: string;
   message_id: string;
   timestamp: number;
-  salinity: number;
-  water_level: number;
+  /** Required when reading_kind is "water" (the default); absent when "soil". */
+  salinity?: number;
+  water_level?: number;
+  sensor_status?: SensorStatus;
+  /** Required when reading_kind is "soil"; absent when "water". */
+  soil?: SoilMeasurements;
   fault_flags: number;
-  sensor_status: SensorStatus;
-  battery_voltage: number;
-  signal_strength_dbm: number;
+  /**
+   * Optional: a LoRa-relayed station has no cellular modem of its own and a
+   * relaying gateway can't honestly measure a remote station's battery, so
+   * these are not always available. Never fabricate a value here — omit
+   * the field instead.
+   */
+  battery_voltage?: number;
+  signal_strength_dbm?: number;
   firmware_version: string;
   temperature_c?: number;
   calibration?: CalibrationInfo;
 }
 
 export interface IngestHeaders {
+  /**
+   * The device presenting this request's signature — the secret used to
+   * verify x-signature belongs to THIS device. For a gateway relaying a
+   * station's reading, this is the gateway's ID, not the station's
+   * (payload.device_id). For a device connecting directly, it equals
+   * payload.device_id.
+   */
   "x-device-id": string;
   "x-timestamp": string;
   "x-signature": string;
@@ -82,6 +123,19 @@ export interface EnvironmentalReadingRow {
   timestamp: number;
 }
 
+export interface SoilReadingRow {
+  message_id: string;
+  station_id: string;
+  air_temp_c: number | null;
+  air_humidity_pct: number | null;
+  soil_temp_c: number | null;
+  soil_moisture_pct: number | null;
+  soil_ec_ms_cm: number | null;
+  soil_ph: number | null;
+  fault_flags: number;
+  timestamp: number;
+}
+
 export interface EnvironmentalEventRow {
   station_id: string;
   event_type: "HIGH_SALINITY" | "SENSOR_FAULT" | "LOW_BATTERY" | "OFFLINE";
@@ -93,8 +147,8 @@ export interface EnvironmentalEventRow {
 
 export interface StationHealthRow {
   station_id: string;
-  battery_voltage: number;
-  signal_strength_dbm: number;
+  battery_voltage: number | null;
+  signal_strength_dbm: number | null;
   firmware_version: string;
   timestamp: number;
 }

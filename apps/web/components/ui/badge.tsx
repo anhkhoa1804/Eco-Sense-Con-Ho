@@ -8,10 +8,6 @@ const variants = {
   risk: "border-transparent bg-risk-bg text-risk",
   offline: "border-transparent bg-offline-bg text-offline",
   fault: "border-transparent bg-fault-bg text-fault",
-  success: "border-transparent bg-healthy-bg text-healthy",
-  warning: "border-transparent bg-watch-bg text-watch",
-  critical: "border-transparent bg-risk-bg text-risk",
-  secondary: "border-transparent bg-offline-bg text-offline",
 };
 
 export function Badge({
@@ -22,7 +18,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-[6px] border px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-xs border px-2 py-0.5 text-xs font-medium",
         variants[variant],
         className,
       )}

@@ -1,15 +1,24 @@
 @import "tailwindcss";
 
 @theme {
+  /* Neutral foundation */
   --color-background: #f7f6f1;
   --color-foreground: #0b1417;
   --color-card: #fbfaf7;
   --color-muted: #59666b;
-  --color-accent: #166534;
+  --color-border: rgba(15, 23, 42, 0.08);
+  --color-border-strong: rgba(15, 23, 42, 0.16);
+
+  /* Brand — a deep instrumentation blue, deliberately NOT green.
+     Green is reserved for the "healthy" status meaning below; using it
+     as the brand color as well would read as a generic eco-NGO site. */
+  --color-accent: #0e5f8a;
   --color-accent-2: #0f766e;
+
   --color-warning: #b45309;
   --color-critical: #b91c1c;
-  --color-border: rgba(15, 23, 42, 0.08);
+
+  /* Environmental status vocabulary — semantic only, never used as brand color */
   --color-healthy: #1c7c42;
   --color-healthy-bg: rgba(28, 124, 66, 0.08);
   --color-watch: #a86400;
@@ -20,9 +29,70 @@
   --color-offline-bg: rgba(94, 102, 112, 0.08);
   --color-fault: #6d28d9;
   --color-fault-bg: rgba(109, 40, 217, 0.08);
+
+  /* Data visualization */
   --color-threshold: #b42318;
   --color-salinity: #0f8b8d;
-  --font-serif: "Georgia", "Times New Roman", serif;
+  --color-water-level: #2563eb;
+  --color-grid: rgba(15, 23, 42, 0.08);
+
+  /* Radius scale — replaces ad-hoc rounded-[Npx] arbitrary values */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  /* Elevation — subtle borders over dramatic shadows */
+  --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 12px 32px rgb(15 23 42 / 0.10);
+  --shadow-lg: 0 24px 64px rgb(15 23 42 / 0.14);
+}
+
+:root {
+  /* Motion — kept as plain vars since duration/easing are consumed via
+     inline style or arbitrary Tailwind values, not utility class names */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-medium: 220ms;
+  --motion-slow: 250ms;
+  --motion-skeleton: 1800ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Z-index scale */
+  --z-sticky: 20;
+  --z-dropdown: 40;
+  --z-popover: 50;
+  --z-toast: 70;
+  --z-drawer: 80;
+  --z-modal: 90;
+  --z-critical: 100;
+}
+
+/*
+ * Shared decorative panel surface (hero visuals, illustrative side panels).
+ * Replaces the repeated ad-hoc rounded-[42px]/pale-green-gradient/dramatic-
+ * shadow combination that appeared across the homepage, about, and report
+ * pages — those values exceeded the radius scale and used a green-tinted
+ * background that read as generic "eco" styling rather than HORIZON's own
+ * water/instrumentation identity. Tint is brand-accent at low opacity, not green.
+ */
+.panel-surface {
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  background: linear-gradient(180deg, rgba(14, 95, 138, 0.05) 0%, var(--color-card) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 * {
@@ -44,17 +114,6 @@ body {
 a {
   color: inherit;
   text-decoration: none;
-}
-
-h1,
-h2,
-h3,
-h4 {
-  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
-}
-
-:where(.font-serif) {
-  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
 }
 
 :focus-visible {

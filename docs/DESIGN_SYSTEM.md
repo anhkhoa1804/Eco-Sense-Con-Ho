@@ -10,7 +10,7 @@ This file defines governance and system structure. Concrete values and component
 - [`DESIGN_TOKENS.md`](DESIGN_TOKENS.md) for numeric implementation values.
 - [`COMPONENT_SPECIFICATION.md`](COMPONENT_SPECIFICATION.md) for reusable UI components.
 - [`PAGE_BLUEPRINTS.md`](PAGE_BLUEPRINTS.md) for screen hierarchy.
-- [`INTERACTION_GUIDELINES.md`](INTERACTION_GUIDELINES.md) for motion and state changes.
+- [`INTERACTION_GUIDELINE.md`](INTERACTION_GUIDELINE.md) for motion and state changes.
 - [`COPYWRITING_GUIDE.md`](COPYWRITING_GUIDE.md) for language.
 - [`EMPTY_STATES.md`](EMPTY_STATES.md) for missing-data and offline states.
 
