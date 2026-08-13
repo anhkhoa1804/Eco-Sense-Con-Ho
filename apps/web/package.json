@@ -8,7 +8,7 @@
     "start": "next start --port 4173",
     "lint": "next lint",
     "check": "tsc --noEmit",
-    "test": "tsx --test tests/authBootstrap.test.ts tests/repositoryScope.test.ts tests/soilReadingRepository.test.ts"
+    "test": "tsx --test tests/authBootstrap.test.ts tests/repositoryScope.test.ts tests/soilReadingRepository.test.ts tests/stationDetailSoil.test.ts tests/reportPersistence.test.ts tests/loginRateLimit.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.7",

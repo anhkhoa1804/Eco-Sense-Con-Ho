@@ -109,7 +109,15 @@ export type UserRole = "farmer" | "admin";
 
 export interface RepositoryScope {
   userId: string;
-  role: UserRole;
-  /** Assigned station IDs for farmers; ignored for admins (full access). */
+  /**
+   * "public" is the anon/public-read path (see lib/publicRead.ts) — never
+   * a genuinely authenticated user's role. Treated the same as "admin" for
+   * read-scoping purposes (no application-layer station filter — the real
+   * boundary there is Postgres RLS), but kept as its own distinct,
+   * honestly-named value so it's never mistaken for a real admin session
+   * by future code that checks scope.role.
+   */
+  role: UserRole | "public";
+  /** Assigned station IDs for farmers; ignored for admins/public (full read access). */
   stationIds: string[];
 }

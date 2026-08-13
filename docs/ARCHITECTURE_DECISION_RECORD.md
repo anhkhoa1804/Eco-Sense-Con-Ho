@@ -18,6 +18,16 @@ current state. Also added by Phase E, not present when this record was
 written: #16 (station topology) and #17 (GCP), since neither question had
 been asked yet.
 
+**Update (Phase G, 2026-08-13): #10's "No CI/CD pipeline exists in the
+repository" line is also stale, and was wrong for longer than it should
+have been** — three GitHub Actions workflows exist
+(`.github/workflows/ci-validate.yml`, `ci-live-smoke.yml`,
+`release-deploy.yml`), and every phase from E through H repeated this
+claim without checking. See `ARCHITECTURE.md`'s "Deployment status"
+section for the corrected picture. Migrations 018/019 are also now
+tracked in git (confirmed via `git ls-tree -r HEAD`) — #11(a) below's
+"still untracked" note is likewise stale.
+
 ## 1. Canonical ingestion architecture
 
 **One path**: ESP32 stations → LoRa UART (unsigned, no clock) → gateway
@@ -118,8 +128,9 @@ history, but is no longer true.) The Supabase project
 (`edhcnccvbwuffiwzywfm`) is provisioned, reachable, and fully migrated
 (001–019). The Next.js application reads real data from it in production.
 No Edge Function has ever been deployed — `edge-ingest` only runs locally
-under `tsx --test`. No firmware has ever been flashed. No CI/CD pipeline
-exists in the repository. There is still no STAGING or PRODUCTION
+under `tsx --test`, though `.github/workflows/release-deploy.yml` already
+automates deployment on a version tag push (see Phase G update above). No
+firmware has ever been flashed. There is still no STAGING or PRODUCTION
 telemetry path today: nothing has ever sent a real signed reading through
 the deployed system, because the two things needed to do that (a
 deployed edge function, and compiled/flashed firmware) don't exist yet.
@@ -132,16 +143,18 @@ Updated — item (a) and (d) below are done; kept for the historical
 dependency ordering, not as an open list:
 
 (a) ~~a real Supabase project, with migrations 001–019 applied in order
-and 018/019 committed to git first~~ **DONE** except the git-commit part —
-018/019 are still untracked (losing this working tree still loses them);
-(b) `readWaterEc()` implemented against the real EC probe, since without
-it Station 1 can never store a reading; (c) firmware actually compiled
-(PlatformIO toolchain) and flashed to real ESP32 hardware, with the
-placeholder `EDGE_INGEST_URL`/`CONFIG_URL`/`GATEWAY_DEVICE_SECRET`
-replaced with real values; (d) ~~the `soil_readings` repository-read gap
-closed~~ **DONE** — a repository method exists; wiring it into
-`station-detail.tsx`'s UI is a separate, still-open item since the table
-has zero live rows to display yet; (e) the three NOT-VERIFIED gateway
+and 018/019 committed to git first~~ **DONE, fully** — both migrations are
+now tracked in git; (b) `readWaterEc()` implemented against the real EC
+probe, since without it Station 1 can never store a reading; (c) firmware
+actually compiled (PlatformIO toolchain) and flashed to real ESP32
+hardware, with the placeholder `EDGE_INGEST_URL`/`CONFIG_URL`/
+`GATEWAY_DEVICE_SECRET` replaced with real values; (d) ~~the
+`soil_readings` repository-read gap closed~~ **DONE, fully** — the
+repository method exists and `station-detail.tsx` now calls it, rendering
+real EC/moisture/pH values when present; the table still holds zero live
+rows because nothing has ever ingested a soil payload, which is an
+ingestion-deployment gap, not a UI gap anymore; (e) the three NOT-VERIFIED
+gateway
 firmware assumptions (AT+CCLK format, multi-header AT+HTTPPARA behavior,
 mbedtls-on-real-hardware) confirmed against the actual SIM module and
 board; (f) **new**: deploy `edge-ingest` as a real Supabase Edge Function

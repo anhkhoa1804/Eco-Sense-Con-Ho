@@ -180,6 +180,16 @@ export async function ingestTelemetry(
       return { ok: false, error_code: "MISSING_FIELD", message: "unsupported contract version", retryable: false };
     }
 
+    // x-contract-version is carried on the transport (header) as well as the
+    // payload body — normally redundant, but a proxy/gateway bug could
+    // rewrite one without the other. Both must agree; the payload's value is
+    // still the one checked against config.allowedContractVersion above.
+    const headerContractVersion = request.headers["x-contract-version"];
+    if (headerContractVersion && headerContractVersion !== payload.contract_version) {
+      await db.insertAuditLog(auditRow(payload, "contract_mismatch", "x-contract-version header does not match payload.contract_version", nowEpochSeconds));
+      return { ok: false, error_code: "MISSING_FIELD", message: "x-contract-version header does not match payload.contract_version", retryable: false };
+    }
+
     // The device presenting the signature (x-device-id) authenticates the
     // request; it may be a gateway relaying on behalf of a station named in
     // payload.device_id, or the same device connecting directly.
@@ -276,25 +286,42 @@ export async function ingestTelemetry(
           });
 
     if (status === "inserted") {
-      // Only record a health log when the device actually reported at
-      // least one health field — an empty row would just be noise.
-      if (typeof payload.battery_voltage === "number" || typeof payload.signal_strength_dbm === "number") {
-        await db.insertHealth({
-          station_id: payload.device_id,
-          battery_voltage: payload.battery_voltage ?? null,
-          signal_strength_dbm: payload.signal_strength_dbm ?? null,
-          firmware_version: payload.firmware_version,
-          timestamp: payload.timestamp,
-        });
+      // Isolated from the outer catch on purpose. The reading itself is
+      // already durably stored and message_id-guarded — that's the part
+      // that matters for correctness. If we let a failure here (health,
+      // device-seen touch, alert events) become a `retryable: true`
+      // response, the gateway will retry with the same message_id;
+      // insertEnvironmental/insertSoilReading will then report
+      // "duplicate_ignored", this whole branch won't run again, and
+      // health/events/the "accepted" audit row would be lost permanently,
+      // not just delayed. Best-effort log the failure and still report
+      // success — the reading genuinely was accepted.
+      try {
+        // Only record a health log when the device actually reported at
+        // least one health field — an empty row would just be noise.
+        if (typeof payload.battery_voltage === "number" || typeof payload.signal_strength_dbm === "number") {
+          await db.insertHealth({
+            station_id: payload.device_id,
+            battery_voltage: payload.battery_voltage ?? null,
+            signal_strength_dbm: payload.signal_strength_dbm ?? null,
+            firmware_version: payload.firmware_version,
+            timestamp: payload.timestamp,
+          });
+        }
+        await db.touchDeviceSeen(payload.device_id, payload.firmware_version, nowEpochSeconds);
+        await emitAlertEvents(db, payload, config, nowEpochSeconds);
+        await db.insertAuditLog(auditRow(payload, "accepted", "payload inserted", nowEpochSeconds));
+      } catch (sideEffectError) {
+        const message = sideEffectError instanceof Error ? sideEffectError.message : "unexpected error";
+        await db
+          .insertAuditLog(auditRow(payload, "accepted", `payload inserted; side effect failed: ${message}`, nowEpochSeconds))
+          .catch(() => undefined);
       }
-      await db.touchDeviceSeen(payload.device_id, payload.firmware_version, nowEpochSeconds);
-      await emitAlertEvents(db, payload, config, nowEpochSeconds);
-      await db.insertAuditLog(auditRow(payload, "accepted", "payload inserted", nowEpochSeconds));
     } else {
       await db.insertAuditLog(auditRow(payload, "duplicate", "duplicate message_id ignored", nowEpochSeconds));
     }
 
-    const ota = await db.getActiveOta(payload.device_id);
+    const ota = await db.getActiveOta(payload.device_id).catch(() => ({ update_available: false as const }));
 
     return {
       ok: true,

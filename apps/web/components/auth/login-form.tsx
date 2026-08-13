@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { isAdminEmailAllowed, normalizeEmail } from "@/lib/auth/adminAllowlist";
+import { clearLoginRateLimit, isLoginRateLimited, recordFailedLoginAttempt } from "@/lib/auth/loginRateLimit";
 import { createLocalAdminSession, isLocalAdminPasswordValid } from "@/lib/auth/localAdminSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,10 +23,16 @@ async function loginAdmin(formData: FormData) {
     redirect(`/admin/login?error=unauthorized${emailQuery}`);
   }
 
+  if (isLoginRateLimited(email)) {
+    redirect(`/admin/login?error=rate-limited${emailQuery}`);
+  }
+
   if (!isLocalAdminPasswordValid(password)) {
+    recordFailedLoginAttempt(email);
     redirect(`/admin/login?error=bad-password${emailQuery}`);
   }
 
+  clearLoginRateLimit(email);
   await createLocalAdminSession(email);
   redirect(redirectTo);
 }

@@ -1,209 +1,34 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import {
-  StationLiveChart,
-  type StationLiveChartPoint,
-  type StationLiveChartSeries,
-} from "@/components/stations/station-live-chart";
+import { StationLiveChart } from "@/components/stations/station-live-chart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Metric } from "@/components/ui/metric";
 import { SectionHeader } from "@/components/ui/section-header";
-import { freshnessStatus, QualityIndicator, StatusIndicator, type QualityState } from "@/components/ui/status-indicator";
+import { freshnessStatus, QualityIndicator, StatusIndicator } from "@/components/ui/status-indicator";
 import { getPublicRepositories } from "@/lib/publicRead";
+import {
+  chartDataFrom,
+  formatCelsius,
+  formatPercent,
+  formatPh,
+  formatSalinityValue,
+  formatSignal,
+  formatSoilEc,
+  formatVoltage,
+  formatWaterValue,
+  NO_DATA_LABEL,
+  profileFor,
+  qualityFor,
+  readingSummary,
+  sensorStatusLabel,
+  stationProfiles,
+  stationStatusLabel,
+  type StationProfile,
+} from "@/lib/stationProfile";
 import { formatTimestamp } from "@/lib/utils";
-import type { EnvironmentalReading, SensorStatus, Station, StationHealthLog, TrendPoint } from "@/types";
-
-type StationKind = "water" | "soil" | "gateway";
-
-const NO_DATA_LABEL = "Chưa có dữ liệu";
-
-interface StationProfile {
-  id: string;
-  kind: StationKind;
-  name: string;
-  location: string;
-  intro: string;
-  chartTitle: string;
-  chartNote: string;
-  chartSeries: StationLiveChartSeries[];
-}
-
-const stationProfiles: Record<string, StationProfile> = {
-  STATION_01: {
-    id: "STATION_01",
-    kind: "water",
-    name: "Trạm 1 - Gần sông",
-    location: "Khu ven sông Cồn Hô",
-    intro: "Theo dõi mực nước, độ mặn và dấu hiệu triều cường để bà con nhận biết biến động của dòng nước sớm hơn.",
-    chartTitle: "Diễn biến nước 24 giờ",
-    chartNote: "So sánh mực nước và độ mặn tại khu gần sông.",
-    chartSeries: [
-      { key: "waterLevel", name: "Mực nước", color: "#0f766e", unit: "cm" },
-      { key: "salinity", name: "Độ mặn", color: "#b45309", unit: "‰" },
-    ],
-  },
-  STATION_02: {
-    id: "STATION_02",
-    kind: "soil",
-    name: "Trạm 2 - Dữ liệu đất",
-    location: "Khu canh tác giữa cồn",
-    intro: "Đo EC đất và độ ẩm tương đối để hỗ trợ bà con chọn thời điểm tưới, chăm sóc và trồng trọt phù hợp.",
-    chartTitle: "Diễn biến đất 24 giờ",
-    chartNote: "Theo dõi EC đất cùng độ ẩm ước tính tại vùng canh tác.",
-    chartSeries: [
-      { key: "soilEc", name: "EC đất", color: "#166534", unit: "mS/cm" },
-      { key: "waterLevel", name: "Độ ẩm đất", color: "#0f766e", unit: "%" },
-    ],
-  },
-  STATION_03: {
-    id: "STATION_03",
-    kind: "gateway",
-    name: "Trạm 3 - Gateway",
-    location: "Điểm gửi dữ liệu cuối cồn",
-    intro: "Tổng hợp dữ liệu từ các trạm và chuyển thông tin nhanh chóng về cho bà con qua các kênh liên lạc quen dùng.",
-    chartTitle: "Trạng thái gửi dữ liệu 24 giờ",
-    chartNote: "Theo dõi tỷ lệ gửi dữ liệu và tín hiệu kết nối của gateway.",
-    chartSeries: [
-      { key: "deliveryRate", name: "Tỷ lệ gửi", color: "#166534", unit: "%" },
-      { key: "waterLevel", name: "Tín hiệu", color: "#0f766e", unit: "%" },
-    ],
-  },
-};
-
-function stationStatusLabel(status?: string): string {
-  switch (status) {
-    case "active":
-      return "Đang hoạt động";
-    case "maintenance":
-      return "Bảo trì";
-    case "offline":
-    case "inactive":
-      return "Ngoại tuyến";
-    default:
-      return "Không rõ trạng thái";
-  }
-}
-
-function formatSalinityValue(value: number | null): string {
-  return value === null ? NO_DATA_LABEL : `${value.toFixed(2)}‰`;
-}
-
-function formatWaterValue(value: number | null): string {
-  return value === null ? NO_DATA_LABEL : `${Math.round(value)} cm`;
-}
-
-function formatVoltage(value: number | null): string {
-  return value === null ? NO_DATA_LABEL : `${value.toFixed(2)} V`;
-}
-
-function formatSignal(value: number | null): string {
-  return value === null ? NO_DATA_LABEL : `${value} dBm`;
-}
-
-function profileFor(stationId: string, station?: Station | null): StationProfile | null {
-  if (stationProfiles[stationId]) return stationProfiles[stationId];
-  if (!station) return null;
-
-  return {
-    id: station.id,
-    kind: "water",
-    name: station.name,
-    location: "Điểm quan trắc Cồn Hô",
-    intro: "Theo dõi dữ liệu môi trường tại trạm quan trắc.",
-    chartTitle: "Diễn biến 24 giờ",
-    chartNote: "Dữ liệu mới nhất được ghi nhận tại trạm.",
-    chartSeries: [
-      { key: "waterLevel", name: "Mực nước", color: "#0f766e", unit: "cm" },
-      { key: "salinity", name: "Độ mặn", color: "#b45309", unit: "‰" },
-    ],
-  };
-}
-
-/**
- * Only "water" stations have real per-point trend data today
- * (environmental_readings carries salinity/water_level only). Soil and
- * gateway kinds have no backing columns yet — render the empty state
- * rather than inventing values for series the schema can't support.
- */
-function chartDataFrom(profile: StationProfile, trend: TrendPoint[]): StationLiveChartPoint[] {
-  if (profile.kind !== "water") {
-    return [];
-  }
-
-  return trend.map((point) => ({
-    label: new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(point.timestamp)),
-    salinity: Number(point.salinity.toFixed(2)),
-    waterLevel: Number(point.water_level.toFixed(1)),
-  }));
-}
-
-function readingSummary(
-  profile: StationProfile,
-  reading: EnvironmentalReading | null | undefined,
-  threshold?: { warningLevel: number; criticalLevel: number } | null,
-) {
-  const salinity = reading?.salinity ?? null;
-  const waterLevel = reading?.water_level ?? null;
-  // Soil EC / moisture have no real column anywhere in the current schema —
-  // never derive them from unrelated water fields.
-  const soilEc: number | null = null;
-
-  if (profile.kind === "soil") {
-    return {
-      salinity,
-      waterLevel,
-      soilEc,
-      recommendation: "Chưa có dữ liệu đất thực tế từ trạm này để đưa ra khuyến nghị.",
-      riskLabel: null as string | null,
-    };
-  }
-
-  if (profile.kind === "gateway") {
-    return {
-      salinity,
-      waterLevel,
-      soilEc,
-      recommendation: "Gateway đang ưu tiên gửi dữ liệu mới nhất về hệ thống để thông tin đến bà con nhanh chóng.",
-      riskLabel: null as string | null,
-    };
-  }
-
-  const criticalLevel = threshold?.criticalLevel ?? 1.8;
-  const warningLevel = threshold?.warningLevel ?? 1.2;
-  const riskLabel =
-    salinity === null ? null : salinity >= criticalLevel ? "Nguy cơ cao" : salinity >= warningLevel ? "Đang tăng" : "An toàn";
-  const recommendation =
-    salinity === null
-      ? "Chưa có dữ liệu độ mặn mới nhất từ trạm này."
-      : salinity >= criticalLevel
-        ? "Độ mặn đang cao, bà con nên hạn chế lấy nước trực tiếp cho cây nhạy mặn."
-        : salinity >= warningLevel
-          ? "Độ mặn có dấu hiệu tăng, nên theo dõi thêm trước khi tưới hoặc lấy nước."
-          : "Dữ liệu nước đang ở mức tương đối ổn định, tiếp tục quan sát theo từng con nước.";
-
-  return { salinity, waterLevel, soilEc, recommendation, riskLabel };
-}
-
-function sensorStatusLabel(status?: SensorStatus | null): string {
-  switch (status) {
-    case "ok":
-      return "Hoạt động bình thường";
-    case "warn":
-      return "Cần chú ý";
-    case "fault":
-      return "Cần kiểm tra cảm biến";
-    default:
-      return "Chưa có dữ liệu";
-  }
-}
-
-function qualityFor(profile: StationProfile, reading: EnvironmentalReading | null): QualityState {
-  if (profile.kind !== "water" || !reading) return "valid";
-  const hasFault = reading.fault_flags > 0 || reading.ec_probe_status === "fault" || reading.ultrasonic_status === "fault";
-  return hasFault ? "error" : "valid";
-}
+import type { EnvironmentalReading, SoilReading, Station, StationHealthLog, TrendPoint } from "@/types";
 
 /**
  * Bare metric grid with top/bottom rules instead of one card per value —
@@ -216,22 +41,24 @@ function StationMetrics({
   reading,
   health,
   threshold,
+  soilReading,
 }: {
   profile: StationProfile;
   reading: EnvironmentalReading | null;
   health: StationHealthLog | null;
   threshold?: { warningLevel: number; criticalLevel: number } | null;
+  soilReading?: SoilReading | null;
 }) {
-  const summary = readingSummary(profile, reading, threshold);
+  const summary = readingSummary(profile, reading, threshold, soilReading);
   const signal = health?.signal_strength_dbm ?? null;
   const battery = health?.battery_voltage ?? null;
 
   const items =
     profile.kind === "soil"
       ? [
-          { label: "EC đất", value: NO_DATA_LABEL },
-          { label: "Độ ẩm đất", value: NO_DATA_LABEL },
-          { label: "Tình trạng đất", value: NO_DATA_LABEL },
+          { label: "EC đất", value: formatSoilEc(soilReading?.soil_ec_ms_cm ?? null) },
+          { label: "Độ ẩm đất", value: formatPercent(soilReading?.soil_moisture_pct ?? null) },
+          { label: "Độ pH đất", value: formatPh(soilReading?.soil_ph ?? null) },
           { label: "Pin trạm", value: formatVoltage(battery) },
         ]
       : profile.kind === "gateway"
@@ -264,19 +91,28 @@ export async function StationDetail({ stationId }: { stationId: string }) {
   let health: StationHealthLog | null = null;
   let trend: TrendPoint[] = [];
   let threshold: { warningLevel: number; criticalLevel: number } | null = null;
+  let soilReading: SoilReading | null = null;
+
+  // Only water stations have environmental_readings rows and only soil
+  // stations have soil_readings rows — a station is never both, so this
+  // check (known from the static profile, before the station row itself
+  // has even loaded) avoids querying a table this station can never have
+  // data in.
+  const isSoilStation = stationProfiles[stationId]?.kind === "soil";
 
   if (context) {
     const { repos, scope } = context;
     try {
-      [station, reading, health, trend, threshold] = await Promise.all([
+      [station, reading, health, trend, threshold, soilReading] = await Promise.all([
         repos.stations.getById(stationId, scope),
         repos.readings.getLatestByStation(stationId, scope),
         repos.readings.getLatestHealthByStation(stationId, scope),
         repos.readings.getTrend24h(stationId, scope),
         repos.readings.getDefaultSalinityThreshold(),
+        isSoilStation ? repos.readings.getLatestSoilReadingByStation(stationId, scope) : Promise.resolve(null),
       ]);
     } catch {
-      // Leave station/reading/health/trend/threshold at their honest "no data" defaults below.
+      // Leave station/reading/health/trend/threshold/soilReading at their honest "no data" defaults below.
     }
   }
 
@@ -287,14 +123,15 @@ export async function StationDetail({ stationId }: { stationId: string }) {
 
   const signal = health?.signal_strength_dbm ?? null;
   const battery = health?.battery_voltage ?? null;
-  const latestTimestamp = reading?.timestamp ?? health?.timestamp ?? null;
-  const summary = readingSummary(profile, reading, threshold);
+  const latestTimestamp = reading?.timestamp ?? soilReading?.timestamp ?? health?.timestamp ?? null;
+  const summary = readingSummary(profile, reading, threshold, soilReading);
   const chartData = chartDataFrom(profile, trend);
   const status = stationStatusLabel(station?.status);
   const statusVariant =
     station?.status === "maintenance" ? "watch" : station?.status === "inactive" ? "offline" : station?.status === "active" ? "healthy" : "offline";
 
   const quality = qualityFor(profile, reading);
+  const hasAnyMeasurement = Boolean(reading || soilReading);
 
   return (
     <div className="space-y-8">
@@ -321,7 +158,7 @@ export async function StationDetail({ stationId }: { stationId: string }) {
           </div>
           <div className="space-y-1.5">
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Chất lượng đo</p>
-            {reading ? (
+            {hasAnyMeasurement ? (
               <QualityIndicator status={quality} compact />
             ) : (
               <p className="text-xs font-medium text-muted">Chưa có phép đo để đánh giá</p>
@@ -330,7 +167,7 @@ export async function StationDetail({ stationId }: { stationId: string }) {
         </div>
       </section>
 
-      <StationMetrics profile={profile} reading={reading} health={health} threshold={threshold} />
+      <StationMetrics profile={profile} reading={reading} health={health} threshold={threshold} soilReading={soilReading} />
 
       <section className="grid gap-8 lg:grid-cols-[1.35fr_0.65fr]">
         <StationLiveChart
@@ -346,10 +183,16 @@ export async function StationDetail({ stationId }: { stationId: string }) {
             <p>Mã trạm: {profile.id}</p>
             <p>Tín hiệu: {formatSignal(signal)}</p>
             <p>Pin: {formatVoltage(battery)}</p>
-            {profile.kind !== "gateway" ? (
+            {profile.kind === "water" ? (
               <>
                 <p>Cảm biến EC/độ mặn: {sensorStatusLabel(reading?.ec_probe_status)}</p>
                 <p>Cảm biến mực nước/độ ẩm: {sensorStatusLabel(reading?.ultrasonic_status)}</p>
+              </>
+            ) : profile.kind === "soil" ? (
+              <>
+                <p>Nhiệt độ không khí: {formatCelsius(soilReading?.air_temp_c ?? null)}</p>
+                <p>Độ ẩm không khí: {formatPercent(soilReading?.air_humidity_pct ?? null)}</p>
+                <p>Nhiệt độ đất: {formatCelsius(soilReading?.soil_temp_c ?? null)}</p>
               </>
             ) : (
               <>

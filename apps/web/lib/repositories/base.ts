@@ -4,12 +4,20 @@ import type { RepositoryScope } from "@/types";
 /** Sentinel used to produce zero rows when a farmer has no assignments. */
 export const NO_ACCESS_STATION_ID = "__NO_ACCESS__";
 
-export function isAdminScope(scope: RepositoryScope): boolean {
-  return scope.role === "admin";
+/**
+ * True for scopes that should never have an application-layer station
+ * filter applied — either a genuinely authenticated admin session, or the
+ * public-read path (role: "public"), whose real access boundary is
+ * Postgres RLS (anon role + migration 018/019 policies), not this check.
+ * See lib/publicRead.ts's own comment for why "public" is deliberately
+ * unscoped here without granting anything.
+ */
+export function isUnscopedRead(scope: RepositoryScope): boolean {
+  return scope.role === "admin" || scope.role === "public";
 }
 
 export function scopedStationIds(scope: RepositoryScope): string[] | null {
-  if (isAdminScope(scope)) {
+  if (isUnscopedRead(scope)) {
     return null;
   }
   if (scope.stationIds.length === 0) {
@@ -19,7 +27,7 @@ export function scopedStationIds(scope: RepositoryScope): string[] | null {
 }
 
 export function canAccessStation(scope: RepositoryScope, stationId: string): boolean {
-  if (isAdminScope(scope)) {
+  if (isUnscopedRead(scope)) {
     return true;
   }
   return scope.stationIds.includes(stationId);

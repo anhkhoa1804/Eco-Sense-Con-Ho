@@ -26,6 +26,9 @@ jobs:
       - name: Typecheck web
         run: npm run check -w @eco-sense/web
 
+      - name: Lint web
+        run: npm run lint
+
       - name: Ingestion contract tests
         run: npm run test -w @eco-sense/edge-ingestion
 

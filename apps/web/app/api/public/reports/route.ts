@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { addDemoReport } from "@/lib/reports/demoReportStore";
+import { classifyInsertError } from "@/lib/reports/reportPersistence";
 import { createServiceClient } from "@/lib/supabase/service";
 
 const CATEGORIES = [
@@ -38,15 +39,6 @@ function rateLimited(ip: string): boolean {
   times.push(now);
   hits.set(ip, times);
   return false;
-}
-
-function isMissingTableError(error: unknown): boolean {
-  return (
-    error !== null &&
-    typeof error === "object" &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "PGRST205"
-  );
 }
 
 export async function POST(request: Request) {
@@ -146,16 +138,17 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    if (!isMissingTableError(error)) {
-      console.warn("[reports] Falling back to demo report:", error.message);
+    if (classifyInsertError(error) === "demo") {
+      const report = demoReport();
+      return NextResponse.json({
+        ok: true,
+        demo: true,
+        id: report.id,
+      });
     }
 
-    const report = demoReport();
-    return NextResponse.json({
-      ok: true,
-      demo: true,
-      id: report.id,
-    });
+    console.error("[reports] Insert failed:", error.message);
+    return NextResponse.json({ ok: false, error: "insert_failed" }, { status: 502 });
   }
 
   return NextResponse.json({

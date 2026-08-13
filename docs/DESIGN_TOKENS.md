@@ -213,7 +213,7 @@ Rules:
 | Component | Padding | Radius | Elevation | Motion |
 |-----------|---------|--------|-----------|--------|
 | `MetricCard` | `space-5` mobile, `space-6` desktop | `radius-lg` | `elevation-xs` | `motion-base` hover only. |
-| `StationCard` | `space-4` mobile, `space-5` desktop | `radius-lg` | `elevation-xs` | `motion-base` hover only. |
+| `StationCard` *(deleted — see `docs/COMPONENT_ARCHITECTURE.md`; row kept as historical reference only)* | `space-4` mobile, `space-5` desktop | `radius-lg` | `elevation-xs` | `motion-base` hover only. |
 | `AlertCard` | `space-4` | `radius-md` | `elevation-flat` | none by default. |
 | `Button` | horizontal `space-4` to `space-5` | `radius-sm` | `elevation-xs` for primary | `motion-base`. |
 | `Dialog` | `space-6` | `radius-lg` | `elevation-md` | `motion-slow`. |

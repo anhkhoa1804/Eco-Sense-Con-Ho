@@ -78,13 +78,14 @@ wide search found zero code, configuration, or firmware that depends on any
 Google Cloud product. GCP appears exactly twice in the whole repository,
 both times as a hypothetical checklist column in
 `IMPLEMENTATION_ROADMAP.md` ("Hardware? | Live Supabase? | GCP?"), answered
-"No" for every real item except one speculative aside ("possibly, if CI
-runs on GCP-hosted infra — otherwise no"). Every function GCP could
-plausibly provide — Postgres hosting, an HTTPS ingestion endpoint,
-authentication, static/PWA hosting — is already provided by Supabase
-(Postgres + Edge Functions + Auth) and Next.js's own deployment model. Do
-not introduce GCP without a concrete, named technical requirement that
-Supabase cannot satisfy; none has been found.
+"No" for every real item except one aside about CI hosting — now resolved:
+CI runs on GitHub Actions' own `ubuntu-latest` runners
+(`.github/workflows/*.yml`), not GCP-hosted infrastructure. Every function
+GCP could plausibly provide — Postgres hosting, an HTTPS ingestion
+endpoint, authentication, static/PWA hosting, CI — is already provided by
+Supabase (Postgres + Edge Functions + Auth), Next.js's own deployment
+model, and GitHub Actions. Do not introduce GCP without a concrete, named
+technical requirement that these cannot satisfy; none has been found.
 
 ## System summary
 
@@ -114,20 +115,35 @@ secret) — the gateway-relay and direct-connect paths are the same contract.
 
 ## Deployment status: CURRENT vs FUTURE
 
-**CURRENT (verified live, this reconciliation):**
+**CURRENT (verified live):**
 - Supabase project `edhcnccvbwuffiwzywfm` is provisioned and reachable.
 - All 19 migrations (001–019) are applied to it; RLS-scoped public reads
   work end-to-end against real data on every public route.
+- Migrations `018_architecture_realignment.sql` and `019_soil_readings.sql`
+  are tracked in git (`git ls-tree -r HEAD` confirms both paths) — an
+  earlier version of this document said otherwise; that was true when
+  written and is no longer true.
 - The web application reads real data from Supabase in production (typed
   repository layer, anon-key client for public pages, service-role for
-  admin). This includes a read path for `soil_readings` (added in the prior
-  integration phase) — the table exists and is readable, but currently
+  admin). This includes a read path for `soil_readings` — the repository
+  method and the `/s/[stationId]` UI wiring both exist; the table currently
   holds zero rows because nothing has ever ingested a soil payload.
+- Three GitHub Actions workflows exist and are well-formed:
+  `.github/workflows/ci-validate.yml` (typecheck/lint/test/build on every
+  PR and push to main), `ci-live-smoke.yml` (weekly cron + manual dispatch,
+  live integration + RLS tests, gated behind `secrets.DATABASE_URL`),
+  `release-deploy.yml` (tag-triggered: applies migrations, pushes edge
+  secrets, deploys `edge-ingest`, runs post-deploy integration tests). An
+  earlier version of this document, and `ARCHITECTURE_DECISION_RECORD.md`
+  #10, both claimed "no CI/CD pipeline was found" — that was simply wrong;
+  none of the prior phases that made this claim checked `.github/workflows/`.
 
 **FUTURE / NOT YET DONE:**
-- The `edge-ingest` Supabase Edge Function has never been deployed to the
-  live project — migrations create the tables it writes to, but the
-  function itself is only run locally under `tsx --test`.
+- The `edge-ingest` Supabase Edge Function has never actually been deployed
+  to the live project. The *mechanism* to do so already exists
+  (`release-deploy.yml`, triggered by a version tag) — the real blocker is
+  that this repository's GitHub remote has never had the required secrets
+  configured and no tag has been pushed, not that a script needs writing.
 - Firmware has never been compiled (no PlatformIO/ESP32 toolchain has been
   available in any session) or flashed to physical hardware.
 - `gateway.ino`'s `EDGE_INGEST_URL` and `CONFIG_URL` are still literal
@@ -137,14 +153,11 @@ secret) — the gateway-relay and direct-connect paths are the same contract.
   always returns `NAN`) — until real EC hardware/protocol is implemented,
   every water reading fails validation and cannot be stored, water level
   included (the EC-fault check rejects the whole payload).
-- Migrations `018_architecture_realignment.sql` and `019_soil_readings.sql`
-  are applied to the live database but still untracked in git (`git
-  status` shows them as `??`) — commit them before this working tree is at
-  risk of being lost.
 
-So: the *backend and frontend* are live and real; the *field hardware and
-ingestion function* are not deployed yet. These are independent gaps —
-closing one doesn't require the other.
+So: the *backend and frontend* are live and real; the *field hardware* is
+not deployed, and the *edge function* has automation ready but has never
+actually been triggered. These are independent gaps — closing one doesn't
+require the other.
 
 ## System boundaries
 

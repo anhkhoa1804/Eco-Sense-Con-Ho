@@ -27,7 +27,7 @@ Read in this order when onboarding or asking an AI agent to build UI:
 | [`UX_PRINCIPLES.md`](UX_PRINCIPLES.md) | Mobile-first UX principles, public/admin distinction, charts, motion, and state philosophy. |
 | [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) | Design system governance and how tokens/components fit together. |
 | [`DESIGN_TOKENS.md`](DESIGN_TOKENS.md) | Concrete spacing, typography, color, radius, elevation, motion, z-index, and breakpoint tokens. |
-| [`COMPONENT_SPECIFICATION.md`](COMPONENT_SPECIFICATION.md) | Implementation specs for MetricCard, StationCard, charts, buttons, forms, dialogs, toasts, skeletons, and navigation. |
+| [`COMPONENT_SPECIFICATION.md`](COMPONENT_SPECIFICATION.md) | Implementation specs for MetricCard, charts, buttons, forms, dialogs, toasts, skeletons, and navigation — largely aspirational/historical against the current component set; see `COMPONENT_ARCHITECTURE.md` for what's actually built. |
 | [`PAGE_BLUEPRINTS.md`](PAGE_BLUEPRINTS.md) | Required page hierarchy and responsive layout for home, dashboard, station detail, report, login, admin, and offline pages. |
 | [`INTERACTION_GUIDELINE.md`](INTERACTION_GUIDELINE.md) | Motion, hover, focus, loading, dialogs, drawers, skeletons, chart interactions, and reduced motion. |
 | [`COPYWRITING_GUIDE.md`](COPYWRITING_GUIDE.md) | Vietnamese and English terminology, status wording, error wording, CTAs, and alert formulas. |

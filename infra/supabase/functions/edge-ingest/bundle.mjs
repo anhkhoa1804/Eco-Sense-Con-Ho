@@ -202,6 +202,11 @@ async function ingestTelemetry(request, db, config, nowEpochSeconds = Math.floor
       await db.insertAuditLog(auditRow(payload, "contract_mismatch", "unsupported contract version", nowEpochSeconds));
       return { ok: false, error_code: "MISSING_FIELD", message: "unsupported contract version", retryable: false };
     }
+    const headerContractVersion = request.headers["x-contract-version"];
+    if (headerContractVersion && headerContractVersion !== payload.contract_version) {
+      await db.insertAuditLog(auditRow(payload, "contract_mismatch", "x-contract-version header does not match payload.contract_version", nowEpochSeconds));
+      return { ok: false, error_code: "MISSING_FIELD", message: "x-contract-version header does not match payload.contract_version", retryable: false };
+    }
     const authenticatingDeviceId = request.headers["x-device-id"];
     if (!authenticatingDeviceId) {
       await db.insertAuditLog(auditRow(payload, "missing_field", "missing x-device-id header", nowEpochSeconds));
@@ -273,22 +278,27 @@ async function ingestTelemetry(request, db, config, nowEpochSeconds = Math.floor
       timestamp: payload.timestamp
     });
     if (status === "inserted") {
-      if (typeof payload.battery_voltage === "number" || typeof payload.signal_strength_dbm === "number") {
-        await db.insertHealth({
-          station_id: payload.device_id,
-          battery_voltage: payload.battery_voltage ?? null,
-          signal_strength_dbm: payload.signal_strength_dbm ?? null,
-          firmware_version: payload.firmware_version,
-          timestamp: payload.timestamp
-        });
+      try {
+        if (typeof payload.battery_voltage === "number" || typeof payload.signal_strength_dbm === "number") {
+          await db.insertHealth({
+            station_id: payload.device_id,
+            battery_voltage: payload.battery_voltage ?? null,
+            signal_strength_dbm: payload.signal_strength_dbm ?? null,
+            firmware_version: payload.firmware_version,
+            timestamp: payload.timestamp
+          });
+        }
+        await db.touchDeviceSeen(payload.device_id, payload.firmware_version, nowEpochSeconds);
+        await emitAlertEvents(db, payload, config, nowEpochSeconds);
+        await db.insertAuditLog(auditRow(payload, "accepted", "payload inserted", nowEpochSeconds));
+      } catch (sideEffectError) {
+        const message = sideEffectError instanceof Error ? sideEffectError.message : "unexpected error";
+        await db.insertAuditLog(auditRow(payload, "accepted", `payload inserted; side effect failed: ${message}`, nowEpochSeconds)).catch(() => void 0);
       }
-      await db.touchDeviceSeen(payload.device_id, payload.firmware_version, nowEpochSeconds);
-      await emitAlertEvents(db, payload, config, nowEpochSeconds);
-      await db.insertAuditLog(auditRow(payload, "accepted", "payload inserted", nowEpochSeconds));
     } else {
       await db.insertAuditLog(auditRow(payload, "duplicate", "duplicate message_id ignored", nowEpochSeconds));
     }
-    const ota = await db.getActiveOta(payload.device_id);
+    const ota = await db.getActiveOta(payload.device_id).catch(() => ({ update_available: false }));
     return {
       ok: true,
       status,

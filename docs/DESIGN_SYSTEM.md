@@ -27,7 +27,10 @@ This file defines governance and system structure. Concrete values and component
 
 A component belongs in the design system when it is reused or represents product logic.
 
-System components include:
+System components include (note: `StationCard` was deleted in the Phase D
+redesign, never having been imported anywhere — see
+`docs/COMPONENT_ARCHITECTURE.md`; kept in this list only as historical
+reference, not a current component):
 
 - `StatusBadge`
 - `MetricCard`

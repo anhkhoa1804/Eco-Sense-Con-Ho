@@ -87,6 +87,16 @@ Shows one environmental or device metric with value, unit, status, freshness, an
 
 ## StationCard
 
+**Stale as a current-component claim (Phase G correction):** `StationCard`
+(`components/dashboard/station-card.tsx`) was deleted — it existed before
+the Phase D redesign, was never actually imported anywhere (grep-confirmed
+zero call sites), and modeled the "boxes inside boxes" pattern that pass
+moved away from. See `docs/COMPONENT_ARCHITECTURE.md` for the deletion
+record. The spec below is kept as historical/aspirational reference, not a
+description of anything currently in the codebase — station summaries
+today are rendered inline (dashboard's priority-sorted row list,
+`station-detail.tsx`'s `Metric` grid), not via a dedicated card component.
+
 ### Purpose
 
 Summarizes one monitoring station in dashboard or admin lists.

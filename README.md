@@ -40,8 +40,13 @@ npm run dashboard       # start the Next.js app at http://localhost:4173
 ```
 
 `npm run simulator` and `npm run mock:ingest` generate synthetic telemetry
-for local UI development — **do not run these against a live Supabase
-project**; they will write test data through the real ingestion path.
+for local UI development. **Correction (Phase G):** an earlier version of
+this README claimed these write to a live Supabase project if pointed at
+one — that was checked against the source and found to be wrong. Both
+scripts hardcode `MockDb` (`services/edge-ingestion/src/mockDb.ts`) with
+no network code path at all; `simulator.ts` only writes local files under
+`apps/web/mock/*.json`, `mock_ingest.ts` only logs to the console. Neither
+can write to a real Supabase project regardless of environment variables.
 
 ### Test tiers — what's safe to run
 
@@ -49,13 +54,16 @@ project**; they will write test data through the real ingestion path.
 |---|---|---|
 | `npm run check`, `npm run lint` | Static analysis | No |
 | `npm run test`, `npm run test:web` | Unit / mocked | No — no network calls |
+| `npm run simulator`, `npm run mock:ingest` | Synthetic telemetry generator | **No — `MockDb` only, no network code path exists** |
 | `npm run test:rls` | Mocked unless `RUN_RLS_TESTS=1` | **Yes if enabled** — creates real throwaway users/assignments |
 | `npm run test:integration`, `npm run test:all` | Live integration | **Yes if `LIVE_SUPABASE_INTEGRATION=1`** — POSTs real signed telemetry through `edge-ingest` |
-| `npm run simulator`, `npm run mock:ingest` | Synthetic telemetry generator | **Yes, unconditionally**, if pointed at a real project |
 
-Only the first two rows are safe to run without thinking about it. Everything
-below that requires deliberately set env vars and should not be run against
-this project's live Supabase instance without a specific reason.
+`test:rls` and `test:integration`/`test:all` are the only commands that
+require caution — both need deliberately-set env vars and should not be
+run against this project's live Supabase instance without a specific
+reason. `.github/workflows/ci-live-smoke.yml` runs both on a weekly cron
+if its GitHub secrets are configured — see `docs/ARCHITECTURE.md` for the
+current status of that workflow.
 
 ## Environment variables
 
@@ -71,9 +79,12 @@ admin-auth variables.
 ## Current status
 
 Backend and frontend are live against a real Supabase project (all 19
-migrations applied). The Edge Function has not yet been deployed and
-firmware has never been compiled or flashed — see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#deployment-status-current-vs-future)
+migrations applied, both tracked in git). Three GitHub Actions workflows
+exist under `.github/workflows/` (validation on every PR/push, a weekly
+live-integration smoke test, and a tag-triggered release/deploy pipeline)
+— the Edge Function has automation ready to deploy it but has never
+actually been triggered, and firmware has never been compiled or flashed.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#deployment-status-current-vs-future)
 for the exact current-vs-future boundary, and
 [`docs/EDGE_INGEST_READINESS.md`](docs/EDGE_INGEST_READINESS.md) for what's
 blocking a real deployment.

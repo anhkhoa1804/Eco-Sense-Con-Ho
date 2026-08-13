@@ -1,17 +1,32 @@
+# Dependencies
 node_modules/
+
+# Environment / secrets
 .env
 .env.*
 !.env.example
 **/.env.supabase
-coverage/
-dist/
-.next/
-.supabase/
-infra/supabase/.temp/
-firmware/**/.pio/
+
+# Build / generated output
+**/coverage/
+**/dist/
+**/.next/
+**/.supabase/
+**/infra/supabase/.temp/
+**/firmware/**/.pio/
 firmware/**/build/
+
+# TypeScript generated state
+*.tsbuildinfo
+
+# OS / logs
 .DS_Store
 Thumbs.db
 *.log
-*.tsbuildinfo
-docs/archive
+
+# Claude local workspace
+.claude/
+
+# Archived documentation
+docs/archive/*
+!docs/archive/HORIZON_AUDIT_REPORT.md

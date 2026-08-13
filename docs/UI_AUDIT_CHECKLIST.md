@@ -98,6 +98,11 @@ Do not treat this as a generic web checklist. Every item exists to protect Eco-S
 
 ## StationCard
 
+**Stale (Phase G correction):** `StationCard` was deleted — see
+`docs/COMPONENT_ARCHITECTURE.md`. This checklist is kept for historical
+reference; apply its intent to whatever currently renders a station
+summary (the dashboard's row list, `station-detail.tsx`) instead.
+
 - Station name is clear.
 - Location or area is visible when relevant.
 - Status badge is visible without hover.

@@ -5,16 +5,19 @@ import { createAnonClient } from "@/lib/supabase/anon";
 import type { RepositoryScope } from "@/types";
 
 /**
- * role: "admin" here means "no application-layer station filter" — it does
+ * role: "public" means "no application-layer station filter" — it does
  * NOT mean this scope has admin database privileges. The underlying client
  * (createAnonClient) carries the anon Postgres role, so the real boundary
  * is migration 018's RLS policies: only stations/environmental_readings/
- * environmental_events/station_health_logs/crop_thresholds are visible,
- * regardless of what this scope object says.
+ * environmental_events/station_health_logs/crop_thresholds/soil_readings
+ * are visible, regardless of what this scope object says. Deliberately a
+ * distinct value from "admin" (rather than reusing it, as this used to)
+ * so a future admin-only check can never accidentally match this scope
+ * just by checking scope.role === "admin".
  */
 export const PUBLIC_READ_SCOPE: RepositoryScope = {
   userId: "public-read",
-  role: "admin",
+  role: "public",
   stationIds: [],
 };
 

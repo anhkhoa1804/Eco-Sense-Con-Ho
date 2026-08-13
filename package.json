@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "check": "npm run check -w @eco-sense/edge-ingestion && npm run check -w @eco-sense/web",
+    "lint": "npm run lint -w @eco-sense/web",
     "test": "npm run test -w @eco-sense/edge-ingestion",
     "test:integration": "npm run test:integration -w @eco-sense/edge-ingestion",
     "test:web": "npm run test -w @eco-sense/web",
@@ -22,6 +23,6 @@
     "mock:ingest": "npm run mock:ingest -w @eco-sense/edge-ingestion",
     "simulator": "npm run simulator -w @eco-sense/edge-ingestion",
     "dashboard": "npm run dev -w @eco-sense/web",
-    "qa:vertical-slice": "npm run check && npm run test && npm run test:web && npm run build:edge && npm run build -w @eco-sense/web && npm run simulator && npm run mock:ingest"
+    "qa:vertical-slice": "npm run check && npm run lint && npm run test && npm run test:web && npm run build:edge && npm run build -w @eco-sense/web && npm run simulator && npm run mock:ingest"
   }
 }

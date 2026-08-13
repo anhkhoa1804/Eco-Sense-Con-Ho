@@ -87,6 +87,68 @@ describe("ingest contract", () => {
     assert.equal(db.getSnapshot().auditLogs.filter((row) => row.status === "duplicate").length, 1);
   });
 
+  it("still reports success when the health insert fails after a successful reading insert", async () => {
+    // Regression test for the failure mode where a health/event/audit
+    // side-effect error after a successful insert used to become a
+    // retryable INTERNAL_ERROR. A gateway retry with the same message_id
+    // would then hit "duplicate_ignored" and permanently skip ever
+    // recording health/events for that reading — see ingest.ts's comment
+    // at the health/event block for the full reasoning.
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const originalInsertHealth = db.insertHealth.bind(db);
+    db.insertHealth = async () => {
+      throw new Error("simulated transient health-insert failure");
+    };
+
+    const payload = basePayload({ message_id: "contract-test-health-failure-001" });
+    const response = await ingestTelemetry(await buildRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, true);
+    if (response.ok) {
+      assert.equal(response.status, "inserted");
+    }
+
+    const snapshot = db.getSnapshot();
+    assert.equal(snapshot.environmentalReadings.length, 1, "the reading itself must still be stored");
+    assert.equal(snapshot.healthLogs.length, 0, "the failed health insert must not silently succeed");
+    assert.equal(
+      snapshot.auditLogs.at(-1)?.status,
+      "accepted",
+      "audit log must still record acceptance, with the side-effect failure noted in the reason",
+    );
+    assert.match(snapshot.auditLogs.at(-1)?.reason ?? "", /side effect failed/);
+
+    db.insertHealth = originalInsertHealth;
+  });
+
+  it("rejects a request whose x-contract-version header does not match payload.contract_version", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const payload = basePayload({ message_id: "contract-test-header-mismatch-001" });
+    const request = await buildRequest(payload);
+    request.headers["x-contract-version"] = "v2";
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      assert.equal(response.error_code, "MISSING_FIELD");
+    }
+
+    assert.equal(db.getSnapshot().environmentalReadings.length, 0);
+    assert.equal(db.getSnapshot().auditLogs.at(-1)?.status, "contract_mismatch");
+  });
+
+  it("accepts a request with no x-contract-version header at all (backward compatible)", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const payload = basePayload({ message_id: "contract-test-header-absent-001" });
+    const request = await buildRequest(payload);
+    request.headers["x-contract-version"] = "";
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+
+    assert.equal(response.ok, true);
+  });
+
   it("rejects invalid signature", async () => {
     const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
     const payload = basePayload({ message_id: "contract-test-bad-signature-001" });

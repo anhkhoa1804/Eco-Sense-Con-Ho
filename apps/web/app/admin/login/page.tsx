@@ -8,6 +8,8 @@ function errorMessage(error?: string): string | null {
       return "Email này chưa nằm trong danh sách được phép quản trị.";
     case "bad-password":
       return "Mật khẩu quản trị chưa đúng.";
+    case "rate-limited":
+      return "Đã thử sai quá nhiều lần. Vui lòng chờ ít phút rồi thử lại.";
     default:
       return null;
   }
