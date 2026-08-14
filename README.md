@@ -1,7 +1,7 @@
 # HORIZON (Cồn Hô)
 
 Environmental monitoring platform for a farming community on Cồn Hô, an
-island in Trà Vinh, Vietnam. Originally built as "Eco-Sense Cồn Hô" — that
+island in Vĩnh Long, Vietnam. Originally built as "Eco-Sense Cồn Hô" — that
 name persists in some technical identifiers (npm workspace scopes) and is
 not renamed without a deliberate migration.
 

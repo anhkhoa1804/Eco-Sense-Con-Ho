@@ -5,6 +5,7 @@ import { MapPin, ImagePlus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -96,12 +97,12 @@ export function ReportForm() {
 
   if (result) {
     return (
-      <div className="space-y-6 rounded-xl bg-background">
+      <div className="animate-entrance space-y-6 rounded-xl bg-background">
         <div className="space-y-3">
           <Badge variant={result.demo ? "watch" : "healthy"} className="w-fit">
             {result.demo ? "Đã lưu tạm" : "Đã gửi"}
           </Badge>
-          <h3 className="text-3xl font-semibold tracking-tight">Cảm ơn bạn</h3>
+          <h3 className="text-h1 font-semibold tracking-tight">Cảm ơn bạn</h3>
           {result.demo ? (
             <p className="max-w-2xl text-sm leading-relaxed text-muted">
               Hệ thống hiện chưa kết nối được tới cơ sở dữ liệu chính, nên báo cáo của bạn đang được lưu tạm trên máy
@@ -136,8 +137,8 @@ export function ReportForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       <div className="space-y-4">
-        <p className="text-xs uppercase tracking-[0.22em] text-accent">Field report</p>
-        <h3 className="text-3xl font-semibold tracking-tight">Ghi nhận một thay đổi trên đảo.</h3>
+        <p className="text-eyebrow uppercase tracking-[0.22em] text-accent">Field report</p>
+        <h3 className="text-h1 font-semibold tracking-tight">Ghi nhận một thay đổi trên đảo.</h3>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           Ghi ngắn, rõ và đủ ngữ cảnh. Nếu không có GPS, bạn vẫn có thể gửi báo cáo bằng cách nhập mã trạm liên quan.
         </p>
@@ -149,21 +150,23 @@ export function ReportForm() {
           {CATEGORIES.map((item) => {
             const active = category === item.value;
             return (
-              <button
+              <Button
                 key={item.value}
                 type="button"
+                variant="ghost"
+                pill
                 role="radio"
                 aria-checked={active}
                 onClick={() => setCategory(item.value)}
                 className={cn(
-                  "rounded-full px-4 py-3 text-sm font-medium transition-colors duration-[var(--motion-base)]",
+                  "h-auto px-4 py-3",
                   active
-                    ? "bg-accent/10 text-accent"
+                    ? "bg-accent/10 text-accent hover:bg-accent/10"
                     : "bg-muted/25 text-foreground hover:bg-muted/40",
                 )}
               >
                 {item.label}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -175,9 +178,10 @@ export function ReportForm() {
           <Button
             type="button"
             variant="outline"
+            pill
             onClick={handleGetLocation}
             disabled={locating || loading}
-            className="h-12 rounded-full px-5"
+            className="h-12 px-5"
           >
             <MapPin className={cn("h-4 w-4", locating && "animate-pulse")} />
             {locating ? "Đang định vị..." : location ? "Đã lấy vị trí GPS" : "Lấy vị trí hiện tại"}
@@ -193,7 +197,7 @@ export function ReportForm() {
           value={stationId}
           onChange={(e) => setStationId(e.target.value)}
           placeholder="Không có GPS? Nhập mã trạm gần nhất, ví dụ STATION_02"
-          className="h-12 rounded-full bg-background px-5 text-sm"
+          className="h-12 bg-background px-5 text-sm"
           aria-label="Mã trạm liên quan"
           aria-invalid={!!error}
           aria-describedby={error ? "form-error" : undefined}
@@ -238,9 +242,9 @@ export function ReportForm() {
       ) : null}
 
       {error ? (
-        <p id="form-error" className="text-sm text-critical" role="alert">
+        <Alert id="form-error" tone="critical">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
       <p className="text-xs leading-relaxed text-muted">
@@ -250,7 +254,8 @@ export function ReportForm() {
       <div className="sticky bottom-4 z-20 -mx-4 bg-background/90 px-4 pb-2 pt-4 backdrop-blur md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0">
         <Button
           type="submit"
-          className="h-14 w-full rounded-full text-base"
+          pill
+          className="h-14 w-full text-base"
           disabled={loading || locating}
         >
           {loading ? "Đang gửi..." : "Gửi báo cáo"}

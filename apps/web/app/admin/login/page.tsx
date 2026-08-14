@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { LoginForm } from "@/components/auth/login-form";
+import { Wordmark } from "@/components/ui/wordmark";
 
 function errorMessage(error?: string): string | null {
   switch (error) {
@@ -26,10 +26,7 @@ export default async function AdminLoginPage({
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
-      <Link href="/" className="mb-8 text-center">
-        <p className="text-xs uppercase tracking-[0.18em] text-accent">Horizon</p>
-        <p className="text-lg font-semibold">Cồn Hô · Quản trị</p>
-      </Link>
+      <Wordmark title="Quản trị" titleSize="lg" showMark markSize="login" className="mb-8" />
       {message ? (
         <div className="mb-4 flex max-w-md flex-col items-center gap-3 text-center">
           <p className="text-sm text-critical" role="alert">

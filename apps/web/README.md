@@ -1,6 +1,6 @@
 # Horizon Web
 
-Next.js 15 PWA for the Horizon Cồn Hô monitoring system.
+Next.js 15 PWA for the Horizon environmental monitoring system (Cồn Hô network).
 
 ## Local Setup
 

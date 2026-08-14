@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Metric } from "@/components/ui/metric";
 import { SectionHeader } from "@/components/ui/section-header";
-import { freshnessStatus, QualityIndicator, StatusIndicator } from "@/components/ui/status-indicator";
+import { freshnessStatus, QualityIndicator, relativeTimeVi, StatusIndicator } from "@/components/ui/status-indicator";
 import { getPublicRepositories } from "@/lib/publicRead";
 import {
   chartDataFrom,
@@ -42,45 +42,89 @@ function StationMetrics({
   health,
   threshold,
   soilReading,
+  latestTimestamp,
 }: {
   profile: StationProfile;
   reading: EnvironmentalReading | null;
   health: StationHealthLog | null;
   threshold?: { warningLevel: number; criticalLevel: number } | null;
   soilReading?: SoilReading | null;
+  latestTimestamp: string | null;
 }) {
   const summary = readingSummary(profile, reading, threshold, soilReading);
   const signal = health?.signal_strength_dbm ?? null;
   const battery = health?.battery_voltage ?? null;
 
-  const items =
+  // One reading per station type carries the field decision (irrigate now?
+  // is the water safe?) — that one gets visual weight, the rest support it.
+  const hero =
+    profile.kind === "soil"
+      ? { label: "Độ ẩm đất", value: formatPercent(soilReading?.soil_moisture_pct ?? null) }
+      : profile.kind === "gateway"
+        ? { label: "Tín hiệu", value: formatSignal(signal) }
+        : { label: "Độ mặn", value: formatSalinityValue(summary.salinity) };
+
+  // The dominant-metric treatment only earns its size when there's a real
+  // reading behind it — an absence rendered at display size reads as a
+  // measurement, not a gap. Checked on the raw value, not the formatted
+  // NO_DATA_LABEL string, so this can never drift out of sync with it.
+  const heroRawValue =
+    profile.kind === "soil" ? (soilReading?.soil_moisture_pct ?? null) : profile.kind === "gateway" ? signal : summary.salinity;
+  const heroHasData = heroRawValue !== null && heroRawValue !== undefined;
+  const freshness = freshnessStatus(latestTimestamp);
+  const isStale = freshness === "stale" || freshness === "offline";
+
+  const secondary =
     profile.kind === "soil"
       ? [
           { label: "EC đất", value: formatSoilEc(soilReading?.soil_ec_ms_cm ?? null) },
-          { label: "Độ ẩm đất", value: formatPercent(soilReading?.soil_moisture_pct ?? null) },
           { label: "Độ pH đất", value: formatPh(soilReading?.soil_ph ?? null) },
           { label: "Pin trạm", value: formatVoltage(battery) },
         ]
       : profile.kind === "gateway"
         ? [
             { label: "Tỷ lệ gửi", value: NO_DATA_LABEL },
-            { label: "Tín hiệu", value: formatSignal(signal) },
             { label: "Pin gateway", value: formatVoltage(battery) },
             { label: "Kênh gửi", value: "SIM / Zalo" },
           ]
         : [
             { label: "Mực nước", value: formatWaterValue(summary.waterLevel) },
-            { label: "Độ mặn", value: formatSalinityValue(summary.salinity) },
             { label: "Trạng thái nước", value: summary.riskLabel ?? NO_DATA_LABEL },
             { label: "Pin trạm", value: formatVoltage(battery) },
           ];
 
   return (
-    <dl className="grid gap-6 border-y border-border/60 py-6 sm:grid-cols-2 xl:grid-cols-4">
-      {items.map((item) => (
-        <Metric key={item.label} label={item.label} value={item.value} size="md" />
-      ))}
-    </dl>
+    <div className="space-y-6 border-y border-border/60 py-6">
+      {heroHasData ? (
+        <div className="space-y-2">
+          <Metric label={isStale ? `Giá trị gần nhất · ${hero.label}` : hero.label} value={hero.value} size="xl" />
+          {isStale ? (
+            <StatusIndicator
+              status={freshness}
+              detail={latestTimestamp ? `Cập nhật ${relativeTimeVi(latestTimestamp)}` : undefined}
+            />
+          ) : (
+            <p className="text-sm text-muted">
+              {latestTimestamp ? `Cập nhật ${relativeTimeVi(latestTimestamp)}` : "Chưa có bản ghi đo nào"}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2 rounded-lg border border-dashed border-border bg-muted/10 p-6">
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">{hero.label}</p>
+          <p className="text-lg font-semibold tracking-tight">Chưa có dữ liệu đo</p>
+          <p className="text-sm leading-relaxed text-muted">
+            Trạm chưa gửi bản ghi nào để hiển thị {hero.label.toLowerCase()}. Số liệu sẽ xuất hiện ở đây ngay khi trạm
+            kết nối và đo được.
+          </p>
+        </div>
+      )}
+      <dl className="grid gap-6 border-t border-border/50 pt-6 sm:grid-cols-3">
+        {secondary.map((item) => (
+          <Metric key={item.label} label={item.label} value={item.value} size="sm" />
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -122,7 +166,6 @@ export async function StationDetail({ stationId }: { stationId: string }) {
   }
 
   const signal = health?.signal_strength_dbm ?? null;
-  const battery = health?.battery_voltage ?? null;
   const latestTimestamp = reading?.timestamp ?? soilReading?.timestamp ?? health?.timestamp ?? null;
   const summary = readingSummary(profile, reading, threshold, soilReading);
   const chartData = chartDataFrom(profile, trend);
@@ -135,10 +178,10 @@ export async function StationDetail({ stationId }: { stationId: string }) {
 
   return (
     <div className="space-y-8">
-      <section className="space-y-5">
+      <section className="space-y-4">
         <div className="max-w-3xl">
-          <p className="mb-3 text-xs uppercase tracking-[0.18em] text-accent">{profile.location}</p>
-          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{profile.name}</h2>
+          <p className="mb-3 text-eyebrow uppercase tracking-[0.18em] text-accent">{profile.location}</p>
+          <h1 className="text-h1 font-semibold tracking-tight">{profile.name}</h1>
           <p className="mt-3 text-lg leading-relaxed text-muted">{profile.intro}</p>
         </div>
 
@@ -167,7 +210,14 @@ export async function StationDetail({ stationId }: { stationId: string }) {
         </div>
       </section>
 
-      <StationMetrics profile={profile} reading={reading} health={health} threshold={threshold} soilReading={soilReading} />
+      <StationMetrics
+        profile={profile}
+        reading={reading}
+        health={health}
+        threshold={threshold}
+        soilReading={soilReading}
+        latestTimestamp={latestTimestamp}
+      />
 
       <section className="grid gap-8 lg:grid-cols-[1.35fr_0.65fr]">
         <StationLiveChart
@@ -181,8 +231,7 @@ export async function StationDetail({ stationId }: { stationId: string }) {
           <p className="leading-relaxed text-muted">{summary.recommendation}</p>
           <div className="space-y-2 border-t border-border/50 pt-4 text-sm text-muted">
             <p>Mã trạm: {profile.id}</p>
-            <p>Tín hiệu: {formatSignal(signal)}</p>
-            <p>Pin: {formatVoltage(battery)}</p>
+            {profile.kind !== "gateway" ? <p>Tín hiệu: {formatSignal(signal)}</p> : null}
             {profile.kind === "water" ? (
               <>
                 <p>Cảm biến EC/độ mặn: {sensorStatusLabel(reading?.ec_probe_status)}</p>
@@ -211,7 +260,7 @@ export async function StationDetail({ stationId }: { stationId: string }) {
             <Link
               key={item.id}
               href={`/s/${item.id}`}
-              className={`flex items-center justify-between border-b border-border/50 py-3 transition-opacity hover:opacity-70 ${item.id === profile.id ? "text-accent" : ""}`}
+              className={`flex items-center justify-between border-b border-border/50 py-3 transition-opacity duration-[var(--motion-base)] hover:opacity-70 ${item.id === profile.id ? "text-accent" : ""}`}
             >
               <span className="font-medium">{item.name}</span>
               <span className="text-sm text-muted">{item.location}</span>

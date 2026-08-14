@@ -16,7 +16,7 @@ cited file directly, not carried forward from prior documentation.
 ## What is HORIZON?
 
 A small-scale (pilot) environmental monitoring platform for Cồn Hô, a
-farming community on an island in Trà Vinh, Vietnam. Field stations measure
+farming community on an island in Vĩnh Long, Vietnam. Field stations measure
 water level, salinity, and soil conditions; a gateway relays their readings
 over the internet; a Supabase backend stores and validates the data; a
 Next.js app serves a public dashboard, per-station pages, a community

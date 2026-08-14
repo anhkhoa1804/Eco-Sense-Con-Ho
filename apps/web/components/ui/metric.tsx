@@ -7,7 +7,7 @@ interface MetricProps {
   unit?: string;
   status?: FreshnessState;
   detail?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   className?: string;
 }
 
@@ -15,6 +15,7 @@ const valueSize: Record<NonNullable<MetricProps["size"]>, string> = {
   sm: "text-xl",
   md: "text-2xl md:text-3xl",
   lg: "text-4xl md:text-5xl",
+  xl: "text-5xl md:text-7xl",
 };
 
 /** The single primitive for every numeric readout in the product — value + unit + label + provenance. */

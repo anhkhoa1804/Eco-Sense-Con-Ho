@@ -9,7 +9,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface StationLiveChartPoint {
   label: string;
@@ -47,14 +46,16 @@ export function StationLiveChart({
   const seriesByUnit = new Map(units.map((unit) => [unit, series.filter((item) => item.unit === unit)]));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <p className="text-sm text-muted">{note}</p>
-      </CardHeader>
-      <CardContent className="h-80">
+    <section className="w-full space-y-4">
+      <div>
+        <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
+        <p className="mt-1 text-sm text-muted">{note}</p>
+      </div>
+      <div className="relative h-80 overflow-hidden rounded-xl bg-[linear-gradient(180deg,rgba(15,23,42,0.02)_0%,rgba(15,23,42,0)_100%)] ring-1 ring-border/70">
         {data.length === 0 ? (
-          <p className="text-sm text-muted">Chưa có dữ liệu gần nhất.</p>
+          <div className="flex h-full items-center justify-center">
+            <p className="text-sm text-muted">Chưa có dữ liệu gần nhất.</p>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -78,7 +79,7 @@ export function StationLiveChart({
                 contentStyle={{
                   background: "#ffffff",
                   border: "1px solid #dbe3e6",
-                  borderRadius: 12,
+                  borderRadius: "var(--radius-md)",
                   boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
                 }}
                 labelStyle={{ color: "#12202a", fontWeight: 600 }}
@@ -97,12 +98,13 @@ export function StationLiveChart({
                   strokeWidth={3}
                   dot={false}
                   name={item.name}
+                  animationDuration={400}
                 />
               ))}
             </LineChart>
           </ResponsiveContainer>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

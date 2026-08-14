@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Metric } from "@/components/ui/metric";
 import { SectionHeader } from "@/components/ui/section-header";
-import { freshnessStatus, StatusIndicator } from "@/components/ui/status-indicator";
+import { freshnessStatus } from "@/components/ui/status-indicator";
 import { getPublicRepositories } from "@/lib/publicRead";
 import { getDashboardMetrics } from "@/lib/repositories";
 import { formatSalinity, formatWaterLevel, severityLabel } from "@/lib/utils";
@@ -49,7 +49,7 @@ async function DashboardContent() {
     const publicRepos = getPublicRepositories();
     if (!publicRepos) {
       return (
-        <div className="space-y-10">
+        <div className="space-y-8">
           <EmptyState
             title="Chưa kết nối dữ liệu trực tiếp"
             description="Bảng quan trắc chưa được cấu hình kết nối tới Supabase trên môi trường này, nên không có số liệu thật để hiển thị. Không có bản đồ, biểu đồ hay chỉ số nào bên dưới là dữ liệu thực."
@@ -103,14 +103,14 @@ async function DashboardContent() {
     const trendSummary = await buildTrendSummary(repos, scope, featuredSnapshot?.station.id);
 
     return (
-      <div className="space-y-10">
+      <div className="space-y-8">
         <InstallPrompt />
 
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-accent">Quan trắc trực tiếp</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Bảng quan trắc Cồn Hô</h1>
+            <p className="text-eyebrow uppercase tracking-[0.18em] text-accent">Quan trắc trực tiếp</p>
+            <h1 className="mt-1 text-h1 font-semibold tracking-tight">Bảng quan trắc</h1>
           </div>
           <div className="flex flex-wrap gap-3">
             <Button asChild variant="outline" size="sm">
@@ -122,19 +122,21 @@ async function DashboardContent() {
           </div>
         </div>
 
-        {/* Global status */}
-        <dl className="grid gap-6 border-y border-border/60 py-6 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Cập nhật gần nhất" value={freshness} status={freshnessStatus(latestTimestampIso)} size="sm" />
-          <Metric label="Trạm hoạt động" value={`${metrics.activeStations}/${metrics.totalStations}`} size="sm" />
-          <Metric label="Tín hiệu yếu" value={metrics.weakSignalNodes} size="sm" />
-          <Metric label="Cảnh báo cần chú ý" value={metrics.criticalAlerts} size="sm" />
-        </dl>
+        {/* Global status — alerts leads as the one "is anything wrong right now" signal, the rest support it */}
+        <div className="space-y-6 border-y border-border/60 py-6">
+          <Metric label="Cảnh báo cần chú ý" value={metrics.criticalAlerts} size="lg" />
+          <dl className="grid gap-6 border-t border-border/50 pt-6 sm:grid-cols-3">
+            <Metric label="Cập nhật gần nhất" value={freshness} status={freshnessStatus(latestTimestampIso)} size="sm" />
+            <Metric label="Trạm hoạt động" value={`${metrics.activeStations}/${metrics.totalStations}`} size="sm" />
+            <Metric label="Tín hiệu yếu" value={metrics.weakSignalNodes} size="sm" />
+          </dl>
+        </div>
 
         {/* Station network */}
         <StationNetwork snapshots={snapshots} />
 
         {/* Current conditions + anomalies */}
-        <section className="grid gap-10 lg:grid-cols-2 lg:items-start">
+        <section className="grid gap-8 lg:grid-cols-2 lg:items-start">
           <div className="space-y-4">
             <SectionHeader
               eyebrow="Điều kiện hiện tại"
@@ -152,7 +154,7 @@ async function DashboardContent() {
                 <Link
                   key={snapshot.station.id}
                   href={`/s/${snapshot.station.id}`}
-                  className="flex items-center justify-between border-b border-border/50 py-4 transition-opacity hover:opacity-70"
+                  className="flex items-center justify-between border-b border-border/50 py-3 transition-opacity duration-[var(--motion-base)] hover:opacity-70"
                 >
                   <div className="min-w-0">
                     <p className="font-medium">{snapshot.station.name}</p>
@@ -193,7 +195,7 @@ async function DashboardContent() {
             ) : (
               <div className="space-y-3">
                 {alerts.map((alert) => (
-                  <div key={alert.id} className="flex items-start justify-between gap-4 border-b border-border/50 py-4">
+                  <div key={alert.id} className="flex items-start justify-between gap-4 border-b border-border/50 py-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium">
                         {stationNames.get(alert.station_id) ?? alert.station_id}
@@ -212,7 +214,7 @@ async function DashboardContent() {
         </section>
 
         {/* Trends */}
-        <section className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+        <section className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
           <div>
             <SalinityChart
               data={trendSummary?.points ?? []}
@@ -249,7 +251,7 @@ async function DashboardContent() {
     );
   } catch {
     return (
-      <div className="space-y-10">
+      <div className="space-y-8">
         <EmptyState
           title="Không thể tải dữ liệu trực tiếp"
           description="Đã xảy ra lỗi khi kết nối tới nguồn dữ liệu. Không có bản đồ hay số liệu nào bên dưới là dữ liệu thực — vui lòng thử tải lại trang hoặc kiểm tra cấu hình backend."

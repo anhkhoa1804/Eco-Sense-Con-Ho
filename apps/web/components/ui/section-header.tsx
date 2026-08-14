@@ -18,8 +18,8 @@ export function SectionHeader({ eyebrow, title, trailing, className }: SectionHe
   return (
     <div className={cn("flex flex-wrap items-end justify-between gap-4", className)}>
       <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-accent">{eyebrow}</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight">{title}</h2>
+        <p className="text-eyebrow uppercase tracking-[0.18em] text-accent">{eyebrow}</p>
+        <h2 className="mt-1 text-h2 font-semibold tracking-tight">{title}</h2>
       </div>
       {trailing ? <div className="text-sm text-muted">{trailing}</div> : null}
     </div>

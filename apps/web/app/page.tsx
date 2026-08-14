@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRight, Droplets, MapPinned, Send, Sprout, Users, Waves } from "lucide-react";
+import { ArrowRight, Send, Sprout, Waves } from "lucide-react";
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IconTile } from "@/components/ui/icon-tile";
+import { RiverLine } from "@/components/ui/river-line";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { freshnessStatus } from "@/components/ui/status-indicator";
@@ -13,30 +15,6 @@ import { getDashboardMetrics } from "@/lib/repositories";
 import { formatSalinity, formatWaterLevel } from "@/lib/utils";
 
 export const revalidate = 60;
-
-const storyBlocks = [
-  {
-    eyebrow: "Where is Cồn Hô?",
-    title: "Một cù lao nhỏ nhưng mang nhiều lớp dữ liệu môi trường.",
-    description:
-      "Cồn Hô cần được nhìn như một mạng sống động giữa dòng nước: có mực nước, độ mặn, sức khỏe trạm và nhịp biến đổi theo thời gian.",
-    icon: MapPinned,
-  },
-  {
-    eyebrow: "Why salinity matters",
-    title: "Độ mặn là tín hiệu sớm cho sinh hoạt, sản xuất và sức bền hệ sinh thái.",
-    description:
-      "Khi độ mặn thay đổi, người dân cần hiểu nhanh nó đang đi lên hay đi xuống, và nó có đang tiến gần ngưỡng nguy cơ hay không.",
-    icon: Droplets,
-  },
-  {
-    eyebrow: "Community and research",
-    title: "Người dân, du khách và nhà nghiên cứu cùng nhìn vào một nguồn dữ liệu.",
-    description:
-      "Báo cáo hiện trường bổ sung ngữ cảnh, còn biểu đồ và trạm giúp kiểm chứng những gì đang diễn ra trên đảo.",
-    icon: Users,
-  },
-];
 
 const focusItems = [
   {
@@ -117,13 +95,15 @@ function SummaryFallback() {
 
 async function NetworkPreview() {
   const context = getPublicRepositories();
-  if (!context) return <StationNetworkMap stations={[]} />;
+  if (!context) {
+    return <StationNetworkMap stations={[]} variant="preview" />;
+  }
 
   let snapshots: Awaited<ReturnType<typeof context.repos.readings.getSnapshots>>;
   try {
     snapshots = await context.repos.readings.getSnapshots(context.scope);
   } catch {
-    return <StationNetworkMap stations={[]} />;
+    return <StationNetworkMap stations={[]} variant="preview" />;
   }
 
   const mapStations: MapStation[] = snapshots.map((snapshot) => ({
@@ -134,17 +114,74 @@ async function NetworkPreview() {
     freshness: freshnessStatus(snapshot.reading?.timestamp ?? snapshot.health?.timestamp ?? null),
   }));
 
-  return <StationNetworkMap stations={mapStations} />;
+  return (
+    <div className="space-y-3">
+      <StationNetworkMap stations={mapStations} variant="preview" />
+      <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">
+        Xem bản đồ đầy đủ trong bảng quan trắc
+        <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+      </Link>
+    </div>
+  );
 }
 
 function NetworkPreviewFallback() {
   return (
-    <div className="h-[420px] overflow-hidden rounded-lg border border-border bg-muted/10 p-8">
+    <div className="h-[260px] overflow-hidden rounded-lg border border-border bg-muted/10 p-6">
       <Skeleton className="h-6 w-40 rounded-full" />
-      <div className="mt-24 space-y-6">
-        <Skeleton className="h-10 w-48 rounded-full" />
-        <Skeleton className="h-10 w-56 rounded-full" />
-        <Skeleton className="h-10 w-44 rounded-full" />
+      <div className="mt-12 space-y-4">
+        <Skeleton className="h-8 w-40 rounded-full" />
+        <Skeleton className="h-8 w-48 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+async function SalinityThresholds() {
+  const context = getPublicRepositories();
+  if (!context) return <SalinityThresholdsFallback />;
+
+  try {
+    const threshold = await context.repos.readings.getDefaultSalinityThreshold();
+    if (!threshold) return <SalinityThresholdsFallback />;
+
+    return (
+      <div className="grid gap-6 border-t border-border/60 pt-8 sm:grid-cols-2">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-watch" aria-hidden />
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Cần chú ý</span>
+          </div>
+          <p className="text-3xl font-semibold tracking-tight tabular-nums">{formatSalinity(threshold.warningLevel)}</p>
+          <p className="text-sm text-muted">Độ mặn tiến gần ngưỡng khuyến cáo cho {threshold.cropName}.</p>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-risk" aria-hidden />
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Nguy cơ cao</span>
+          </div>
+          <p className="text-3xl font-semibold tracking-tight tabular-nums">{formatSalinity(threshold.criticalLevel)}</p>
+          <p className="text-sm text-muted">Vượt ngưỡng an toàn, hạn chế lấy nước trực tiếp.</p>
+        </div>
+      </div>
+    );
+  } catch {
+    return <SalinityThresholdsFallback />;
+  }
+}
+
+function SalinityThresholdsFallback() {
+  return (
+    <div className="space-y-3 border-t border-border/60 pt-8 text-sm">
+      <div className="flex items-center gap-2.5">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-watch" aria-hidden />
+        <span className="font-medium text-foreground">Cần chú ý</span>
+        <span className="text-muted">— độ mặn tiến gần ngưỡng khuyến cáo</span>
+      </div>
+      <div className="flex items-center gap-2.5">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-risk" aria-hidden />
+        <span className="font-medium text-foreground">Nguy cơ cao</span>
+        <span className="text-muted">— vượt ngưỡng an toàn cho tưới tiêu</span>
       </div>
     </div>
   );
@@ -154,17 +191,17 @@ export default function HomePage() {
   return (
     <PublicShell activePath="/">
       <section className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-        <div className="space-y-8">
+        <div className="animate-entrance space-y-8">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="healthy">Nền tảng quan trắc khí hậu</Badge>
-            <Badge variant="default">Cồn Hô, Trà Vinh</Badge>
+            <Badge variant="default">Cồn Hô, Vĩnh Long</Badge>
           </div>
 
-          <div className="space-y-5">
-            <p className="text-xs uppercase tracking-[0.24em] text-accent">Horizon</p>
-            <h2 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">
+          <div className="space-y-6">
+            <p className="text-eyebrow uppercase tracking-[0.24em] text-accent">Horizon</p>
+            <h1 className="max-w-3xl text-display font-semibold tracking-tight md:text-6xl">
               Horizon lắng nghe thiên nhiên, đồng hành cùng cộng đồng.
-            </h2>
+            </h1>
             <div className="max-w-2xl space-y-4 text-lg leading-relaxed text-muted">
               <p>
                 Bà con Cồn Hô từ lâu sống cùng nhịp nước lên, nước xuống. Canh tác, mưu sinh và du lịch đều gắn với
@@ -180,7 +217,11 @@ export default function HomePage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button asChild size="lg" className="gap-2">
+            <Button
+              asChild
+              size="lg"
+              className="gap-2 transition-shadow duration-[var(--motion-base)] hover:ring-2 hover:ring-brand-orange/50 hover:ring-offset-2 hover:ring-offset-background"
+            >
               <Link href="/dashboard">
                 Xem dữ liệu quan trắc
                 <ArrowRight className="h-4 w-4" />
@@ -201,101 +242,102 @@ export default function HomePage() {
         </Suspense>
       </section>
 
-      <section className="mt-20 space-y-6 border-y border-border/60 py-10">
+      <RiverLine className="mt-16" />
+
+      <section className="mt-24 space-y-10">
         <SectionHeader eyebrow="Thông điệp" title="Ba điểm chạm, cùng lên đèn." />
         <p className="max-w-2xl leading-relaxed text-muted">
           Horizon không chỉ ghi nhận dữ liệu môi trường, mà còn đưa dữ liệu ấy trở lại với đời sống hằng ngày của
           bà con. Một trạm nhìn dòng nước, một trạm nhìn thửa đất, và gateway giúp thông tin đến đúng lúc qua những
           kênh bà con dễ dùng.
         </p>
-        <div className="grid gap-6 sm:grid-cols-3">
-          {focusItems.map(({ title, desc, icon: Icon }) => (
-            <div key={title} className="flex gap-3">
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+        <div className="grid gap-x-8 gap-y-12 sm:grid-cols-3">
+          {focusItems.map(({ title, desc, icon: Icon }, index) => (
+            <div key={title} className="space-y-4 border-t border-border/60 pt-6">
+              <div className="flex items-center justify-between">
+                <span className="text-eyebrow text-accent">{`0${index + 1}`}</span>
+                <IconTile>
+                  <Icon className="h-5 w-5" aria-hidden />
+                </IconTile>
+              </div>
               <div>
-                <p className="font-medium">{title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-muted">{desc}</p>
+                <p className="text-xl font-semibold tracking-tight">{title}</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{desc}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="mt-20 space-y-14">
-        {storyBlocks.map((block, index) => {
-          const Icon = block.icon;
-          const reverse = index % 2 === 1;
-          return (
-            <div
-              key={block.title}
-              className={`grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start ${reverse ? "lg:[&>*:first-child]:order-2" : ""}`}
-            >
-              <div className="space-y-4">
-                <p className="text-xs uppercase tracking-[0.22em] text-accent">{block.eyebrow}</p>
-                <h3 className="max-w-xl text-3xl font-semibold tracking-tight md:text-4xl">{block.title}</h3>
-                <p className="max-w-xl text-base leading-relaxed text-muted">{block.description}</p>
-              </div>
-
-              <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground text-background shadow-sm">
-                    <Icon className="h-5 w-5" aria-hidden />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Tín hiệu công khai</p>
-                    <p className="text-sm text-muted">Đủ rõ cho người dân, đủ chi tiết cho nhà nghiên cứu.</p>
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {["Bản đồ trực quan", "Xu hướng dễ đọc", "Ngữ cảnh đáng tin cậy"].map((item) => (
-                    <div key={item} className="text-sm text-muted">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      <section className="mt-20 grid gap-8 border-t border-border/60 pt-10 md:grid-cols-3">
-        {[
-          {
-            title: "Ghi nhận mỗi ngày",
-            desc: "Trạm cảm biến đo mực nước, độ mặn và tình trạng thiết bị tại hiện trường.",
-          },
-          {
-            title: "Đối chiếu cùng kinh nghiệm",
-            desc: "Dữ liệu không thay thế quan sát của bà con, mà giúp các thay đổi được nhìn thấy rõ hơn.",
-          },
-          {
-            title: "Cùng cộng đồng hành động",
-            desc: "Người dân có thể xem thông tin công khai và gửi báo cáo khi thấy bất thường.",
-          },
-        ].map((item) => (
-          <div key={item.title}>
-            <h4 className="text-lg font-semibold tracking-tight">{item.title}</h4>
-            <p className="mt-2 text-sm leading-relaxed text-muted">{item.desc}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="mt-20 border-t border-border/60 pt-10">
+      {/* Why salinity matters — wide data section, real thresholds, not a generic feature card */}
+      <section className="mt-32 space-y-6">
         <SectionHeader
-          eyebrow="Bắt đầu"
-          title="Khám phá mạng lưới quan trắc."
-          trailing={
-            <div className="flex flex-wrap gap-3">
-              <Button asChild>
-                <Link href="/dashboard">Vào bảng quan trắc</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/about">Đọc câu chuyện dự án</Link>
-              </Button>
-            </div>
-          }
+          eyebrow="Why salinity matters"
+          title="Độ mặn là tín hiệu sớm cho sinh hoạt, sản xuất và sức bền hệ sinh thái."
         />
+        <p className="max-w-2xl text-base leading-relaxed text-muted">
+          Khi độ mặn thay đổi, người dân cần hiểu nhanh nó đang đi lên hay đi xuống, và nó có đang tiến gần ngưỡng
+          nguy cơ hay không. Horizon đánh dấu hai ngưỡng này trực tiếp trên biểu đồ xu hướng, không tách riêng chú giải.
+        </p>
+        <Suspense fallback={<SalinityThresholdsFallback />}>
+          <SalinityThresholds />
+        </Suspense>
+      </section>
+
+      {/* Community and research — centered/human mode, distinct from the data section above */}
+      <section className="mt-32 space-y-10 text-center">
+        <div className="mx-auto max-w-2xl space-y-4">
+          <p className="text-eyebrow uppercase tracking-[0.18em] text-accent">Community and research</p>
+          <h2 className="text-h1 font-semibold tracking-tight">
+            Người dân, du khách và nhà nghiên cứu cùng nhìn vào một nguồn dữ liệu.
+          </h2>
+          <p className="text-base leading-relaxed text-muted">
+            Báo cáo hiện trường bổ sung ngữ cảnh, còn biểu đồ và trạm giúp kiểm chứng những gì đang diễn ra trên đảo.
+          </p>
+        </div>
+        <div className="mx-auto grid max-w-3xl gap-8 border-t border-border/60 pt-8 text-left sm:grid-cols-2">
+          <div>
+            <p className="font-medium text-foreground">Người dân</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              Xem nhanh tình trạng trạm gần nhà và gửi báo cáo khi thấy bất thường.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground">Nhà nghiên cứu</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              Theo dõi xu hướng dữ liệu dài hạn và đối chiếu với quan sát thực địa.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Closing CTA — full-bleed band, the one deliberate wide moment on the page */}
+      <section className="relative mt-32">
+        <div
+          aria-hidden
+          className="absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 bg-[linear-gradient(180deg,rgba(14,95,138,0.05)_0%,rgba(47,168,92,0.06)_100%)]"
+        />
+        <div className="relative space-y-6 border-t border-border/60 py-20 text-center">
+          <p className="text-eyebrow uppercase tracking-[0.18em] text-accent">Bắt đầu</p>
+          <h2 className="mx-auto max-w-2xl text-h1 font-semibold tracking-tight md:text-5xl">
+            Khám phá mạng lưới quan trắc.
+          </h2>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button
+              asChild
+              size="lg"
+              className="gap-2 transition-shadow duration-[var(--motion-base)] hover:ring-2 hover:ring-brand-orange/50 hover:ring-offset-2 hover:ring-offset-background"
+            >
+              <Link href="/dashboard">
+                Vào bảng quan trắc
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/about">Đọc câu chuyện dự án</Link>
+            </Button>
+          </div>
+        </div>
       </section>
     </PublicShell>
   );

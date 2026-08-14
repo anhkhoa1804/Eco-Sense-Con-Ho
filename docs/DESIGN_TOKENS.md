@@ -1,5 +1,15 @@
 # Design Tokens
 
+> **Superseded.** This document proposes a parallel token system (its own
+> color palette, `text-xs`…`text-6xl` scale, `elevation-*` shadows,
+> `MetricCard`/`Dialog`/`Toast` components) that was never implemented and
+> does not match the live product. The actual, source-verified token system
+> — color/radius/shadow/motion/z-index in `apps/web/app/globals.css`, plus
+> the typography and spacing scales added on top of it — is documented in
+> `docs/REDESIGN_SPECIFICATION.md` §4/§7, which is the current
+> design-direction authority. Kept here for historical reference only; do
+> not implement against this file.
+
 ## Purpose
 
 Tokens are implementation defaults for Eco-Sense UI. They prevent each engineer or AI agent from inventing spacing, color, shadow, motion, or layout rules differently.

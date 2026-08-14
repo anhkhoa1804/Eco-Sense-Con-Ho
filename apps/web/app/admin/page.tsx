@@ -2,17 +2,21 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Bell, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { AdminShell } from "@/components/layout/admin-shell";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import {
   adminAllowedEmails,
   loadAdminAllowedEmailEntries,
   normalizeEmail,
 } from "@/lib/auth/adminAllowlist";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Tag } from "@/components/ui/tag";
 import { freshnessStatus, StatusIndicator } from "@/components/ui/status-indicator";
 import { getSessionContext } from "@/lib/auth/session";
 import { createRepositories } from "@/lib/repositories";
@@ -429,107 +433,94 @@ export default async function AdminPage({
   const errorMessage = adminErrorMessage(params.error);
   const isDemoMode = stationsAreDemo || metrics.demo;
 
-  return (
-    <div className="min-h-dvh bg-background px-4 py-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-accent">Quản trị</p>
-            <h1 className="text-3xl font-semibold tracking-tight">Bảng vận hành Cồn Hô</h1>
-            <p className="mt-1 text-sm text-muted">{profile.email}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <details className="relative">
-              <summary className="inline-flex h-11 cursor-pointer list-none items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted/30">
-                <span className="relative flex items-center gap-2">
-                  <Bell className="h-5 w-5" aria-hidden />
-                  Báo cáo
-                  {unreadReports > 0 ? (
-                    <span className="absolute -right-4 -top-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-critical px-1 text-xs text-white">
-                      {unreadReports}
-                    </span>
-                  ) : null}
-                </span>
-              </summary>
-              <div className="absolute right-0 z-[var(--z-dropdown)] mt-2 w-[min(92vw,520px)] rounded-lg border border-border bg-background p-3 shadow-md">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="font-semibold">Báo cáo hiện trường</p>
-                  <p className="text-xs text-muted">{unreadReports} chưa xem</p>
-                </div>
-                <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
-                  {reports.length === 0 ? (
-                    <p className="rounded-xl border border-border bg-muted/10 p-4 text-sm text-muted">
-                      Chưa có báo cáo nào.
-                    </p>
-                  ) : (
-                    reports.map((report) => {
-                      const unread = !report.viewed_at;
-                      return (
-                        <div
-                          key={report.id}
-                          className={`rounded-xl border p-4 transition ${
-                            unread
-                              ? "border-accent/30 bg-accent/10 shadow-sm"
-                              : "border-border bg-muted/10 opacity-70"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-medium">{reportTitle(report.description)}</p>
-                                {report.id.startsWith("demo-") ? (
-                                  <Badge variant="watch">Lưu tạm — chưa vào Supabase</Badge>
-                                ) : null}
-                              </div>
-                              <p className="mt-1 text-xs text-muted">{formatReportTime(report.timestamp)}</p>
-                            </div>
-                            {unread ? <Badge variant="risk">Mới</Badge> : <Badge>Đã xem</Badge>}
-                          </div>
-                          <p className="mt-3 text-sm leading-relaxed text-muted">
-                            {cleanReportDescription(report.description)}
-                          </p>
-                          <p className="mt-2 text-xs text-muted">
-                            Vị trí: {report.lat.toFixed(5)}, {report.lng.toFixed(5)}
-                          </p>
-                          {unread ? (
-                            <form action={markReportViewed} className="mt-3">
-                              <input type="hidden" name="report_id" value={report.id} />
-                              <Button type="submit" size="sm" variant="outline">
-                                Đánh dấu đã xem
-                              </Button>
-                            </form>
-                          ) : null}
+  const reportBell = (
+    <details className="relative">
+      <summary className="inline-flex h-11 cursor-pointer list-none items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted/30">
+        <span className="relative flex items-center gap-2">
+          <Bell className="h-5 w-5" aria-hidden />
+          Báo cáo
+          {unreadReports > 0 ? (
+            <span className="absolute -right-4 -top-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-critical px-1 text-xs text-white">
+              {unreadReports}
+            </span>
+          ) : null}
+        </span>
+      </summary>
+      <div className="absolute right-0 z-[var(--z-dropdown)] mt-2 w-[min(92vw,520px)] rounded-lg border border-border bg-background p-3 shadow-md">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="font-semibold">Báo cáo hiện trường</p>
+          <p className="text-xs text-muted">{unreadReports} chưa xem</p>
+        </div>
+        <div className="max-h-[520px] overflow-y-auto pr-1">
+          {reports.length === 0 ? (
+            <p className="p-4 text-sm text-muted">Chưa có báo cáo nào.</p>
+          ) : (
+            <div className="border-t border-border/60">
+              {reports.map((report) => {
+                const unread = !report.viewed_at;
+                return (
+                  <div
+                    key={report.id}
+                    className={`space-y-2 border-b border-border/60 py-3 ${unread ? "" : "opacity-70"}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium">{reportTitle(report.description)}</p>
+                          {report.id.startsWith("demo-") ? <Tag>Lưu tạm — chưa vào Supabase</Tag> : null}
                         </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </details>
-            <SignOutButton />
-          </div>
-        </header>
+                        <p className="mt-1 text-xs text-muted">{formatReportTime(report.timestamp)}</p>
+                      </div>
+                      {unread ? <Badge variant="risk">Mới</Badge> : <Badge>Đã xem</Badge>}
+                    </div>
+                    <p className="text-sm leading-relaxed text-muted">{cleanReportDescription(report.description)}</p>
+                    <p className="text-xs text-muted">
+                      Vị trí: {report.lat.toFixed(5)}, {report.lng.toFixed(5)}
+                    </p>
+                    {unread ? (
+                      <form action={markReportViewed}>
+                        <input type="hidden" name="report_id" value={report.id} />
+                        <Button type="submit" size="sm" variant="outline">
+                          Đánh dấu đã xem
+                        </Button>
+                      </form>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </details>
+  );
 
-        {errorMessage ? (
-          <p className="rounded-xl border border-critical/30 bg-critical/10 px-4 py-3 text-sm text-critical">
-            {errorMessage}
-          </p>
-        ) : null}
+  return (
+    <AdminShell
+      email={profile.email}
+      actions={
+        <>
+          {reportBell}
+          <SignOutButton />
+        </>
+      }
+    >
+      {errorMessage ? <Alert tone="critical">{errorMessage}</Alert> : null}
 
-        {isDemoMode ? (
-          <p className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-            <strong className="font-semibold">Dữ liệu mẫu — chưa kết nối Supabase.</strong> Số liệu trạm và số trạm
-            hoạt động bên dưới không phải dữ liệu thật; chúng sẽ được thay bằng dữ liệu thực khi backend được cấu
-            hình và kết nối.
-          </p>
-        ) : null}
+      {isDemoMode ? (
+        <Alert tone="warning">
+          <strong className="font-semibold">Dữ liệu mẫu — chưa kết nối Supabase.</strong> Số liệu trạm và số trạm
+          hoạt động bên dưới không phải dữ liệu thật; chúng sẽ được thay bằng dữ liệu thực khi backend được cấu
+          hình và kết nối.
+        </Alert>
+      ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CardTitle>Tổng quan trạm</CardTitle>
-                {isDemoMode ? <Badge variant="watch">Dữ liệu mẫu</Badge> : null}
+                {isDemoMode ? <Tag>Dữ liệu mẫu</Tag> : null}
               </div>
               <CardDescription>Số trạm đang hiển thị trong phạm vi quản trị</CardDescription>
             </CardHeader>
@@ -564,7 +555,7 @@ export default async function AdminPage({
                 Thêm email tại đây để người đó đăng nhập bằng mật khẩu và mở được trang quản trị.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="space-y-6">
               <form action={addAdminEmail} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
                 <div className="space-y-1.5">
                   <Label htmlFor="admin-email">Email</Label>
@@ -580,21 +571,17 @@ export default async function AdminPage({
                 </Button>
               </form>
 
-              <div className="space-y-2">
+              <div className="border-t border-border">
                 {allowedEmailEntries.length > 0 ? (
                   allowedEmailEntries.map((entry) => (
                     <div
                       key={`${entry.source}-${entry.email}`}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/10 p-3"
+                      className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="break-all text-sm font-medium">{entry.email}</p>
-                          {entry.source === "env" ? (
-                            <Badge variant="healthy">Gốc</Badge>
-                          ) : (
-                            <Badge>Database</Badge>
-                          )}
+                          <Tag>{entry.source === "env" ? "Gốc" : "Database"}</Tag>
                         </div>
                         <p className="mt-1 text-xs text-muted">
                           {entry.note ?? "Không có ghi chú"}
@@ -617,7 +604,7 @@ export default async function AdminPage({
                     </div>
                   ))
                 ) : (
-                  <p className="rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+                  <p className="border-b border-border py-3 text-sm text-warning">
                     Chưa có email quản trị nào. Hãy thêm email gốc vào ADMIN_ALLOWED_EMAILS trước.
                   </p>
                 )}
@@ -647,7 +634,7 @@ export default async function AdminPage({
           </CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-3">
             {runtimeConfigs.map((config) => (
-              <form key={config.station_id} action={updateRuntimeConfig} className="rounded-xl border border-border bg-muted/10 p-4">
+              <form key={config.station_id} action={updateRuntimeConfig} className="border-t border-border/60 pt-4">
                 <input type="hidden" name="station_id" value={config.station_id} />
                 <div className="mb-4">
                   <p className="font-semibold">{config.station_id}</p>
@@ -681,16 +668,11 @@ export default async function AdminPage({
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor={`${config.station_id}-mode`}>Chế độ</Label>
-                    <select
-                      id={`${config.station_id}-mode`}
-                      name="mode"
-                      defaultValue={config.mode}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
-                    >
+                    <Select id={`${config.station_id}-mode`} name="mode" defaultValue={config.mode}>
                       <option value="normal">Bình thường</option>
                       <option value="rain_saver">Tiết kiệm mùa mưa</option>
                       <option value="maintenance">Bảo trì</option>
-                    </select>
+                    </Select>
                   </div>
                   <Button type="submit" className="w-full">
                     Lưu cấu hình
@@ -705,7 +687,7 @@ export default async function AdminPage({
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Danh sách trạm</CardTitle>
-              {stationsAreDemo ? <Badge variant="watch">Dữ liệu mẫu</Badge> : null}
+              {stationsAreDemo ? <Tag>Dữ liệu mẫu</Tag> : null}
             </div>
             <CardDescription>Thông tin nhanh về mạng lưới trạm công khai</CardDescription>
           </CardHeader>
@@ -734,7 +716,6 @@ export default async function AdminPage({
             ← Về trang công khai
           </Link>
         </p>
-      </div>
-    </div>
+    </AdminShell>
   );
 }

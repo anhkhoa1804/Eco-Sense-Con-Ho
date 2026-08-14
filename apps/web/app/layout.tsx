@@ -3,7 +3,7 @@ import { QueryProvider } from "@/providers/query-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Horizon Cồn Hô",
+  title: "Horizon",
   description: "Mạng lưới quan trắc khí hậu và môi trường do thanh niên dẫn dắt tại Cồn Hô",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

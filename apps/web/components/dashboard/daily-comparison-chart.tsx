@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
 import type { DailyComparisonPoint } from "@/types";
 
 const formatter = new Intl.NumberFormat("vi-VN", {
@@ -78,13 +78,18 @@ function cellValue(value: number | null, unit: string): string {
 }
 
 export function DailyComparisonChart({ data }: { data: DailyComparisonPoint[] }) {
+  if (data.length === 0) {
+    return (
+      <section className="space-y-4 border-t border-border/60 pt-8">
+        <SectionHeader eyebrow="7 ngày gần nhất" title="So sánh dữ liệu theo ngày" />
+        <p className="text-sm text-muted">Chưa có đủ dữ liệu trong 7 ngày gần nhất để so sánh.</p>
+      </section>
+    );
+  }
+
   return (
-    <Card className="mb-8">
-      <CardHeader>
-        <CardTitle>So sánh dữ liệu theo ngày</CardTitle>
-        <p className="text-sm text-muted">Thủy triều, độ xâm nhập mặn và EC đất trong 7 ngày gần nhất.</p>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <section className="space-y-6 border-t border-border/60 pt-8">
+      <SectionHeader eyebrow="7 ngày gần nhất" title="So sánh dữ liệu theo ngày" />
         <div className="grid gap-6 sm:grid-cols-3">
           {metricConfigs.map((metric) => (
             <div key={metric.key} className="space-y-2">
@@ -108,7 +113,7 @@ export function DailyComparisonChart({ data }: { data: DailyComparisonPoint[] })
                       contentStyle={{
                         background: "#ffffff",
                         border: "1px solid #dbe3e6",
-                        borderRadius: 12,
+                        borderRadius: "var(--radius-md)",
                         boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
                       }}
                       labelStyle={{ color: "#12202a", fontWeight: 600 }}
@@ -116,7 +121,13 @@ export function DailyComparisonChart({ data }: { data: DailyComparisonPoint[] })
                         tooltipValue(value === null || value === undefined ? null : Number(value), metric.name)
                       }
                     />
-                    <Bar dataKey={metric.key} name={metric.name} fill={metric.color} radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey={metric.key}
+                      name={metric.name}
+                      fill={metric.color}
+                      radius={[4, 4, 0, 0]}
+                      animationDuration={400}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -149,12 +160,14 @@ export function DailyComparisonChart({ data }: { data: DailyComparisonPoint[] })
           </table>
         </div>
 
-        <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
-          <h3 className="text-lg font-semibold tracking-tight">Bảng thông số tiêu chuẩn để ra quyết định</h3>
-          <p className="mt-1 text-sm text-muted">
-            Các ngưỡng này dùng cho vườn bưởi ở mức tham khảo ban đầu; khi có dữ liệu thực địa nhiều hơn có thể hiệu chỉnh lại.
-          </p>
-          <div className="mt-4 overflow-x-auto">
+        <div className="space-y-4 border-t border-border pt-6">
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight">Bảng thông số tiêu chuẩn để ra quyết định</h3>
+            <p className="mt-1 text-sm text-muted">
+              Các ngưỡng này dùng cho vườn bưởi ở mức tham khảo ban đầu; khi có dữ liệu thực địa nhiều hơn có thể hiệu chỉnh lại.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
@@ -179,7 +192,6 @@ export function DailyComparisonChart({ data }: { data: DailyComparisonPoint[] })
             </table>
           </div>
         </div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }

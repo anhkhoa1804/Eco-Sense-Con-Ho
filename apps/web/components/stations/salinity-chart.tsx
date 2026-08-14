@@ -75,6 +75,7 @@ export function SalinityChart({
             <EmptyState
               title="Chưa đủ dữ liệu để vẽ biểu đồ"
               description="Biểu đồ sẽ hiển thị khi trạm gửi đủ dữ liệu trong khoảng thời gian này."
+              className="border-transparent bg-transparent shadow-none"
             />
           </div>
         ) : (
@@ -155,6 +156,7 @@ export function SalinityChart({
                 strokeWidth={3}
                 dot={false}
                 name="salinity"
+                animationDuration={400}
               />
               <Area
                 type="monotone"
@@ -165,6 +167,7 @@ export function SalinityChart({
                 strokeWidth={2}
                 dot={false}
                 name="water_level"
+                animationDuration={400}
               />
             </AreaChart>
           </ResponsiveContainer>

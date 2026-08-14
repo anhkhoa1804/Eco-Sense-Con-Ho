@@ -36,6 +36,15 @@
   --color-water-level: #2563eb;
   --color-grid: rgba(15, 23, 42, 0.08);
 
+  /* Brand accent duo — sampled directly from logo.png's actual pixels
+     (REDESIGN_SPECIFICATION.md §24.3), not invented. A second color system
+     from the semantic status palette above: these exist only for brand/
+     identity moments (the logo itself, rare marketing accents) and must
+     never be read as environmental status — never used inside Badge,
+     StatusIndicator, QualityIndicator, or Tag. */
+  --color-brand-green: #2fa85c;
+  --color-brand-orange: #fb9600;
+
   /* Radius scale — replaces ad-hoc rounded-[Npx] arbitrary values */
   --radius-xs: 6px;
   --radius-sm: 10px;
@@ -48,6 +57,30 @@
   --shadow-sm: 0 4px 12px rgb(15 23 42 / 0.06);
   --shadow-md: 0 12px 32px rgb(15 23 42 / 0.10);
   --shadow-lg: 0 24px 64px rgb(15 23 42 / 0.14);
+
+  /* Typography scale — REDESIGN_SPECIFICATION.md §4. Marketing-register
+     pages (/, /about) are the only ones allowed to use --text-display;
+     everything else uses --text-h1/--text-h2 down to --text-caption. */
+  --text-eyebrow: 11px;
+  --text-display: 40px;
+  --text-h1: 24px;
+  --text-h2: 20px;
+  --text-body: 16px;
+  --text-body-dense: 14px;
+  --text-caption: 12px;
+
+  /* Spacing scale — REDESIGN_SPECIFICATION.md §7. Public marketing pages
+     default to the top of the range between major sections; tool-register
+     pages (dashboard/station/admin) default to the middle. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
 }
 
 :root {
@@ -82,6 +115,77 @@
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
   background: linear-gradient(180deg, rgba(14, 95, 138, 0.05) 0%, var(--color-card) 100%);
+}
+
+/*
+ * The signal pulse — visual-signature element #3 (REDESIGN_SPECIFICATION.md
+ * §24.2/§24.8). Applied only to map markers whose station is genuinely
+ * `freshness === "live"` right now (see station-network-map.tsx) — this is
+ * data wearing motion, not decoration. `prefers-reduced-motion` below
+ * already forces 1-iteration/0.01ms on every animation on the page,
+ * including this one, collapsing it to the static solid marker.
+ */
+.horizon-marker-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: horizon-pulse 2s var(--ease-standard) infinite;
+}
+
+@keyframes horizon-pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/*
+ * Nav active-indicator (R19 §1). The public header/mobile nav remounts on
+ * every route change (PublicShell isn't a persisted layout segment), so a
+ * plain `transition-colors` on the link never actually plays — there's no
+ * surviving DOM node to transition from. This fades in just the background
+ * wash on mount instead; text color stays instant/legible throughout, per
+ * the "color transition remains, not motion" hover rule.
+ */
+@keyframes horizon-nav-in {
+  from {
+    opacity: 0;
+  }
+}
+.nav-link-active {
+  position: relative;
+}
+.nav-link-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: var(--color-accent);
+  opacity: 0.1;
+  animation: horizon-nav-in var(--motion-fast) var(--ease-standard);
+}
+
+/*
+ * Marketing-page hero entrance (R19 §4, REDESIGN_SPECIFICATION.md §24.8's
+ * Entrance row) — once, on first paint, hero/brand moments only (`/`,
+ * `/about`). Never on tool-register pages.
+ */
+@keyframes horizon-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-entrance {
+  animation: horizon-entrance var(--motion-medium) var(--ease-standard) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
