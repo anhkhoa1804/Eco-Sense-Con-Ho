@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ClipboardList, Home, Info, LayoutDashboard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SilentHeader } from "@/components/layout/silent-header";
 import { Wordmark } from "@/components/ui/wordmark";
 
 /**
@@ -35,8 +36,8 @@ export function PublicShell({
 }) {
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <header className="sticky top-0 z-[var(--z-sticky)] border-b border-border bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+      <SilentHeader>
+        <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4">
           <Wordmark title="Horizon" showMark showTitle={false} />
 
           <div className="flex items-center gap-1">
@@ -72,7 +73,7 @@ export function PublicShell({
             </Link>
           </div>
         </div>
-      </header>
+      </SilentHeader>
 
       <main className="relative mx-auto max-w-7xl px-4 pb-28 pt-4 md:pb-8 md:pt-8">{children}</main>
 

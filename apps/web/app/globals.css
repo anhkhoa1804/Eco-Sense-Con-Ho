@@ -58,9 +58,12 @@
   --shadow-md: 0 12px 32px rgb(15 23 42 / 0.10);
   --shadow-lg: 0 24px 64px rgb(15 23 42 / 0.14);
 
-  /* Typography scale — REDESIGN_SPECIFICATION.md §4. Marketing-register
+  /* Typography scale — REDESIGN_SPECIFICATION.md §4, formalized as 8 named
+     roles per FRONTEND_REBUILD_SPECIFICATION.md §3. Marketing-register
      pages (/, /about) are the only ones allowed to use --text-display;
-     everything else uses --text-h1/--text-h2 down to --text-caption. */
+     everything else uses --text-h1/--text-h2 down to --text-caption.
+     Roles: display · h1 · h2 · body · body-dense · caption ·
+     label/eyebrow (--text-eyebrow) · data (--text-data, mono only). */
   --text-eyebrow: 11px;
   --text-display: 40px;
   --text-h1: 24px;
@@ -68,6 +71,20 @@
   --text-body: 16px;
   --text-body-dense: 14px;
   --text-caption: 12px;
+
+  /* Data role — instrument readouts only (measurement values, deltas,
+     relative timestamps: "1.05", "-78", "64 ngày trước"). Never for prose.
+     Font comes from --font-data (Geist Mono, self-hosted via next/font in
+     layout.tsx — no new dependency, no runtime request). Size intentionally
+     matches --text-h2 so a data value sits at body-heading weight by
+     default; MeasurementValue overrides size per its own size prop. */
+  --text-data: 20px;
+
+  /* Layout width primitives — FRONTEND_REBUILD_SPECIFICATION.md §12.
+     Four distinct concepts, never collapsed into one max-width. */
+  --width-reading: 68ch;
+  --width-content: 1280px;
+  --width-content-wide: 1440px;
 
   /* Spacing scale — REDESIGN_SPECIFICATION.md §7. Public marketing pages
      default to the top of the range between major sections; tool-register
@@ -186,6 +203,35 @@
 }
 .animate-entrance {
   animation: horizon-entrance var(--motion-medium) var(--ease-standard) both;
+}
+
+/*
+ * Full-bleed breakout (FRONTEND_REBUILD_SPECIFICATION.md §12). Formalizes
+ * the pattern first used ad hoc for the homepage's closing CTA band — one
+ * named utility instead of repeating the calc every time. Escapes any
+ * max-width ancestor regardless of nesting depth; caller still needs its
+ * own inner max-width wrapper for the content that sits inside it.
+ * Budget: at most one full-bleed element per viewport height (§12).
+ */
+.full-bleed {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/*
+ * Silent header scroll-compress (R2). Two heights, one CSS transition;
+ * the .is-compressed class is toggled by a small client-side scroll
+ * listener (see components/layout/header-scroll.tsx) — the animation
+ * itself is pure CSS, no motion library involved.
+ */
+.silent-header {
+  height: 72px;
+  transition: height var(--motion-base) var(--ease-standard);
+}
+.silent-header.is-compressed {
+  height: 56px;
 }
 
 @media (prefers-reduced-motion: reduce) {
