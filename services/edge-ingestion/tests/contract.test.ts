@@ -524,3 +524,113 @@ describe("soil readings (reading_kind: soil)", () => {
     }
   });
 });
+
+/**
+ * Characterization tests for the water-EC blocker.
+ *
+ * These document CURRENT behaviour, not desired behaviour. Station 1's
+ * `readWaterEc()` (firmware/esp32-node/src/trạm 1.ino:279-296) is an
+ * unimplemented placeholder that always returns
+ * `{false, NAN, "pending_ec_protocol"}`, so the gateway relays
+ * `"salinity": null` (gateway.ino:514-515) while still carrying a genuinely
+ * measured `water_level`.
+ *
+ * The contract then discards the entire reading — including the valid water
+ * level — via two independent gates. That is the single largest reason the
+ * production observatory has no water telemetry.
+ *
+ * When the water-level-preservation change is approved, these tests should
+ * FAIL and be rewritten to assert the new behaviour. They exist so the loss
+ * is visible in the suite rather than only in an audit document.
+ */
+describe("water EC blocker (characterization — current behaviour, not desired)", () => {
+  it("discards a valid water_level when salinity is null, via MISSING_FIELD", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    // Exactly what the gateway emits today when the EC probe is unimplemented.
+    const payload = basePayload({
+      message_id: "water-ec-blocker-001",
+      salinity: undefined,
+      water_level: 51.0,
+      sensor_status: { ec_probe: "fault", ultrasonic: "ok" },
+    });
+
+    const response = await ingestTelemetry(await buildRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, false, "payload is rejected outright");
+    if (!response.ok) {
+      // Rejected at ingest.ts:173 before the fault gate is even reached.
+      assert.equal(response.error_code, "MISSING_FIELD");
+      assert.equal(response.retryable, false, "gateway will not retry — the reading is lost permanently");
+    }
+
+    const snapshot = db.getSnapshot();
+    assert.equal(snapshot.environmentalReadings.length, 0, "the measured water level is not stored anywhere");
+    assert.equal(snapshot.auditLogs.at(-1)?.status, "missing_field");
+  });
+
+  it("also discards it via SENSOR_FAULT when a salinity value IS present but the EC probe is faulted", async () => {
+    const db = new MockDb({ STATION_01: DEVICE_SECRET }, otaCatalog);
+    const payload = basePayload({
+      message_id: "water-ec-blocker-002",
+      salinity: 1.1,
+      water_level: 51.0,
+      sensor_status: { ec_probe: "fault", ultrasonic: "ok" },
+    });
+
+    const response = await ingestTelemetry(await buildRequest(payload), db, config, NOW);
+
+    assert.equal(response.ok, false);
+    if (!response.ok) {
+      // Second, independent gate — ingest.ts:250.
+      assert.equal(response.error_code, "SENSOR_FAULT");
+    }
+
+    const snapshot = db.getSnapshot();
+    assert.equal(snapshot.environmentalReadings.length, 0, "water level lost a second way");
+    // A SENSOR_FAULT event IS recorded, so the fault itself is observable.
+    assert.equal(snapshot.environmentalEvents.at(-1)?.event_type, "SENSOR_FAULT");
+  });
+
+  it("contrasts with soil, which deliberately preserves a partial reading", async () => {
+    // The soil helpers are scoped to the soil suite, so this builds its own
+    // payload — the point is the contrast, and stating it explicitly here
+    // keeps the comparison readable without reaching across suites.
+    const soilSecret = "station-secret-02";
+    const db = new MockDb({ STATION_02: soilSecret }, otaCatalog);
+
+    // Five of six soil sensors silent — still accepted, because soil models
+    // per-sensor nullability (ingest.ts:38-48) while water does not.
+    const payload: TelemetryPayloadV1 = {
+      contract_version: "v1",
+      reading_kind: "soil",
+      device_id: "STATION_02",
+      message_id: "water-ec-blocker-003",
+      timestamp: NOW,
+      fault_flags: 0,
+      soil: {
+        air_temp_c: null,
+        air_humidity_pct: null,
+        soil_temp_c: null,
+        soil_moisture_pct: 41.5,
+        soil_ec_ms_cm: null,
+        soil_ph: null,
+      },
+      firmware_version: "station2-grapefruit-soil-0.1.0",
+    };
+
+    const request: IngestRequest = {
+      headers: {
+        "x-device-id": payload.device_id,
+        "x-timestamp": String(payload.timestamp),
+        "x-signature": await signPayload(payload, soilSecret),
+        "x-contract-version": payload.contract_version,
+      },
+      payload,
+    };
+
+    const response = await ingestTelemetry(request, db, config, NOW);
+
+    assert.equal(response.ok, true, "one working sensor is enough for soil");
+    assert.equal(db.getSnapshot().soilReadings.length, 1);
+  });
+});
