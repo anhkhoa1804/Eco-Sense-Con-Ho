@@ -1,6 +1,6 @@
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { LoginForm } from "@/components/auth/login-form";
-import { Wordmark } from "@/components/ui/wordmark";
+import { SiteHeader } from "@/components/layout/site-header";
 
 function errorMessage(error?: string): string | null {
   switch (error) {
@@ -25,20 +25,21 @@ export default async function AdminLoginPage({
   const message = errorMessage(params.error);
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
-      <Wordmark title="Quản trị" titleSize="lg" showMark markSize="login" className="mb-8" />
-      {message ? (
-        <div className="mb-4 flex max-w-md flex-col items-center gap-3 text-center">
-          <p className="text-sm text-critical" role="alert">
-            {message}
-          </p>
-          {params.error === "unauthorized" ? <SignOutButton /> : null}
+    <div className="min-h-dvh bg-background text-foreground">
+      <SiteHeader register="admin" />
+      <main className="flex min-h-[calc(100dvh-88px)] flex-col items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md space-y-4">
+          {message ? (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <p className="text-sm text-critical" role="alert">
+                {message}
+              </p>
+              {params.error === "unauthorized" ? <SignOutButton /> : null}
+            </div>
+          ) : null}
+          <LoginForm redirectTo={redirectTo} defaultEmail={params.email ?? ""} />
         </div>
-      ) : null}
-      <LoginForm redirectTo={redirectTo} defaultEmail={params.email ?? ""} />
-      <p className="mt-4 max-w-md text-center text-sm text-muted">
-        Email được phép lấy từ ADMIN_ALLOWED_EMAILS. Mật khẩu lấy từ ADMIN_PASSWORD trong file .env.local.
-      </p>
-    </main>
+      </main>
+    </div>
   );
 }

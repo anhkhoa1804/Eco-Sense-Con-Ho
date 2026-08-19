@@ -30,17 +30,30 @@ import type { EnvironmentalReading, SoilReading, Station, StationHealthLog, Tren
 import { StationLiveChart } from "@/components/stations/station-live-chart";
 
 /**
- * Static reference ranges — the exact numbers already shown on /dashboard's
- * "Tham chiếu tĩnh" table (daily-comparison-chart.tsx), not new invented
- * thresholds. Used only when `crop_thresholds` is unseeded (threshold ===
- * null), and always labeled as reference material — never presented as a
- * live risk assessment of this station's current reading. See
- * FRONTEND_REBUILD_SPECIFICATION.md R-3: seeding that table is a data
- * decision outside this rebuild's authority.
+ * Shown when no threshold is configured in `crop_thresholds`.
+ *
+ * These strings previously carried hardcoded numbers ("dưới 1.2‰…", "EC đất
+ * dưới 1.5 mS/cm và độ ẩm 45–65%"). They were removed in Phase 4.1 after
+ * tracing them to source:
+ *
+ *  - Their only origin is the informal "Grapefruit guidance" comment block in
+ *    firmware/esp32-node/src/trạm 2.ino:26-29 — an engineering note that
+ *    itself hedges ("should stay below *roughly* 1.5-2.0 mS/cm") and sits
+ *    directly above a TODO stating the sensor scaling is still unconfirmed.
+ *  - The "45–65%" soil-moisture range appears nowhere in that source at all;
+ *    the firmware note only warns that moisture sustained above 80% risks
+ *    root rot. That figure was unsupported even by the file it came from.
+ *
+ * Per the reference policy Monitoring now follows: where a value cannot be
+ * defended, drop the number rather than print it under a disclaimer. Real
+ * configured thresholds still drive the live evaluation path below — that is
+ * genuine system configuration, not a claimed scientific standard.
  */
 const STATIC_REFERENCE_NOTE: Record<"water" | "soil", string> = {
-  water: "Ngưỡng tham khảo cho vườn bưởi: dưới 1.2‰ là ổn định, 1.2–1.8‰ cần chú ý, trên 1.8‰ là nguy cơ cao. Hệ thống chưa cấu hình ngưỡng cảnh báo trực tiếp cho trạm này.",
-  soil: "Ngưỡng tham khảo cho vườn bưởi: EC đất dưới 1.5 mS/cm và độ ẩm 45–65% là ổn định. Hệ thống chưa cấu hình ngưỡng cảnh báo trực tiếp cho trạm này.",
+  water:
+    "Hệ thống chưa cấu hình ngưỡng cảnh báo cho trạm này. Cơ sở diễn giải độ mặn — gồm hướng dẫn quốc tế và ghi chú nội bộ — được trình bày trong mục Tham chiếu ở trang Quan trắc.",
+  soil:
+    "Việc diễn giải độ ẩm, EC và pH đất thành khuyến nghị canh tác phụ thuộc loại cây, loại đất và mùa vụ. Dự án chưa xác lập được ngưỡng tham chiếu có nguồn cho bối cảnh Cồn Hô, nên chưa công bố con số nào.",
 };
 
 function IdentityColumn({ profile, station }: { profile: StationProfile; station: Station | null }) {

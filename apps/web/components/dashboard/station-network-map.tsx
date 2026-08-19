@@ -1,7 +1,7 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FreshnessState } from "@/components/ui/status-indicator";
 import { cn } from "@/lib/utils";
@@ -26,13 +26,23 @@ const FRESHNESS_COLOR: Record<FreshnessState, string> = {
 interface StationNetworkMapProps {
   stations: MapStation[];
   /**
-   * `full` (default) is the interactive dashboard map. `preview` is a
-   * shorter, locked-view instance for the homepage — real data, no pan/zoom/
-   * click, so it reads as a preview rather than a second full map instance
-   * (REDESIGN_SPECIFICATION.md §13).
+   * `full` (default) is the homepage's interactive map. `preview` is a
+   * shorter, locked-view instance for station-detail/about — real data, no
+   * pan/zoom/click, so it reads as a preview rather than a second full map
+   * instance (REDESIGN_SPECIFICATION.md §13). `observatory` is Monitoring's
+   * own taller instance — the map is meant to be a dominant spatial anchor
+   * there, not the same size as the homepage's supporting map.
    */
-  variant?: "full" | "preview";
+  variant?: "full" | "preview" | "observatory";
+  /** Optional — when a marker's id matches, it renders with a highlight ring so the map can reflect an instrument-selector's current selection. */
+  selectedStationId?: string;
 }
+
+const HEIGHT_CLASS: Record<NonNullable<StationNetworkMapProps["variant"]>, string> = {
+  full: "h-[340px]",
+  preview: "h-[260px]",
+  observatory: "h-[420px] sm:h-[480px] lg:h-[560px]",
+};
 
 /**
  * Real geographic map (Leaflet + CartoDB Positron tiles — a restrained,
@@ -42,22 +52,30 @@ interface StationNetworkMapProps {
  * invented positions. Mounted client-side only; Leaflet touches `window`
  * at load time and has no SSR story.
  */
-export function StationNetworkMap({ stations, variant = "full" }: StationNetworkMapProps) {
+export function StationNetworkMap({ stations, variant = "full", selectedStationId }: StationNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<import("leaflet").Map | null>(null);
+  const ringRef = useRef<import("leaflet").CircleMarker | null>(null);
+  const leafletRef = useRef<typeof import("leaflet") | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const router = useRouter();
-  const interactive = variant === "full";
-  const heightClass = interactive ? "h-[340px]" : "h-[260px]";
+  const interactive = variant !== "preview";
+  const heightClass = HEIGHT_CLASS[variant];
 
+  // Base map + tile layer + station markers. Deliberately does NOT depend on
+  // selectedStationId — that used to tear down and remount the whole map
+  // (tiles included) on every instrument-selector click. The ring now lives
+  // in its own effect below so switching stations never re-fetches tiles.
   useEffect(() => {
     if (!containerRef.current || stations.length === 0) return;
 
-    let map: import("leaflet").Map | undefined;
     let cancelled = false;
 
     void import("leaflet").then((L) => {
       if (cancelled || !containerRef.current) return;
+      leafletRef.current = L;
 
-      map = L.map(containerRef.current, {
+      const map = L.map(containerRef.current, {
         scrollWheelZoom: false,
         attributionControl: interactive,
         zoomControl: interactive,
@@ -67,6 +85,7 @@ export function StationNetworkMap({ stations, variant = "full" }: StationNetwork
         boxZoom: interactive,
         keyboard: interactive,
       });
+      mapRef.current = map;
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -88,7 +107,7 @@ export function StationNetworkMap({ stations, variant = "full" }: StationNetwork
             fillOpacity: 0.5,
             interactive: false,
             className: "horizon-marker-pulse",
-          }).addTo(map!);
+          }).addTo(map);
         }
 
         const marker = L.circleMarker([station.lat, station.lng], {
@@ -97,7 +116,7 @@ export function StationNetworkMap({ stations, variant = "full" }: StationNetwork
           color: "#fbfaf7",
           fillColor: FRESHNESS_COLOR[station.freshness],
           fillOpacity: 1,
-        }).addTo(map!);
+        }).addTo(map);
 
         marker.bindTooltip(station.name, { direction: "top", offset: [0, -8] });
         if (interactive) {
@@ -111,13 +130,54 @@ export function StationNetworkMap({ stations, variant = "full" }: StationNetwork
       } else {
         map.fitBounds(bounds, { padding: [32, 32] });
       }
+
+      setMapReady(true);
     });
 
     return () => {
       cancelled = true;
-      map?.remove();
+      mapRef.current?.remove();
+      mapRef.current = null;
+      ringRef.current = null;
+      setMapReady(false);
     };
   }, [stations, router, interactive]);
+
+  // Selected-station ring — a separate, lightweight effect so picking a
+  // different instrument only redraws this one small layer (with a soft
+  // grow/fade transition) instead of remounting the whole map.
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapRef.current;
+    if (!L || !map || !mapReady) return;
+
+    ringRef.current?.remove();
+    ringRef.current = null;
+
+    const station = stations.find((s) => s.id === selectedStationId);
+    if (!station) return;
+
+    const ring = L.circleMarker([station.lat, station.lng], {
+      radius: 14,
+      weight: 1.5,
+      color: "#0e5f8a",
+      fillOpacity: 0,
+      interactive: false,
+      className: "horizon-selection-ring",
+    }).addTo(map);
+    ringRef.current = ring;
+
+    const el = ring.getElement();
+    if (el instanceof SVGElement) {
+      el.setAttribute("r", "9");
+      el.style.opacity = "0";
+      requestAnimationFrame(() => {
+        el.style.transition = `r var(--motion-medium) var(--ease-standard), opacity var(--motion-medium) var(--ease-standard)`;
+        el.setAttribute("r", "14");
+        el.style.opacity = "1";
+      });
+    }
+  }, [stations, selectedStationId, mapReady]);
 
   if (stations.length === 0) {
     return (

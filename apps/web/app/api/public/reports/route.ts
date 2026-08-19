@@ -92,19 +92,36 @@ export async function POST(request: Request) {
     }
   }
 
+  // Approximate center of the real pilot station cluster (STATION_01/02/03,
+  // infra/supabase/seed/pilot_seed.sql), used only when neither GPS nor a
+  // resolvable station gives a real position. The previous constant here
+  // (10.082, 106.032) was ~20km from the actual monitored area and was
+  // stored as though it were a precise report location with no way for
+  // anyone downstream to tell it apart from a real one. `lat`/`lng` on
+  // damage_logs are NOT NULL, so this can't simply be omitted — the
+  // fallback is now at least on the real island, and is marked in the
+  // description (same bracket-tag pattern already used for category/
+  // station below) so it's traceable as an estimate, not fabricated
+  // precision.
+  const FALLBACK_LAT = 10.2419;
+  const FALLBACK_LNG = 105.826;
+  let usedFallbackLocation = false;
+
   if (
     reportLat === null ||
     reportLng === null ||
     !Number.isFinite(reportLat) ||
     !Number.isFinite(reportLng)
   ) {
-    reportLat = 10.082;
-    reportLng = 106.032;
+    reportLat = FALLBACK_LAT;
+    reportLng = FALLBACK_LNG;
+    usedFallbackLocation = true;
   }
 
   const fullDescription =
     `[${category}]` +
     (typeof stationId === "string" && stationId ? ` [station:${stationId}]` : "") +
+    (usedFallbackLocation ? " [vị trí: ước tính]" : "") +
     ` ${description.trim()}`;
 
   const demoReport = () =>

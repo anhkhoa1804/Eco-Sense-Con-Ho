@@ -1,6 +1,6 @@
 import type * as React from "react";
-import { Wordmark } from "@/components/ui/wordmark";
 import { cn } from "@/lib/utils";
+import { SiteHeader } from "@/components/layout/site-header";
 
 interface AdminShellProps {
   email?: string;
@@ -10,24 +10,17 @@ interface AdminShellProps {
 }
 
 /**
- * Visual frame for admin, matching PublicShell's header/wordmark/max-width
- * language (REDESIGN_SPECIFICATION.md §8/§9) — a genuinely different
- * audience so it gets its own max-width, not zero shell and not a second
- * visual grammar.
+ * Admin's register of the one shared header system (SiteHeader) — same
+ * brand shell as public, unmistakably operational context via the "／
+ * Quản trị" label instead of public nav. No footer here: a dense
+ * operational console, not a marketing surface (§4 explicitly allows
+ * "minimal footer or none" for admin).
  */
 export function AdminShell({ email, actions, children, className }: AdminShellProps) {
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-4 px-4 py-4">
-          <div>
-            <Wordmark title="Horizon · Vận hành" titleAs="h1" titleSize="lg" href="/admin" />
-            {email ? <p className="mt-1 text-sm text-muted">{email}</p> : null}
-          </div>
-          {actions ? <div className="flex flex-wrap items-center gap-3">{actions}</div> : null}
-        </div>
-      </header>
-      <main className={cn("mx-auto max-w-6xl space-y-6 px-4 py-6", className)}>{children}</main>
+      <SiteHeader register="admin" adminEmail={email} adminActions={actions} />
+      <main className={cn("mx-auto max-w-[var(--width-content-wide)] space-y-6 px-4 py-6", className)}>{children}</main>
     </div>
   );
 }

@@ -29,3 +29,53 @@ export function resolveMeasurementVisualState(
   // "Real value, stale/offline" is one row, not four.
   return "stale";
 }
+
+/**
+ * A third, independent axis — orthogonal to FreshnessState (how recent) and
+ * QualityState (how trustworthy a real reading is). This one answers "what
+ * kind of thing is this value at all": a live sensor number, an aging-out
+ * real reading, a static scientific/technical constant, a synthetic example,
+ * or nothing. Never merge this into Freshness/Quality — that collapsed-enum
+ * mistake is exactly what status-indicator.tsx's own history already
+ * rejected once (see its top comment).
+ *
+ * - "telemetry"   — a real, currently-fresh backend reading.
+ * - "historical"  — a real backend reading that is aging out (stale/
+ *                    offline), OR a past point in a trend/series. Still
+ *                    real data, just not the current instant.
+ * - "reference"   — a static scientific/technical value (a threshold, a
+ *                    guidance range) — never derived from freshness.
+ * - "demo"        — local synthetic data built for visual prototyping.
+ *                    Never derived from freshness; set explicitly.
+ * - "unavailable" — no trustworthy value exists at all.
+ */
+export type DataOrigin = "telemetry" | "historical" | "reference" | "demo" | "unavailable";
+
+export interface DataProvenance {
+  origin: DataOrigin;
+  /** Human-readable source label, e.g. "Telemetry", "FAO Irrigation and Drainage Paper 29", "Dữ liệu minh họa". Omit rather than invent one. */
+  source?: string;
+  sourceUrl?: string;
+  /** ISO timestamp of the underlying observation, when this is a telemetry/historical value. */
+  observedAt?: string;
+  /** ISO timestamp a reference source was last checked, when this is a reference value. */
+  verifiedAt?: string;
+  /** Free-form honest caveat, e.g. "Chưa có nguồn tham chiếu được xác minh." */
+  note?: string;
+}
+
+/**
+ * Derives DataOrigin for a real (non-demo, non-reference) backend-sourced
+ * measurement from its freshness. Reference and demo origins are never
+ * derived this way — freshness has no meaning for a scientific constant or
+ * a synthetic example, so callers set those explicitly instead of routing
+ * through this function.
+ */
+export function resolveTelemetryOrigin(freshness: FreshnessState, hasValue: boolean): DataOrigin {
+  if (!hasValue) return "unavailable";
+  if (freshness === "live" || freshness === "recent") return "telemetry";
+  if (freshness === "stale" || freshness === "offline") return "historical";
+  // never_connected | unavailable, but hasValue somehow true — treat as
+  // unavailable rather than trust a freshness value that contradicts hasValue.
+  return "unavailable";
+}

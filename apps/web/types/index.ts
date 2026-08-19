@@ -99,6 +99,59 @@ export interface TrendPoint {
   water_level: number;
 }
 
+/**
+ * One soil observation in a time series. Mirrors `soil_readings`' column
+ * names and nullability exactly (migration 019): all six measurements come
+ * from independent sensors on Trạm 2, and any one of them can be null while
+ * the others report normally. Null means "this sensor did not report" — it
+ * is never collapsed to 0.
+ *
+ * Units are carried in the column names and fixed by the schema:
+ *   air_temp_c, soil_temp_c    → °C        numeric(5,1)
+ *   air_humidity_pct,
+ *   soil_moisture_pct          → %         numeric(5,1)
+ *   soil_ec_ms_cm              → mS/cm     numeric(6,2)
+ *   soil_ph                    → unitless  numeric(4,1)
+ *
+ * `timestamp` is the observation time recorded by the gateway, not the
+ * database insertion time (`created_at`) — see getSoilTrend.
+ */
+export interface SoilTrendPoint {
+  timestamp: string;
+  air_temp_c: number | null;
+  air_humidity_pct: number | null;
+  soil_temp_c: number | null;
+  soil_moisture_pct: number | null;
+  soil_ec_ms_cm: number | null;
+  soil_ph: number | null;
+}
+
+/**
+ * One calendar day of soil observations, averaged per metric.
+ *
+ * Days are bucketed in Asia/Ho_Chi_Minh (the repository-wide convention —
+ * see dateKey in readingRepository.ts), so a reading at 23:30 local belongs
+ * to that local day rather than the following UTC one.
+ *
+ * Each metric averages independently: a day where the pH probe was silent
+ * but the moisture probe reported yields a real `soil_moisture_pct` and a
+ * null `soil_ph`. Null always means "no observation", never zero, and days
+ * with no readings at all appear with every metric null rather than being
+ * dropped — the caller needs the gap to be visible.
+ */
+export interface DailySoilPoint {
+  /** Short display label, same formatting as DailyComparisonPoint.date. */
+  date: string;
+  air_temp_c: number | null;
+  air_humidity_pct: number | null;
+  soil_temp_c: number | null;
+  soil_moisture_pct: number | null;
+  soil_ec_ms_cm: number | null;
+  soil_ph: number | null;
+  /** Rows that fell in this day, across all metrics. 0 for an empty day. */
+  readingCount: number;
+}
+
 export interface SalinityThreshold {
   cropName: string;
   warningLevel: number;

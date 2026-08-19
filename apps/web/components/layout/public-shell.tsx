@@ -1,31 +1,8 @@
 import Link from "next/link";
-import { ClipboardList, Home, Info, LayoutDashboard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SilentHeader } from "@/components/layout/silent-header";
-import { Wordmark } from "@/components/ui/wordmark";
-
-/**
- * Primary navigation — the four public-facing destinations, shared
- * identically between the desktop nav and the mobile bottom nav so the two
- * can never drift out of sync. Admin is deliberately NOT part of this
- * list: it's a different audience (operators, not the public), so it gets
- * its own small, consistently-placed affordance in the header instead of
- * a 5th primary nav item. Previously, admin was appended only to the
- * desktop nav's markup and never added to the mobile bottom nav's list at
- * all, so mobile visitors had no way to reach it — this makes the
- * separation explicit and identical on both breakpoints instead of an
- * accidental mobile gap.
- */
-const links = [
-  { href: "/", label: "Trang chủ", icon: Home },
-  { href: "/dashboard", label: "Quan trắc", icon: LayoutDashboard },
-  { href: "/report", label: "Báo cáo", icon: ClipboardList },
-  { href: "/about", label: "Giới thiệu", icon: Info },
-];
-
-function isActive(href: string, activePath?: string): boolean {
-  return activePath === href || (href !== "/" && (activePath?.startsWith(href) ?? false));
-}
+import { Footer } from "@/components/layout/footer";
+import { SiteHeader } from "@/components/layout/site-header";
+import { isPublicNavActive, PUBLIC_NAV_LINKS } from "@/lib/publicNav";
 
 export function PublicShell({
   children,
@@ -36,54 +13,19 @@ export function PublicShell({
 }) {
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <SilentHeader>
-        <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4">
-          <Wordmark title="Horizon" showMark showTitle={false} />
+      <SiteHeader register="public" activePath={activePath} />
 
-          <div className="flex items-center gap-1">
-            <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 md:flex">
-              {links.map(({ href, label, icon: Icon }) => {
-                const active = isActive(href, activePath);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-sm px-3 py-2 text-sm font-medium transition-colors duration-[var(--motion-base)]",
-                      active ? "nav-link-active text-accent" : "text-muted hover:bg-muted/20 hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" aria-hidden />
-                    {label}
-                  </Link>
-                );
-              })}
-            </nav>
+      <main className="relative mx-auto max-w-[var(--width-content-wide)] px-4 pb-8 pt-4 md:pt-8">{children}</main>
 
-            <div className="ml-1 h-6 w-px bg-border hidden md:block" aria-hidden />
-
-            <Link
-              href="/admin/login"
-              aria-label="Quản trị"
-              title="Quản trị"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-sm text-muted transition-colors duration-[var(--motion-base)] hover:bg-muted/20 hover:text-foreground"
-            >
-              <Shield className="h-4 w-4" aria-hidden />
-            </Link>
-          </div>
-        </div>
-      </SilentHeader>
-
-      <main className="relative mx-auto max-w-7xl px-4 pb-28 pt-4 md:pb-8 md:pt-8">{children}</main>
+      <Footer />
 
       <nav
         aria-label="Điều hướng di động"
         className="fixed inset-x-0 bottom-0 z-[var(--z-drawer)] border-t border-border bg-background/95 backdrop-blur md:hidden"
       >
         <ul className="mx-auto flex max-w-lg items-center justify-around px-3 py-2">
-          {links.map(({ href, label, icon: Icon }) => {
-            const active = isActive(href, activePath);
+          {PUBLIC_NAV_LINKS.map(({ href, label, icon: Icon }) => {
+            const active = isPublicNavActive(href, activePath);
             return (
               <li key={href}>
                 <Link

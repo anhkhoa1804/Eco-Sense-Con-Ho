@@ -16,13 +16,13 @@ const dataMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Horizon",
+  title: "HORIZON - Frogsleap Vietnam",
   description: "Mạng lưới quan trắc khí hậu và môi trường do thanh niên dẫn dắt tại Cồn Hô",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Horizon",
+    title: "HORIZON",
   },
 };
 

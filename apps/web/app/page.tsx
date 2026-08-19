@@ -1,27 +1,22 @@
 import Link from "next/link";
 import { cache, Suspense } from "react";
-import { ArrowRight, Send, Sprout, Waves } from "lucide-react";
+import { ArrowRight, ClipboardList, Info, LayoutDashboard, Send, Sprout, Waves, Wind } from "lucide-react";
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
+import { FieldNotesCarousel } from "@/components/home/field-notes-carousel";
+import { Hero } from "@/components/home/hero";
+import { Reveal } from "@/components/ui/reveal";
 import { PublicShell } from "@/components/layout/public-shell";
-import { ObservatoryAct, ObservatoryShell } from "@/components/observatory/observatory-shell";
-import { Button } from "@/components/ui/button";
-import { IconTile } from "@/components/ui/icon-tile";
-import { MeasurementValue } from "@/components/ui/measurement-value";
-import { RiverLine } from "@/components/ui/river-line";
 import { Skeleton } from "@/components/ui/skeleton";
-import { freshnessStatus, relativeTimeVi, StatusIndicator, type FreshnessState } from "@/components/ui/status-indicator";
+import { freshnessStatus, StatusIndicator } from "@/components/ui/status-indicator";
+import { getRecentPosts } from "@/lib/content/posts";
 import { getPublicRepositories } from "@/lib/publicRead";
 import { filterSnapshotsToPilotStations, PILOT_STATION_IDS, type PilotStationId } from "@/lib/publicStations";
-import { formatSoilEc, formatWaterValue, stationProfiles, type StationKind } from "@/lib/stationProfile";
+import { stationProfiles, type StationKind } from "@/lib/stationProfile";
 import type { SoilReading, StationReadingSnapshot } from "@/types";
 
 export const revalidate = 60;
 
-const KIND_ICON: Record<StationKind, typeof Waves> = {
-  water: Waves,
-  soil: Sprout,
-  gateway: Send,
-};
+const KIND_ICON: Record<StationKind, typeof Waves> = { water: Waves, soil: Sprout, gateway: Send };
 
 interface ObservatoryData {
   /** Already filtered to the curated 3-station pilot allowlist — never the raw 5-row DB response. */
@@ -30,11 +25,12 @@ interface ObservatoryData {
 }
 
 /**
- * Single fetch, shared by both the hero (status rows + map) and the
- * telemetry act further down the page. Wrapped in React's cache() so the
- * two independent <Suspense> consumers don't double-query Supabase for the
- * same request — same underlying repository calls station-detail.tsx
- * already uses, just composed once per page render.
+ * One fetch shared by the network chapter and the map chapter, wrapped in
+ * React's cache() so two independent <Suspense> consumers don't double-query
+ * for the same render.
+ *
+ * The homepage deliberately reads only what it needs to show *existence and
+ * state* — Monitoring owns detailed telemetry (brief §23).
  */
 const getObservatoryData = cache(async (): Promise<ObservatoryData | null> => {
   const context = getPublicRepositories();
@@ -43,7 +39,7 @@ const getObservatoryData = cache(async (): Promise<ObservatoryData | null> => {
   try {
     const { repos, scope } = context;
     const allSnapshots = await repos.readings.getSnapshots(scope);
-    const [soilReading] = await Promise.all([repos.readings.getLatestSoilReadingByStation("STATION_02", scope)]);
+    const soilReading = await repos.readings.getLatestSoilReadingByStation("STATION_02", scope);
     return { snapshots: filterSnapshotsToPilotStations(allSnapshots), soilReading };
   } catch {
     return null;
@@ -51,10 +47,9 @@ const getObservatoryData = cache(async (): Promise<ObservatoryData | null> => {
 });
 
 /**
- * STATION_02 has no environmental_readings row — its real timestamp lives
- * on soil_readings instead. Kept kind-aware so soil freshness is never
- * silently read as "unavailable" just because the water-shaped fields are
- * empty.
+ * STATION_02 has no environmental_readings row — its real timestamp lives on
+ * soil_readings instead. Kind-aware so soil freshness is never silently read
+ * as "unavailable" just because the water-shaped fields are empty.
  */
 function latestTimestampFor(stationId: PilotStationId, data: ObservatoryData | null): string | null {
   if (stationProfiles[stationId].kind === "soil") {
@@ -64,21 +59,72 @@ function latestTimestampFor(stationId: PilotStationId, data: ObservatoryData | n
   return snapshot?.reading?.timestamp ?? snapshot?.health?.timestamp ?? null;
 }
 
-function freshnessCaption(timestamp: string | null): string | undefined {
-  return timestamp ? `Cập nhật ${relativeTimeVi(timestamp)}` : undefined;
-}
+// ---------------------------------------------------------------------------
+// 02 — The network
+// ---------------------------------------------------------------------------
 
-function StationStatusRow({ stationId, timestamp }: { stationId: PilotStationId; timestamp: string | null }) {
+async function NetworkChapter() {
+  const data = await getObservatoryData();
+
   return (
-    <div className="flex items-center justify-between gap-4 py-2.5">
-      <span className="text-sm font-medium">{stationProfiles[stationId].name}</span>
-      <StatusIndicator status={freshnessStatus(timestamp)} compact />
+    <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
+      {PILOT_STATION_IDS.map((id, index) => {
+        const profile = stationProfiles[id];
+        const Icon = KIND_ICON[profile.kind];
+        const timestamp = latestTimestampFor(id, data);
+
+        return (
+          <Link
+            key={id}
+            href={`/s/${id}`}
+            className="group flex flex-col gap-6 bg-background p-6 transition-colors duration-[var(--motion-base)] hover:bg-muted/20 md:p-8"
+          >
+            <div className="flex items-start justify-between">
+              <span className="text-[11px] font-medium tracking-[0.16em] text-muted [font-family:var(--font-data)]">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <Icon className="h-5 w-5 text-accent" aria-hidden />
+            </div>
+
+            <div className="flex-1 space-y-2">
+              <h3 className="text-xl font-semibold tracking-tight">{profile.name}</h3>
+              <p className="text-sm text-muted">{profile.location}</p>
+              <p className="pt-1 text-sm leading-relaxed text-muted">{profile.intro}</p>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border/60 pt-4">
+              <StatusIndicator status={freshnessStatus(timestamp)} compact />
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-accent opacity-0 transition-opacity duration-[var(--motion-base)] group-hover:opacity-100">
+                Xem trạm
+                <ArrowRight className="h-3 w-3" aria-hidden />
+              </span>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }
 
-/** Act 01 — OBSERVE. Real network state, never an aggregate "X/X LIVE" headline number. */
-async function ObservatoryPulse() {
+function NetworkFallback() {
+  return (
+    <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="space-y-6 bg-background p-6 md:p-8">
+          <Skeleton className="h-4 w-8" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-4 w-28" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 03 — The map
+// ---------------------------------------------------------------------------
+
+async function MapChapter() {
   const data = await getObservatoryData();
 
   const mapStations: MapStation[] = (data?.snapshots ?? []).map((snapshot) => ({
@@ -89,279 +135,252 @@ async function ObservatoryPulse() {
     freshness: freshnessStatus(latestTimestampFor(snapshot.station.id as PilotStationId, data)),
   }));
 
-  return (
-    <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-      <div className="animate-entrance space-y-6">
-        <h1 className="max-w-xl text-display font-semibold tracking-tight md:text-6xl">
-          Một hòn cồn, nhìn qua dữ liệu thật.
-        </h1>
-        <p className="max-w-lg text-lg leading-relaxed text-muted">
-          Horizon ghi lại mực nước, độ mặn và tình trạng đất quanh Cồn Hô qua ba điểm quan trắc, cập nhật mỗi khi có
-          dữ liệu mới.
-        </p>
-        <div className="divide-y divide-border/40 border-y border-border/40">
-          {PILOT_STATION_IDS.map((id) => (
-            <StationStatusRow key={id} stationId={id} timestamp={latestTimestampFor(id, data)} />
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            asChild
-            size="lg"
-            className="gap-2 transition-shadow duration-[var(--motion-base)] hover:ring-2 hover:ring-brand-orange/50 hover:ring-offset-2 hover:ring-offset-background"
-          >
-            <Link href="/dashboard">
-              Xem dữ liệu quan trắc
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="lg">
-            <Link href="/report">Gửi báo cáo hiện trường</Link>
-          </Button>
-        </div>
-      </div>
-
-      <StationNetworkMap stations={mapStations} variant="full" />
-    </div>
-  );
+  return <StationNetworkMap stations={mapStations} variant="observatory" />;
 }
 
-function ObservatoryPulseFallback() {
-  return (
-    <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-      <div className="space-y-6">
-        <Skeleton className="h-28 w-full max-w-xl" />
-        <Skeleton className="h-16 w-full max-w-lg" />
-        <Skeleton className="h-32 w-full" />
-        <div className="flex gap-3">
-          <Skeleton className="h-12 w-44 rounded-xl" />
-          <Skeleton className="h-12 w-44 rounded-xl" />
-        </div>
-      </div>
-      <Skeleton className="h-[340px] w-full rounded-lg" />
-    </div>
-  );
+function MapFallback() {
+  return <Skeleton className="h-[420px] w-full rounded-lg sm:h-[480px] lg:h-[560px]" />;
 }
 
-/** Act 02 — UNDERSTAND THE NETWORK. Verified metadata only; no invented geography. */
-function NetworkNode({ stationId, index }: { stationId: PilotStationId; index: number }) {
-  const profile = stationProfiles[stationId];
-  const Icon = KIND_ICON[profile.kind];
+// ---------------------------------------------------------------------------
+// 04 — What the network observes (capability, not current telemetry)
+// ---------------------------------------------------------------------------
 
+const OBSERVED_DOMAINS = [
+  {
+    icon: Waves,
+    domain: "Nước",
+    at: "Trạm 1 · khu ven sông",
+    metrics: ["Độ mặn", "Mực nước"],
+  },
+  {
+    icon: Sprout,
+    domain: "Đất",
+    at: "Trạm 2 · khu canh tác",
+    metrics: ["Độ ẩm đất", "EC đất", "Độ pH đất", "Nhiệt độ đất"],
+  },
+  {
+    // Wind, not Send — Send is the gateway/transmission mark used in the
+    // network chapter, and reusing it here would imply this row is about
+    // data delivery rather than atmospheric measurement.
+    icon: Wind,
+    domain: "Không khí",
+    at: "Trạm 2 · khu canh tác",
+    metrics: ["Nhiệt độ không khí", "Độ ẩm không khí"],
+  },
+] as const;
+
+function ObservesChapter() {
   return (
-    <Link
-      href={`/s/${stationId}`}
-      className="block space-y-4 border-t border-border/60 pt-6 transition-opacity duration-[var(--motion-base)] hover:opacity-70"
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-eyebrow text-accent">{`0${index}`}</span>
-        <IconTile>
-          <Icon className="h-5 w-5" aria-hidden />
-        </IconTile>
-      </div>
-      <div>
-        <p className="text-xl font-semibold tracking-tight">{profile.name}</p>
-        <p className="mt-1 text-sm text-muted">{profile.location}</p>
-        <p className="mt-2 text-sm leading-relaxed text-muted">{profile.intro}</p>
-      </div>
-    </Link>
-  );
-}
-
-/** Act 03 — SEE THE SIGNAL. Domain-appropriate blocks, never a uniform metric grid. */
-function TelemetryBlock({
-  stationId,
-  label,
-  value,
-  unit,
-  freshness,
-  freshnessDetail,
-  emptyMessage,
-  caption,
-}: {
-  stationId: PilotStationId;
-  label: string;
-  value: string | null;
-  unit?: string;
-  freshness: FreshnessState;
-  freshnessDetail?: string;
-  emptyMessage?: string;
-  caption?: string;
-}) {
-  return (
-    <div className="space-y-4 border-t border-border/60 pt-6">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">{stationProfiles[stationId].name}</p>
-      <MeasurementValue
-        label={label}
-        value={value}
-        unit={unit}
-        freshness={freshness}
-        freshnessDetail={freshnessDetail}
-        emptyMessage={emptyMessage}
-        size="lg"
-      />
-      {value !== null && caption ? <p className="text-sm text-muted">{caption}</p> : null}
-      <Link
-        href={`/s/${stationId}`}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
-      >
-        Xem trạm này
-        <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-      </Link>
-    </div>
-  );
-}
-
-async function ObservatorySignal() {
-  const data = await getObservatoryData();
-
-  return (
-    <div className="grid gap-x-8 gap-y-12 sm:grid-cols-3">
-      {PILOT_STATION_IDS.map((id) => {
-        const profile = stationProfiles[id];
-        const snapshot = data?.snapshots.find((s) => s.station.id === id);
-        const timestamp = latestTimestampFor(id, data);
-        const freshness = freshnessStatus(timestamp);
-        const freshnessDetail = freshnessCaption(timestamp);
-
-        if (profile.kind === "soil") {
-          const moisture = data?.soilReading?.soil_moisture_pct ?? null;
-          return (
-            <TelemetryBlock
-              key={id}
-              stationId={id}
-              label="Độ ẩm đất"
-              value={moisture !== null ? moisture.toFixed(1) : null}
-              unit="%"
-              freshness={freshness}
-              freshnessDetail={freshnessDetail}
-              caption={`EC đất: ${formatSoilEc(data?.soilReading?.soil_ec_ms_cm ?? null)}`}
-            />
-          );
-        }
-
-        if (profile.kind === "gateway") {
-          const signal = snapshot?.health?.signal_strength_dbm ?? null;
-          return (
-            <TelemetryBlock
-              key={id}
-              stationId={id}
-              label="Tín hiệu gateway"
-              value={signal !== null ? String(signal) : null}
-              unit="dBm"
-              freshness={freshness}
-              freshnessDetail={freshnessDetail}
-              emptyMessage="Gateway chưa báo cáo tín hiệu kết nối của chính nó."
-            />
-          );
-        }
-
-        const salinity = snapshot?.reading?.salinity ?? null;
-        return (
-          <TelemetryBlock
-            key={id}
-            stationId={id}
-            label="Độ mặn"
-            value={salinity !== null ? salinity.toFixed(2) : null}
-            unit="‰"
-            freshness={freshness}
-            freshnessDetail={freshnessDetail}
-            caption={`Mực nước: ${formatWaterValue(snapshot?.reading?.water_level ?? null)}`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function ObservatorySignalFallback() {
-  return (
-    <div className="grid gap-x-8 gap-y-12 sm:grid-cols-3">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="space-y-4 border-t border-border/60 pt-6">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-16 w-32" />
-          <Skeleton className="h-4 w-40" />
+    <div className="grid gap-10 md:grid-cols-3 md:gap-12">
+      {OBSERVED_DOMAINS.map(({ icon: Icon, domain, at, metrics }) => (
+        <div key={domain} className="space-y-5 border-t-2 border-accent/40 pt-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="text-2xl font-semibold tracking-tight">{domain}</h3>
+            <Icon className="h-5 w-5 shrink-0 text-accent" aria-hidden />
+          </div>
+          <p className="text-xs uppercase tracking-[0.14em] text-muted">{at}</p>
+          <ul className="space-y-2.5">
+            {metrics.map((metric) => (
+              <li key={metric} className="flex items-baseline gap-3 text-base">
+                <span className="h-1 w-1 shrink-0 rounded-full bg-accent" aria-hidden />
+                {metric}
+              </li>
+            ))}
+          </ul>
         </div>
       ))}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// 06 — How it works
+// ---------------------------------------------------------------------------
+
+const WORKFLOW = [
+  { step: "Quan sát", text: "Cảm biến tại ba điểm ghi lại điều kiện nước, đất và không khí ngay tại chỗ." },
+  { step: "Thu thập", text: "Số liệu được gom về một điểm truyền và chuyển tiếp về hệ thống." },
+  { step: "Diễn giải", text: "Mỗi giá trị đi kèm thời điểm, trạng thái thiết bị và nguồn gốc của nó." },
+  { step: "Chia sẻ", text: "Kết quả hiển thị công khai, kể cả khi chưa có dữ liệu để hiển thị." },
+] as const;
+
+function HowChapter() {
+  return (
+    <ol className="grid gap-px overflow-hidden border-y border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+      {WORKFLOW.map(({ step, text }, index) => (
+        <li key={step} className="space-y-3 bg-background p-6 lg:p-7">
+          <span className="text-[11px] tracking-[0.16em] text-accent [font-family:var(--font-data)]">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <h3 className="text-lg font-semibold tracking-tight">{step}</h3>
+          <p className="text-sm leading-relaxed text-muted">{text}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 08 — Explore
+// ---------------------------------------------------------------------------
+
+const EXPLORE = [
+  { href: "/about", icon: Info, label: "Giới thiệu", text: "Tìm hiểu HORIZON và bối cảnh của dự án." },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Quan trắc", text: "Xem mạng lưới và dữ liệu hiện có." },
+  { href: "/report", icon: ClipboardList, label: "Báo cáo", text: "Gửi một quan sát từ hiện trường." },
+] as const;
+
+function ExploreChapter() {
+  return (
+    <div className="border-t border-border">
+      {EXPLORE.map(({ href, icon: Icon, label, text }) => (
+        <Link
+          key={href}
+          href={href}
+          className="group flex items-center gap-5 border-b border-border py-7 transition-colors duration-[var(--motion-base)] hover:bg-muted/20 md:gap-8 md:py-9"
+        >
+          <Icon className="h-5 w-5 shrink-0 text-accent md:h-6 md:w-6" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block text-2xl font-semibold tracking-tight md:text-3xl">{label}</span>
+            <span className="mt-1 block text-sm text-muted md:text-base">{text}</span>
+          </span>
+          <ArrowRight
+            className="h-5 w-5 shrink-0 text-muted transition-transform duration-[var(--motion-base)] group-hover:translate-x-1 group-hover:text-accent"
+            aria-hidden
+          />
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+/** Shared eyebrow+title block. Widths vary per chapter — the heading rhythm does not. */
+function ChapterHeading({
+  eyebrow,
+  title,
+  lead,
+  className,
+}: {
+  eyebrow: string;
+  title: string;
+  lead?: string;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">{eyebrow}</p>
+      <h2 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">{title}</h2>
+      {lead ? <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">{lead}</p> : null}
+    </div>
+  );
+}
+
 export default function HomePage() {
+  const posts = getRecentPosts(5);
+
   return (
     <PublicShell activePath="/">
-      <div className="full-bleed">
-        <ObservatoryShell register="story">
-          <ObservatoryAct id="observatory" eyebrow="01 · Cồn Hô, Vĩnh Long" width="full-bleed">
-            <Suspense fallback={<ObservatoryPulseFallback />}>
-              <ObservatoryPulse />
+      <Hero />
+
+      <div className="space-y-28 pt-20 md:space-y-36 md:pt-28">
+        {/* 02 — Network */}
+        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+          <ChapterHeading
+            eyebrow="02 · Mạng lưới"
+            title="Ba điểm nhìn, một mạng lưới."
+            lead="Hai trạm đo đặt ở hai vùng khác nhau của cù lao, cùng một điểm truyền dữ liệu về hệ thống."
+          />
+          <div className="mt-10">
+            <Suspense fallback={<NetworkFallback />}>
+              <NetworkChapter />
             </Suspense>
-            <RiverLine className="mt-16" />
-          </ObservatoryAct>
+          </div>
+        </Reveal>
 
-          <ObservatoryAct
-            id="network"
-            eyebrow="02 · Mạng lưới quan trắc"
-            title="Hai trạm đo, một gateway đưa dữ liệu về."
-            width="content"
-          >
-            <p className="max-w-2xl text-base leading-relaxed text-muted">
-              Trạm 1 và Trạm 2 ghi nhận dữ liệu tại chỗ quanh Cồn Hô; Gateway tổng hợp và chuyển tiếp thông tin đó về
-              hệ thống.
-            </p>
-            <div className="grid gap-x-8 gap-y-12 sm:grid-cols-3">
-              {PILOT_STATION_IDS.map((id, index) => (
-                <NetworkNode key={id} stationId={id} index={index + 1} />
-              ))}
+        {/* 03 — Map. `full-bleed` and `Reveal` must stay on separate elements:
+            both drive `transform`, and the reveal's `transform: none` end state
+            would otherwise cancel full-bleed's translateX(-50%) centering. */}
+        <section className="full-bleed">
+          <Reveal className="mx-auto max-w-[1400px] px-4">
+            <ChapterHeading
+              eyebrow="03 · Không gian"
+              title="Ba điểm đo trên một cù lao."
+              lead="Vị trí thật của từng trạm, hiển thị đúng trạng thái dữ liệu hiện tại."
+            />
+            <div className="mt-10">
+              <Suspense fallback={<MapFallback />}>
+                <MapChapter />
+              </Suspense>
             </div>
-          </ObservatoryAct>
+          </Reveal>
+        </section>
 
-          <ObservatoryAct
-            id="signal"
-            eyebrow="03 · Tín hiệu thật"
-            title="Chỉ số mới nhất từ từng trạm."
-            width="content"
-          >
-            <p className="max-w-2xl text-base leading-relaxed text-muted">
-              Mỗi trạm đo một loại dữ liệu khác nhau — số liệu hiển thị đúng như hệ thống ghi nhận, kể cả khi trạm
-              chưa có dữ liệu.
+        {/* 04 — What it observes */}
+        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+          <ChapterHeading
+            eyebrow="04 · Quan trắc"
+            title="Mạng lưới được thiết kế để quan trắc những gì."
+            lead="Đây là năng lực đo của hệ thống, không phải số liệu hiện tại. Trạng thái thật của từng chỉ số nằm ở trang Quan trắc."
+          />
+          <div className="mt-12">
+            <ObservesChapter />
+          </div>
+        </Reveal>
+
+        {/* 05 — Why it matters */}
+        <Reveal as="section" className="mx-auto max-w-[var(--width-reading)]">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">05 · Vì sao</p>
+          <h2 className="mt-3 text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
+            Điều kiện môi trường thay đổi ở quy mô rất nhỏ.
+          </h2>
+          <div className="mt-8 space-y-6 text-lg leading-relaxed text-muted">
+            <p>
+              Một bản tin thời tiết cho cả tỉnh không nói được nước ngoài bờ hôm nay mặn hơn hôm qua bao nhiêu. Trên một
+              cù lao giữa sông, khác biệt giữa hai điểm cách nhau vài trăm mét đã có thể đủ để dẫn tới hai quyết định
+              tưới tiêu khác nhau.
             </p>
-            <Suspense fallback={<ObservatorySignalFallback />}>
-              <ObservatorySignal />
-            </Suspense>
-          </ObservatoryAct>
+            <p>
+              HORIZON đang thử nghiệm một cách tiếp cận đơn giản: đặt thiết bị đo ngay tại nơi sự thay đổi diễn ra, ghi
+              lại liên tục, và trình bày kết quả cùng với ngữ cảnh của nó — thời điểm đo, tình trạng thiết bị, và nguồn
+              gốc của từng con số.
+            </p>
+            <p>
+              Giai đoạn thí điểm này được thiết kế để kiểm chứng một giả định, chứ chưa phải để kết luận: rằng dữ liệu
+              liên tục tại chỗ sẽ bổ sung được điều gì đó cho hiểu biết vốn có của người canh tác.
+            </p>
+          </div>
+        </Reveal>
 
-          <ObservatoryAct id="deeper" width="full-bleed">
-            <div className="relative">
-              <div
-                aria-hidden
-                className="absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 bg-[linear-gradient(180deg,rgba(14,95,138,0.05)_0%,rgba(47,168,92,0.06)_100%)]"
-              />
-              <div className="relative space-y-6 border-t border-border/60 py-20 text-center">
-                <p className="text-eyebrow uppercase tracking-[0.18em] text-accent">04 · Đi sâu hơn</p>
-                <h2 className="mx-auto max-w-2xl text-h1 font-semibold tracking-tight md:text-5xl">
-                  Đi sâu hơn vào từng trạm quan trắc.
-                </h2>
-                <div className="flex flex-wrap justify-center gap-3">
-                  <Button
-                    asChild
-                    size="lg"
-                    className="gap-2 transition-shadow duration-[var(--motion-base)] hover:ring-2 hover:ring-brand-orange/50 hover:ring-offset-2 hover:ring-offset-background"
-                  >
-                    <Link href="/dashboard">
-                      Vào bảng quan trắc
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" size="lg">
-                    <Link href="/about">Đọc câu chuyện dự án</Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </ObservatoryAct>
-        </ObservatoryShell>
+        {/* 06 — How it works */}
+        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+          <ChapterHeading eyebrow="06 · Cách vận hành" title="Từ hiện trường đến màn hình." />
+          <div className="mt-10">
+            <HowChapter />
+          </div>
+        </Reveal>
+
+        {/* 07 — Field notes */}
+        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+          <ChapterHeading
+            eyebrow="07 · Ghi chép"
+            title="Ghi chép trong quá trình xây dựng."
+            lead="Các bài viết về thiết kế, phương pháp và những gì dự án đang thử nghiệm."
+          />
+          <div className="mt-10">
+            <FieldNotesCarousel posts={posts} />
+          </div>
+        </Reveal>
+
+        {/* 08 — Explore */}
+        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)] pb-8">
+          <ChapterHeading eyebrow="08 · Tiếp tục" title="Đi sâu hơn." className="mb-10" />
+          <ExploreChapter />
+        </Reveal>
       </div>
     </PublicShell>
   );

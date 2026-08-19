@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="Ảnh giữ chỗ 01">
+  <defs>
+    <pattern id="dots01" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="rgba(15,23,42,0.10)" />
+    </pattern>
+    <linearGradient id="band01" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e5f8a" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#0e5f8a" stop-opacity="0.03" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="#f2f1ec" />
+  <rect width="1200" height="800" fill="url(#dots01)" />
+  <rect y="430" width="1200" height="370" fill="url(#band01)" />
+  <path d="M0 430 C 220 402, 380 452, 600 430 S 980 400, 1200 424" fill="none" stroke="#0e5f8a" stroke-opacity="0.30" stroke-width="2" />
+  <circle cx="330" cy="424" r="7" fill="#0e5f8a" fill-opacity="0.45" />
+  <circle cx="760" cy="428" r="7" fill="#0e5f8a" fill-opacity="0.45" />
+  <text x="64" y="726" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22" letter-spacing="4" fill="rgba(15,23,42,0.42)">PLACEHOLDER · 01</text>
+</svg>

@@ -1,0 +1,45 @@
+/**
+ * The six report categories the API accepts (see the CATEGORIES const in
+ * app/api/public/reports/route.ts — these values must stay in sync with it;
+ * the route rejects anything else with 400 invalid_category).
+ *
+ * Plain data module with no "use client" directive on purpose: both the
+ * server-rendered page and the client form import it. A constant exported
+ * from a "use client" module resolves to an opaque client reference when a
+ * Server Component imports it, which fails at runtime despite type-checking
+ * clean — the same trap that produced the PUBLIC_NAV_LINKS bug in the
+ * shared-shell phase.
+ */
+
+export interface ReportCategory {
+  /** Wire value sent to the API. Must match the route's CATEGORIES list. */
+  value: "erosion" | "flooding" | "pollution" | "infrastructure" | "sensor" | "other";
+  label: string;
+}
+
+export const REPORT_CATEGORIES: readonly ReportCategory[] = [
+  { value: "erosion", label: "Xói lở bờ sông" },
+  { value: "flooding", label: "Ngập lụt / thủy triều" },
+  { value: "pollution", label: "Ô nhiễm" },
+  { value: "infrastructure", label: "Hư hại hạ tầng" },
+  { value: "sensor", label: "Lỗi trạm quan trắc" },
+  { value: "other", label: "Khác" },
+] as const;
+
+export function categoryLabel(value: string): string {
+  return REPORT_CATEGORIES.find((c) => c.value === value)?.label ?? value;
+}
+
+/** Mirrors the route's own MIN/MAX so the UI can validate before a round-trip. */
+export const DESCRIPTION_MIN = 10;
+export const DESCRIPTION_MAX = 2000;
+
+/**
+ * Local-only image constraints. Nothing is uploaded anywhere — there is no
+ * Storage bucket, no policy, and no upload helper in this project, and
+ * damage_logs.image_url is never written by the reports route. These bounds
+ * exist so the in-session preview can't be handed a 200MB file or a PDF,
+ * not because a server is going to accept the file.
+ */
+export const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+export const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/heic";

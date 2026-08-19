@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="Ảnh giữ chỗ 02">
+  <defs>
+    <pattern id="dots02" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="rgba(15,23,42,0.10)" />
+    </pattern>
+    <linearGradient id="band02" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2fa85c" stop-opacity="0.03" />
+      <stop offset="100%" stop-color="#2fa85c" stop-opacity="0.16" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="#f2f1ec" />
+  <rect width="1200" height="800" fill="url(#dots02)" />
+  <rect y="300" width="1200" height="500" fill="url(#band02)" />
+  <g stroke="#1c7c42" stroke-opacity="0.26" stroke-width="2">
+    <line x1="0" y1="560" x2="1200" y2="560" />
+    <line x1="0" y1="640" x2="1200" y2="640" />
+    <line x1="0" y1="720" x2="1200" y2="720" />
+  </g>
+  <rect x="540" y="300" width="4" height="300" fill="#1c7c42" fill-opacity="0.38" />
+  <circle cx="542" cy="300" r="9" fill="#1c7c42" fill-opacity="0.42" />
+  <text x="64" y="726" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22" letter-spacing="4" fill="rgba(15,23,42,0.42)">PLACEHOLDER · 02</text>
+</svg>

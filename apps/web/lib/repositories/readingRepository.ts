@@ -7,10 +7,12 @@ import {
 } from "./base";
 import type {
   DailyComparisonPoint,
+  DailySoilPoint,
   EnvironmentalReading,
   RepositoryScope,
   SalinityThreshold,
   SoilReading,
+  SoilTrendPoint,
   StationHealthLog,
   StationReadingSnapshot,
   TrendPoint,
@@ -135,6 +137,64 @@ export class ReadingRepository {
     if (isMissingTableError(error)) return null;
     if (error) throw error;
     return data ? mapSoilReading(data) : null;
+  }
+
+  /**
+   * Soil observations for one station, oldest-first — the time-series
+   * counterpart to getLatestSoilReadingByStation.
+   *
+   * Filters and orders on `timestamp` (the observation time stamped by the
+   * gateway), never `created_at` (database insertion time). Those differ
+   * whenever the gateway queues and retries a send, so ordering by
+   * `created_at` would reorder a backfilled batch into the wrong sequence.
+   *
+   * `limit` is applied to the NEWEST rows, not the oldest: the query orders
+   * descending, takes the cap, then reverses into chronological order. A
+   * naive ascending+limit would silently return only the beginning of a wide
+   * window and render a chart that looks complete but stops early.
+   *
+   * Null measurements are preserved as null — a sensor that did not report
+   * is not the same as a sensor that reported zero.
+   *
+   * Uses idx_soil_readings_station_time (station_id, timestamp desc) from
+   * migration 019, which already covers this exact filter+order; no new
+   * index is required.
+   */
+  async getSoilTrend(
+    stationId: string,
+    scope: RepositoryScope,
+    options: { sinceIso?: string; untilIso?: string; limit?: number } = {},
+  ): Promise<SoilTrendPoint[]> {
+    if (!canAccessStation(scope, stationId)) {
+      return [];
+    }
+
+    const { sinceIso, untilIso, limit = 1000 } = options;
+
+    let query = this.supabase
+      .from("soil_readings")
+      .select("timestamp, air_temp_c, air_humidity_pct, soil_temp_c, soil_moisture_pct, soil_ec_ms_cm, soil_ph")
+      .eq("station_id", stationId);
+
+    if (sinceIso) query = query.gte("timestamp", sinceIso);
+    if (untilIso) query = query.lte("timestamp", untilIso);
+
+    const { data, error } = await query.order("timestamp", { ascending: false }).limit(limit);
+
+    if (isMissingTableError(error)) return [];
+    if (error) throw error;
+
+    return (data ?? [])
+      .map((row) => ({
+        timestamp: row.timestamp as string,
+        air_temp_c: numberOrNull(row.air_temp_c),
+        air_humidity_pct: numberOrNull(row.air_humidity_pct),
+        soil_temp_c: numberOrNull(row.soil_temp_c),
+        soil_moisture_pct: numberOrNull(row.soil_moisture_pct),
+        soil_ec_ms_cm: numberOrNull(row.soil_ec_ms_cm),
+        soil_ph: numberOrNull(row.soil_ph),
+      }))
+      .reverse();
   }
 
   async getLatestHealthByStation(stationId: string, scope: RepositoryScope): Promise<StationHealthLog | null> {
@@ -314,6 +374,121 @@ export class ReadingRepository {
         readingCount: (bucket?.tideLevel.length ?? 0) + (bucket?.salinity.length ?? 0),
       };
     });
+  }
+
+  /**
+   * Daily soil averages for one station — the 7D/30D counterpart to
+   * getSoilTrend's per-reading series.
+   *
+   * Deliberately separate from getDailyComparison rather than folded into
+   * it: that method is a network-wide aggregate across every accessible
+   * station (it takes no stationId) over environmental_readings, whereas
+   * soil is per-station and carries six metrics. Merging them would force
+   * six permanently-null columns onto every water row — the same modelling
+   * smell as the vestigial `soilEc` field already sitting unused there.
+   *
+   * Buckets by Asia/Ho_Chi_Minh calendar day via the shared dateKey helper,
+   * so a 23:30 local reading lands on its local date rather than the next
+   * UTC one. Every metric averages independently, so one silent probe never
+   * suppresses the others, and days with no readings are still returned with
+   * null metrics so a gap stays visible in the series.
+   */
+  async getDailySoilTrend(stationId: string, scope: RepositoryScope, days = 7): Promise<DailySoilPoint[]> {
+    if (!canAccessStation(scope, stationId)) {
+      return this.emptyDailySoil(days);
+    }
+
+    const since = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await this.supabase
+      .from("soil_readings")
+      .select("timestamp, air_temp_c, air_humidity_pct, soil_temp_c, soil_moisture_pct, soil_ec_ms_cm, soil_ph")
+      .eq("station_id", stationId)
+      .gte("timestamp", since)
+      .order("timestamp", { ascending: true });
+
+    if (isMissingTableError(error)) return this.emptyDailySoil(days);
+    if (error) throw error;
+
+    const metrics = [
+      "air_temp_c",
+      "air_humidity_pct",
+      "soil_temp_c",
+      "soil_moisture_pct",
+      "soil_ec_ms_cm",
+      "soil_ph",
+    ] as const;
+
+    const buckets = new Map<string, { values: Record<(typeof metrics)[number], number[]>; rows: number }>();
+
+    for (const row of data ?? []) {
+      const key = dateKey(row.timestamp as string);
+      const bucket =
+        buckets.get(key) ??
+        {
+          values: {
+            air_temp_c: [],
+            air_humidity_pct: [],
+            soil_temp_c: [],
+            soil_moisture_pct: [],
+            soil_ec_ms_cm: [],
+            soil_ph: [],
+          },
+          rows: 0,
+        };
+
+      for (const metric of metrics) {
+        const value = numberOrNull(row[metric]);
+        // A null probe contributes nothing rather than dragging the mean
+        // toward zero.
+        if (value !== null) bucket.values[metric].push(value);
+      }
+      bucket.rows += 1;
+      buckets.set(key, bucket);
+    }
+
+    return this.soilDayKeys(days).map(({ key, label }) => {
+      const bucket = buckets.get(key);
+      const avg = (metric: (typeof metrics)[number], decimals: number) => {
+        const values = bucket?.values[metric] ?? [];
+        return values.length > 0
+          ? Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(decimals))
+          : null;
+      };
+
+      return {
+        date: label,
+        air_temp_c: avg("air_temp_c", 1),
+        air_humidity_pct: avg("air_humidity_pct", 1),
+        soil_temp_c: avg("soil_temp_c", 1),
+        soil_moisture_pct: avg("soil_moisture_pct", 1),
+        soil_ec_ms_cm: avg("soil_ec_ms_cm", 2),
+        soil_ph: avg("soil_ph", 1),
+        readingCount: bucket?.rows ?? 0,
+      };
+    });
+  }
+
+  /** The last `days` local-calendar days, oldest first. */
+  private soilDayKeys(days: number): { key: string; label: string }[] {
+    return Array.from({ length: days }, (_, index) => {
+      const date = new Date(Date.now() - (days - index - 1) * 24 * 60 * 60 * 1000);
+      const key = dateKey(date.toISOString());
+      return { key, label: shortDateLabel(key) };
+    });
+  }
+
+  /** Shape-preserving empty result — same day slots, every metric null. */
+  private emptyDailySoil(days: number): DailySoilPoint[] {
+    return this.soilDayKeys(days).map(({ label }) => ({
+      date: label,
+      air_temp_c: null,
+      air_humidity_pct: null,
+      soil_temp_c: null,
+      soil_moisture_pct: null,
+      soil_ec_ms_cm: null,
+      soil_ph: null,
+      readingCount: 0,
+    }));
   }
 
   /** null, not 0 — an average of zero readings is undefined, not a measured zero. */

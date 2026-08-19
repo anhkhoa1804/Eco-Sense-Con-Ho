@@ -81,10 +81,15 @@
   --text-data: 20px;
 
   /* Layout width primitives — FRONTEND_REBUILD_SPECIFICATION.md §12.
-     Four distinct concepts, never collapsed into one max-width. */
+     Four distinct concepts, never collapsed into one max-width. Tightened in
+     the design-direction pass (previously 1280/1440): HORIZON should read as
+     a composed product sitting inside the viewport, not a SaaS page
+     stretched to the browser edge. --width-content-wide now also serves as
+     the shell chrome width (header/footer/main wrapper) so the whole page —
+     not just each section — shares one outer boundary. */
   --width-reading: 68ch;
-  --width-content: 1280px;
-  --width-content-wide: 1440px;
+  --width-content: 1040px;
+  --width-content-wide: 1200px;
 
   /* Spacing scale — REDESIGN_SPECIFICATION.md §7. Public marketing pages
      default to the top of the range between major sections; tool-register
@@ -206,6 +211,121 @@
 }
 
 /*
+ * Atmospheric dot field — the homepage hero's background surface.
+ *
+ * Pure CSS: one repeating radial-gradient for the matrix, one large soft
+ * radial for depth. No canvas, no particle loop, no JS — so it costs nothing
+ * per frame and cannot become "constant animation". The dot is deliberately
+ * small and low-contrast: this should read as a spatial measurement surface
+ * sitting behind the type, never as a decorative tech-startup backdrop. If
+ * you can notice the dots before you notice the headline, it is too strong.
+ *
+ * `--dot-fade` controls how far down the field survives before dissolving,
+ * so the texture never runs into the content below the hero.
+ */
+.horizon-dotfield {
+  position: relative;
+  isolation: isolate;
+}
+.horizon-dotfield::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    radial-gradient(circle, rgba(15, 23, 42, 0.13) 1px, transparent 1px),
+    radial-gradient(ellipse 70% 60% at 62% 32%, rgba(14, 95, 138, 0.07), transparent 70%);
+  background-size:
+    26px 26px,
+    auto;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+}
+
+/*
+ * Scroll-reveal for editorial sections. The `is-visible` class is applied by
+ * an IntersectionObserver (components/home/reveal.tsx) — one transition per
+ * section on first entry, never re-run, never per-frame.
+ *
+ * The hidden state is scoped to `.js .horizon-reveal`, and `.js` is set on
+ * <html> by the component itself on mount. That ordering matters: if the
+ * hidden state lived on the bare class, a reader without JS (or one where
+ * hydration fails) would be left with a permanently blank page, since
+ * nothing would ever add `is-visible`. This way the server-rendered markup
+ * is visible by default and only becomes animatable once JS is definitely
+ * running.
+ */
+.js .horizon-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+}
+.horizon-reveal {
+  transition:
+    opacity var(--motion-slow) var(--ease-standard),
+    transform var(--motion-slow) var(--ease-standard);
+}
+.js .horizon-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .js .horizon-reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Article body styling for rendered Markdown (lib/content/markdown.ts).
+ * Scoped to .prose-horizon rather than added as a Tailwind plugin — the
+ * renderer emits a small, known set of tags, so a handful of rules covers
+ * it without pulling in @tailwindcss/typography.
+ */
+.prose-horizon > * + * {
+  margin-top: 1.5rem;
+}
+.prose-horizon p,
+.prose-horizon li {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--color-muted);
+}
+.prose-horizon h2,
+.prose-horizon h3,
+.prose-horizon h4 {
+  color: var(--color-foreground);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 2.75rem;
+}
+.prose-horizon h2 {
+  font-size: 1.5rem;
+}
+.prose-horizon h3 {
+  font-size: 1.25rem;
+}
+.prose-horizon h4 {
+  font-size: 1.0625rem;
+}
+.prose-horizon strong {
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+.prose-horizon ul,
+.prose-horizon ol {
+  padding-left: 1.25rem;
+}
+.prose-horizon ul {
+  list-style: disc;
+}
+.prose-horizon ol {
+  list-style: decimal;
+}
+.prose-horizon li + li {
+  margin-top: 0.5rem;
+}
+
+/*
  * Full-bleed breakout (FRONTEND_REBUILD_SPECIFICATION.md §12). Formalizes
  * the pattern first used ad hoc for the homepage's closing CTA band — one
  * named utility instead of repeating the calc every time. Escapes any
@@ -227,11 +347,11 @@
  * itself is pure CSS, no motion library involved.
  */
 .silent-header {
-  height: 72px;
+  height: 88px;
   transition: height var(--motion-base) var(--ease-standard);
 }
 .silent-header.is-compressed {
-  height: 56px;
+  height: 64px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -253,6 +373,13 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  /* .full-bleed uses 100vw, which includes the scrollbar gutter on desktop
+     browsers while the containing block's clientWidth does not — the
+     centering math overshoots by the gutter width. Clipping here is the
+     standard fix: it doesn't touch the (otherwise correct) full-bleed
+     algebra, it just prevents that sub-pixel/gutter overshoot from ever
+     becoming an actual horizontal scrollbar. */
+  overflow-x: hidden;
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
