@@ -289,7 +289,7 @@ export default function HomePage() {
 
       <div className="space-y-28 pt-20 md:space-y-36 md:pt-28">
         {/* 02 — Network */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
           <ChapterHeading
             eyebrow="02 · Mạng lưới"
             title="Ba điểm nhìn, một mạng lưới."
@@ -302,26 +302,34 @@ export default function HomePage() {
           </div>
         </Reveal>
 
-        {/* 03 — Map. `full-bleed` and `Reveal` must stay on separate elements:
-            both drive `transform`, and the reveal's `transform: none` end state
-            would otherwise cancel full-bleed's translateX(-50%) centering. */}
-        <section className="full-bleed">
-          <Reveal className="mx-auto max-w-[1400px] px-4">
-            <ChapterHeading
-              eyebrow="03 · Không gian"
-              title="Ba điểm đo trên một cù lao."
-              lead="Vị trí thật của từng trạm, hiển thị đúng trạng thái dữ liệu hiện tại."
-            />
-            <div className="mt-10">
+        {/* 03 — Map.
+            The heading stays in normal flow so it lands on the same left edge
+            as every other section; only the map itself takes the spatial
+            breakout, which is the one element with an actual spatial reason
+            to be wider. Previously the whole chapter sat inside `.full-bleed`,
+            whose 100vw includes the scrollbar gutter — that dragged the
+            heading 8px off the page grid.
+
+            `full-bleed` and `Reveal` must also stay on separate elements: both
+            drive `transform`, and the reveal's `transform: none` end state
+            would cancel full-bleed's translateX(-50%) centering. */}
+        <Reveal as="section">
+          <ChapterHeading
+            eyebrow="03 · Không gian"
+            title="Ba điểm đo trên một cù lao."
+            lead="Vị trí thật của từng trạm, hiển thị đúng trạng thái dữ liệu hiện tại."
+          />
+          <div className="full-bleed mt-10">
+            <div className="h-spatial">
               <Suspense fallback={<MapFallback />}>
                 <MapChapter />
               </Suspense>
             </div>
-          </Reveal>
-        </section>
+          </div>
+        </Reveal>
 
         {/* 04 — What it observes */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
           <ChapterHeading
             eyebrow="04 · Quan trắc"
             title="Mạng lưới được thiết kế để quan trắc những gì."
@@ -333,7 +341,7 @@ export default function HomePage() {
         </Reveal>
 
         {/* 05 — Why it matters */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-reading)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">05 · Vì sao</p>
           <h2 className="mt-3 text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
             Điều kiện môi trường thay đổi ở quy mô rất nhỏ.
@@ -357,7 +365,7 @@ export default function HomePage() {
         </Reveal>
 
         {/* 06 — How it works */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
           <ChapterHeading eyebrow="06 · Cách vận hành" title="Từ hiện trường đến màn hình." />
           <div className="mt-10">
             <HowChapter />
@@ -365,7 +373,7 @@ export default function HomePage() {
         </Reveal>
 
         {/* 07 — Field notes */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
           <ChapterHeading
             eyebrow="07 · Ghi chép"
             title="Ghi chép trong quá trình xây dựng."
@@ -377,7 +385,7 @@ export default function HomePage() {
         </Reveal>
 
         {/* 08 — Explore */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)] pb-8">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)] pb-8">
           <ChapterHeading eyebrow="08 · Tiếp tục" title="Đi sâu hơn." className="mb-10" />
           <ExploreChapter />
         </Reveal>

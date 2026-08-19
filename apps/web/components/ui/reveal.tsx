@@ -25,6 +25,7 @@ export function Reveal({
   as: Tag = "div",
   className,
   delayMs,
+  stagger = false,
   id,
 }: {
   children: ReactNode;
@@ -32,6 +33,14 @@ export function Reveal({
   className?: string;
   /** Small stagger for siblings. Keep sparing — the brief rejects staggering every element. */
   delayMs?: number;
+  /**
+   * Stagger this element's DIRECT CHILDREN by 70ms each, capped at four
+   * steps (globals.css `[data-stagger]`). Use it on major sections so
+   * eyebrow → headline → body → visual arrive as one gesture that reads as
+   * hierarchy. Do not use it everywhere: staggering every group turns the
+   * page into a slow cascade and stops communicating anything.
+   */
+  stagger?: boolean;
   /** Anchor target, so in-page links (e.g. /about#ghi-chep) can address a revealed section. */
   id?: string;
 }) {
@@ -92,6 +101,7 @@ export function Reveal({
     <Tag
       ref={ref}
       id={id}
+      data-stagger={stagger ? "" : undefined}
       className={cn("horizon-reveal", className)}
       style={delayMs ? { transitionDelay: `${delayMs}ms` } : undefined}
     >

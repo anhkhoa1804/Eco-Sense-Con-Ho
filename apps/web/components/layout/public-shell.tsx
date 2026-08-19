@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Footer } from "@/components/layout/footer";
 import { SiteHeader } from "@/components/layout/site-header";
-import { isPublicNavActive, PUBLIC_NAV_LINKS } from "@/lib/publicNav";
+import { isPublicNavActive, PRIMARY_NAV_LINKS } from "@/lib/publicNav";
 
 export function PublicShell({
   children,
@@ -12,28 +12,36 @@ export function PublicShell({
   activePath?: string;
 }) {
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    // No background of its own: the drafting-grid canvas painted in
+    // RootLayout sits behind every page, and giving the shell an opaque
+    // background here would hide it and reintroduce the stacked-layers look.
+    <div className="min-h-dvh text-foreground">
       <SiteHeader register="public" activePath={activePath} />
 
-      <main className="relative mx-auto max-w-[var(--width-content-wide)] px-4 pb-8 pt-4 md:pt-8">{children}</main>
+      {/* `h-wide` is the single outer measure for every public page — the
+          same left/right edge the header and footer use, so nothing drifts
+          between chrome and content. Sections that need to break out do so
+          explicitly with .full-bleed or .h-spatial. */}
+      <main className="h-wide relative pb-8 pt-4 md:pt-8">{children}</main>
 
       <Footer />
 
       <nav
         aria-label="Điều hướng di động"
-        className="fixed inset-x-0 bottom-0 z-[var(--z-drawer)] border-t border-border bg-background/95 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-[var(--z-drawer)] border-t border-border bg-canvas/85 backdrop-blur md:hidden"
       >
-        <ul className="mx-auto flex max-w-lg items-center justify-around px-3 py-2">
-          {PUBLIC_NAV_LINKS.map(({ href, label, icon: Icon }) => {
-            const active = isPublicNavActive(href, activePath);
+        <ul className="mx-auto flex max-w-lg items-center justify-around px-1 py-2">
+          {PRIMARY_NAV_LINKS.map(({ href, label, icon: Icon }) => {
+            const active = href === "/admin" ? false : isPublicNavActive(href, activePath);
             return (
               <li key={href}>
                 <Link
                   href={href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex min-h-12 min-w-16 flex-col items-center gap-1 rounded-sm px-3 py-2 text-xs transition-colors duration-[var(--motion-base)]",
-                    active ? "nav-link-active text-accent" : "text-muted",
+                    "flex min-h-12 min-w-[3.25rem] flex-col items-center gap-1 rounded-sm px-1.5 py-2",
+                    "text-[10px] transition-colors duration-[var(--motion-base)]",
+                    active ? "text-accent" : "text-foreground-muted",
                   )}
                 >
                   <Icon className="h-5 w-5" aria-hidden />

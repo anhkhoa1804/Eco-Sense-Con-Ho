@@ -29,7 +29,7 @@ export default function ReportPage() {
       <section className="space-y-10 py-2 md:py-6">
         <header className="max-w-2xl space-y-3">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Ghi nhận hiện trường</p>
-          <h1 className="text-h1 font-semibold tracking-tight">Ghi nhận một thay đổi trên đảo.</h1>
+          <h1 className="text-[length:var(--text-title-task)] font-semibold leading-tight tracking-tight">Ghi nhận một thay đổi trên đảo.</h1>
           <p className="text-base leading-relaxed text-muted">
             Chọn trạm gần bạn nhất, mô tả điều bạn thấy, rồi gửi.
           </p>

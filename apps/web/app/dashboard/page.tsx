@@ -45,7 +45,7 @@ export default async function DashboardPage({
             <div>
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Quan trắc trực tiếp</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Đài quan trắc</h1>
+                <h1 className="text-[length:var(--text-title-observatory)] font-semibold leading-tight tracking-tight">Đài quan trắc</h1>
                 {mode === "demo" ? (
                   <span className="inline-flex items-center gap-1.5 rounded-sm bg-watch-bg px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-watch">
                     <FlaskConical className="h-3 w-3" aria-hidden />

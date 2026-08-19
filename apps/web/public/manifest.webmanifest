@@ -1,18 +1,30 @@
 {
   "name": "HORIZON",
   "short_name": "HORIZON",
-  "description": "Mạng lưới quan trắc khí hậu và môi trường do thanh niên dẫn dắt tại Cồn Hô",
+  "description": "Mạng lưới quan trắc môi trường quy mô thí điểm tại Cồn Hô, Vĩnh Long",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fafaf8",
-  "theme_color": "#fafaf8",
+  "background_color": "#f4f1e8",
+  "theme_color": "#0e1312",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icons/icon.svg",
+      "src": "/assets/brand/horizon-mark.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/assets/brand/horizon-icon.png",
+      "sizes": "464x333",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/brand/horizon-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

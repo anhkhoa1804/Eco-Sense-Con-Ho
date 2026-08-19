@@ -14,8 +14,13 @@ import { Button } from "@/components/ui/button";
  */
 export function Hero() {
   return (
-    <section className="horizon-dotfield full-bleed">
-      <div className="mx-auto max-w-[var(--width-content-wide)] px-4 pb-24 pt-16 md:pb-36 md:pt-28">
+    // No `.full-bleed` here: the dot field bleeds via its own pseudo-element
+    // (globals.css), so the hero stays in normal flow and its headline lands
+    // on the same left edge as every other section.
+    <section className="horizon-dotfield">
+      {/* No measure of its own — `main` already supplies the shared gutter,
+          and nesting `.h-wide` here would double it. */}
+      <div className="pb-24 pt-16 md:pb-36 md:pt-28">
         {/* Widens a step at 2xl so the headline grows into a 1920 viewport
             instead of hugging the left edge of a mostly-empty band — the dot
             field carries the rest of the width. */}
@@ -24,7 +29,7 @@ export function Hero() {
             HORIZON · Cồn Hô, Vĩnh Long
           </p>
 
-          <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight md:text-6xl lg:text-7xl 2xl:text-[5.25rem]">
+          <h1 className="text-[length:var(--text-title-display)] font-semibold leading-[1.08] tracking-tight">
             Một cù lao giữa sông, và những thay đổi đang diễn ra mỗi ngày.
           </h1>
 

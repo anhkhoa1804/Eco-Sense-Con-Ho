@@ -65,7 +65,7 @@ function IdentityColumn({ profile, station }: { profile: StationProfile; station
     <div className="space-y-4">
       <div>
         <p className="text-eyebrow uppercase tracking-[0.18em] text-accent">{profile.location}</p>
-        <h1 className="mt-1 text-h1 font-semibold tracking-tight">{profile.name}</h1>
+        <h1 className="mt-1 text-[length:var(--text-title-instrument)] font-semibold leading-tight tracking-tight">{profile.name}</h1>
         <p className="mt-3 text-base leading-relaxed text-muted">{profile.intro}</p>
       </div>
       <div className="space-y-1.5">

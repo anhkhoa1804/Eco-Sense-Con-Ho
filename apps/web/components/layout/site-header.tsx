@@ -3,124 +3,129 @@
 import type * as React from "react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Wordmark } from "@/components/ui/wordmark";
-import { isPublicNavActive, PUBLIC_NAV_LINKS } from "@/lib/publicNav";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { isPublicNavActive, PRIMARY_NAV_LINKS } from "@/lib/publicNav";
 
 /**
  * Tracks only the boundary crossing (scrolled past `threshold`), not
- * continuous scroll position — the actual size change is a CSS transition
- * on .silent-header/.is-compressed (globals.css); this just supplies the
- * class. One state flip per crossing, no animation library, no per-frame
- * work.
+ * continuous scroll position — one state flip per crossing, so nothing runs
+ * while the reader sits still and there is no per-frame work.
+ *
+ * The single resulting class drives *every* dependent measure at once:
+ * header height, wordmark height, and the backdrop. They interpolate from
+ * one source (`--header-h` / `--header-logo` in globals.css), which is what
+ * keeps the mark from snapping between two sizes the way a class swap did.
  */
-function useHeaderScrollCompress(threshold = 8): boolean {
-  const [compressed, setCompressed] = useState(false);
+function useScrolledPast(threshold = 12): boolean {
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setCompressed(window.scrollY > threshold);
+    const onScroll = () => setScrolled(window.scrollY > threshold);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [threshold]);
 
-  return compressed;
+  return scrolled;
 }
 
 interface SiteHeaderProps {
   /**
-   * Both registers render the exact same global navigation now — "register"
-   * only decides whether the admin operational strip (email/actions) is
-   * appended below it and which item shows as active. Admin is a hierarchy
-   * distinction, not a different header: hiding the public nav on admin
-   * pages was the thing the design direction explicitly asked to stop doing.
+   * Both registers render the exact same global navigation — "register" only
+   * decides whether the admin operational strip is appended below it. Admin
+   * is a hierarchy distinction, not a different product.
    */
   register?: "public" | "admin";
-  /** Public register only — drives nav active-state. */
   activePath?: string;
-  /** Admin register only. */
   adminEmail?: string;
   adminActions?: React.ReactNode;
 }
 
-const ADMIN_ITEM = { href: "/admin", label: "Quản trị" };
-
-function NavLink({
-  href,
-  label,
-  active,
-  icon: Icon,
-  className,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-  icon?: React.ComponentType<{ className?: string }>;
-  className?: string;
-}) {
+function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "inline-flex items-center gap-2 rounded-sm px-3 py-2 text-sm font-medium transition-colors duration-[var(--motion-base)]",
-        active ? "nav-link-active text-accent" : "text-muted hover:bg-muted/20 hover:text-foreground",
-        className,
+        "relative inline-flex items-center px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.13em]",
+        "transition-colors duration-[var(--motion-base)]",
+        active ? "text-foreground" : "text-foreground-muted hover:text-foreground",
       )}
     >
-      {Icon ? <Icon className="h-4 w-4" aria-hidden /> : null}
       {label}
+      {/* A brand-gradient rule under the active item, not a filled chip: the
+          header is a transparent part of the page canvas, and a solid
+          background would reintroduce the separate-panel layer this pass
+          removed. The gradient is the same green→orange sweep as the mark,
+          so the active state is a brand gesture rather than a generic bar. */}
+      {active ? (
+        <span
+          aria-hidden
+          className="nav-underline absolute inset-x-3 bottom-1 h-[2px] rounded-full bg-gradient-to-r from-brand-green to-brand-orange"
+        />
+      ) : null}
     </Link>
   );
 }
 
 export function SiteHeader({ register = "public", activePath, adminEmail, adminActions }: SiteHeaderProps) {
-  const compressed = useHeaderScrollCompress();
+  const scrolled = useScrolledPast();
   const inAdmin = register === "admin";
   const hasOperationalStrip = inAdmin && Boolean(adminEmail || adminActions);
 
+  /** Admin owns its own active item; the public path never highlights there. */
+  const isActive = (href: string) =>
+    href === "/admin" ? inAdmin : !inAdmin && isPublicNavActive(href, activePath);
+
   return (
-    // .silent-header's fixed-height + overflow-hidden lives on the inner row
-    // now, not the <header> itself — that leaves room for the admin
-    // operational strip to sit below it without being clipped by the
-    // scroll-compress box it has nothing to do with.
-    <header className="sticky top-0 z-[var(--z-sticky)] border-b border-border bg-background/95 backdrop-blur-sm">
-      <div className={cn("silent-header overflow-hidden", compressed && "is-compressed")}>
-        <div className="mx-auto flex h-full max-w-[var(--width-content-wide)] items-center justify-between px-4">
-          <Wordmark href={inAdmin ? "/admin" : "/"} />
+    <header
+      className={cn(
+        "site-header sticky top-0 z-[var(--z-sticky)]",
+        scrolled && "is-compact",
+        // Transparent at rest so the drafting grid runs straight through the
+        // header. The backdrop is earned, not permanent: it appears only once
+        // content is actually sliding underneath, which is the only moment it
+        // is needed for readability.
+        "transition-[background-color,border-color,backdrop-filter] duration-[var(--motion-medium)] ease-[var(--ease-brand)]",
+        scrolled
+          ? "border-b border-border bg-canvas/75 backdrop-blur-xl supports-[backdrop-filter]:bg-canvas/60"
+          : "border-b border-transparent bg-transparent",
+      )}
+    >
+      <div
+        className={cn(
+          "h-wide flex items-center justify-between gap-6",
+          // Height interpolates from --header-h, which .is-compact reassigns.
+          "h-[var(--header-h)] transition-[height] duration-[var(--motion-slow)] ease-[var(--ease-brand)]",
+        )}
+      >
+        <Wordmark href={inAdmin ? "/admin" : "/"} markSize="fluid" />
 
-          <div className="flex items-center gap-1">
-            <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 md:flex">
-              {PUBLIC_NAV_LINKS.map(({ href, label, icon }) => (
-                <NavLink key={href} href={href} label={label} icon={icon} active={!inAdmin && isPublicNavActive(href, activePath)} />
-              ))}
-              <div className="mx-1 h-5 w-px bg-border" aria-hidden />
-              <NavLink href={ADMIN_ITEM.href} label={ADMIN_ITEM.label} icon={Shield} active={inAdmin} />
-            </nav>
+        <div className="flex items-center gap-2">
+          <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 lg:flex">
+            {PRIMARY_NAV_LINKS.map(({ href, label }) => (
+              <NavLink key={href} href={href} label={label} active={isActive(href)} />
+            ))}
+          </nav>
 
-            {/* Mobile keeps only an icon affordance for admin — the four
-                public items already live in PublicShell's bottom tab bar. */}
-            <Link
-              href={ADMIN_ITEM.href}
-              aria-label={ADMIN_ITEM.label}
-              title={ADMIN_ITEM.label}
-              aria-current={inAdmin ? "page" : undefined}
-              className={cn(
-                "inline-flex h-10 w-10 items-center justify-center rounded-sm transition-colors duration-[var(--motion-base)] md:hidden",
-                inAdmin ? "text-accent" : "text-muted hover:bg-muted/20 hover:text-foreground",
-              )}
-            >
-              <Shield className="h-4 w-4" aria-hidden />
-            </Link>
-          </div>
+          {/*
+            Reserved slot. Phase 8's VI | EN selector lands here, beside the
+            theme toggle and inside the same flex cluster — so adding it costs
+            roughly one toggle's width and cannot push the nav into the mark.
+            Deliberately renders nothing today: a visible switcher that cannot
+            switch is worse than no switcher.
+          */}
+          <div className="hidden h-6 w-px bg-border lg:block" aria-hidden />
+          <ThemeToggle />
         </div>
       </div>
 
       {hasOperationalStrip ? (
-        <div className="border-t border-border/60 bg-muted/10">
-          <div className="mx-auto flex max-w-[var(--width-content-wide)] flex-wrap items-center justify-between gap-3 px-4 py-2">
-            {adminEmail ? <p className="text-xs text-muted">{adminEmail}</p> : <span aria-hidden />}
+        <div className="border-t border-border/60">
+          <div className="h-wide flex flex-wrap items-center justify-between gap-3 py-2">
+            {adminEmail ? <p className="text-xs text-foreground-muted">{adminEmail}</p> : <span aria-hidden />}
             {adminActions ? <div className="flex flex-wrap items-center gap-3">{adminActions}</div> : null}
           </div>
         </div>

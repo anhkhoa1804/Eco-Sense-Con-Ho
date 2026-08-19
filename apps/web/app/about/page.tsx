@@ -128,7 +128,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-[var(--width-content-wide)]">
           <div className="animate-entrance max-w-3xl space-y-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">Giới thiệu</p>
-            <h1 className="text-3xl font-semibold leading-[1.12] tracking-tight md:text-5xl lg:text-6xl">
+            <h1 className="text-[length:var(--text-title-editorial)] font-semibold leading-[1.12] tracking-tight">
               HORIZON là một mạng lưới quan trắc môi trường được thiết kế cho một pilot cộng đồng tại Cồn Hô.
             </h1>
             <p className="max-w-2xl text-lg leading-relaxed text-muted">
@@ -153,7 +153,7 @@ export default function AboutPage() {
 
       <div className="space-y-28 md:space-y-36">
         {/* 01 — Cồn Hô */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-reading)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">
           <ChapterHeading eyebrow="01 · Nơi chốn" title="Một cù lao nông nghiệp giữa sông." />
           <div className="mt-8 space-y-6 text-lg leading-relaxed text-muted">
             <p>
@@ -169,7 +169,7 @@ export default function AboutPage() {
         </Reveal>
 
         <section className="full-bleed">
-          <Reveal className="mx-auto max-w-[1400px] px-4">
+          <Reveal className="h-spatial">
             <figure className="space-y-4">
               {/* eslint-disable-next-line @next/next/no-img-element -- local static asset with known aspect ratio; next/image has previously failed to resolve in this project (see wordmark.tsx) */}
               <img
@@ -194,7 +194,7 @@ export default function AboutPage() {
         </section>
 
         {/* 02 — Why observe */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-reading)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">
           <ChapterHeading eyebrow="02 · Vì sao quan trắc" title="Dữ liệu quy mô vùng không trả lời được câu hỏi tại chỗ." />
           <div className="mt-8 space-y-6 text-lg leading-relaxed text-muted">
             <p>
@@ -214,7 +214,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* 03 — The network */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
           <ChapterHeading
             eyebrow="03 · Mạng lưới"
             title="Ba vai trò, không phải ba bản sao."
@@ -255,7 +255,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* 04 — Hardware */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
           <ChapterHeading
             eyebrow="04 · Phần cứng"
             title="Thiết bị được chọn theo câu hỏi cần trả lời."
@@ -291,7 +291,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* 05 — How data moves */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
           <ChapterHeading eyebrow="05 · Dòng dữ liệu" title="Từ một đầu dò đến một dòng trên màn hình." />
           <ol className="mt-10 grid gap-px overflow-hidden border-y border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
             {DATA_FLOW.map(({ step, text }, index) => (
@@ -307,7 +307,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* 06 — What the data can mean */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-reading)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">
           <ChapterHeading eyebrow="06 · Ý nghĩa" title="Một con số chưa phải là một kết luận." />
           <div className="mt-8 space-y-6 text-lg leading-relaxed text-muted">
             <p>
@@ -329,7 +329,7 @@ export default function AboutPage() {
 
         {/* 07 — Gallery */}
         <section className="full-bleed">
-          <Reveal className="mx-auto max-w-[1400px] px-4">
+          <Reveal className="h-spatial">
             <ChapterHeading
               eyebrow="07 · Thư viện"
               title="Hình ảnh dự án."
@@ -354,7 +354,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* 09 — People */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-reading)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">
           <ChapterHeading eyebrow="09 · Dự án" title="Ai đang xây dựng HORIZON." />
           <div className="mt-8 space-y-6 text-lg leading-relaxed text-muted">
             <p>
@@ -370,7 +370,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* 10 — Closing */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-reading)]">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">10 · Vì sao điều này quan trọng</p>
           <p className="mt-6 text-2xl font-semibold leading-snug tracking-tight md:text-3xl">
             Một vùng đất được hiểu rõ hơn khi những thay đổi của nó được ghi lại một cách trung thực — kể cả khi điều
@@ -383,7 +383,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* Final navigation */}
-        <Reveal as="section" className="mx-auto max-w-[var(--width-content-wide)] pb-8">
+        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)] pb-8">
           <div className="border-t border-border">
             {EXPLORE.map(({ href, icon: Icon, label, text }) => (
               <Link

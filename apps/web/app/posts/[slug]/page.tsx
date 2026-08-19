@@ -14,8 +14,10 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const post = getPost(slug);
-  if (!post) return { title: "Không tìm thấy bài viết — HORIZON" };
-  return { title: `${post.title} — HORIZON`, description: post.excerpt };
+  // No " — HORIZON" suffix here: the root layout's title template already
+  // appends it. Spelling it out again produced "… — HORIZON — HORIZON".
+  if (!post) return { title: "Không tìm thấy bài viết" };
+  return { title: post.title, description: post.excerpt };
 }
 
 const STATUS_NOTE: Record<PostStatus, string | null> = {
@@ -54,7 +56,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
           <header className="mt-8 space-y-4">
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">{post.category}</p>
-            <h1 className="text-3xl font-semibold leading-tight tracking-tight md:text-5xl">{post.title}</h1>
+            <h1 className="text-[length:var(--text-title-editorial)] font-semibold leading-tight tracking-tight">{post.title}</h1>
             <p className="text-sm text-muted">
               {formatDate(post.date)}
               {post.readingTime ? ` · ${post.readingTime}` : null}

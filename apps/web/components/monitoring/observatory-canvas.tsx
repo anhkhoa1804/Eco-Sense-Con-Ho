@@ -36,6 +36,53 @@ const SEVERITY_TONE: Record<ObservatoryAlert["severity"], string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Bento allocation
+// ---------------------------------------------------------------------------
+
+/**
+ * Tailwind must be able to see every class it generates, so spans are looked
+ * up from this static map rather than built as `lg:col-span-${n}`.
+ */
+const SPAN_CLASS: Record<number, string> = {
+  3: "lg:col-span-3",
+  4: "lg:col-span-4",
+  5: "lg:col-span-5",
+  6: "lg:col-span-6",
+  7: "lg:col-span-7",
+  8: "lg:col-span-8",
+  12: "lg:col-span-12",
+};
+
+/** How many of a station's readings actually carry a value right now. */
+function populatedMetricCount(station: ObservatoryStation): number {
+  const all = [
+    station.primary,
+    ...station.environment.flatMap((group) => group.metrics),
+    ...station.device,
+  ];
+  return all.filter((metric) => metric.value !== null).length;
+}
+
+/**
+ * Column spans for the two environmental instrument tiles, driven by how much
+ * information each currently holds — not by what kind of node it is.
+ *
+ * The obvious rule ("soil is widest, it has six sensors") is wrong here:
+ * production currently holds zero soil rows, so a kind-based allocation would
+ * hand the wider tile to the emptier station and produce exactly the large
+ * blank card this layout is meant to avoid. When neither has reported they are
+ * equally uninformative and the band splits evenly, rather than inventing a
+ * hierarchy the data does not support.
+ */
+function computeSensorSpans(stations: ObservatoryStation[]): number[] {
+  const counts = stations.map(populatedMetricCount);
+
+  if (stations.length !== 2) return stations.map(() => 12);
+  if (counts[0] === counts[1]) return [6, 6];
+  return counts[0] > counts[1] ? [7, 5] : [5, 7];
+}
+
+// ---------------------------------------------------------------------------
 // Network header
 // ---------------------------------------------------------------------------
 
@@ -139,8 +186,12 @@ function StationCell({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "group flex flex-col gap-4 bg-background p-5 text-left transition-colors duration-[var(--motion-base)]",
-        selected ? "bg-accent/[0.04]" : "hover:bg-muted/20",
+        // A standalone tile now, not a cell inside one bordered field: each
+        // station owns its own border so the row can carry unequal spans
+        // without the shared grid lines making the widths look accidental.
+        "bento-tile group flex flex-col gap-4 rounded-lg border p-5 text-left",
+        "transition-colors duration-[var(--motion-base)]",
+        selected ? "border-accent/40 bg-accent/[0.04]" : "border-border hover:bg-muted/15",
         className,
       )}
     >
@@ -345,6 +396,16 @@ export function ObservatoryCanvas({ model }: { model: ObservatoryViewModel }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = model.stations.find((s) => s.id === selectedId) ?? null;
 
+  const hasAlerts = model.alerts.length > 0;
+
+  // Split by information TYPE, not by station number: the gateway reports
+  // link health (infrastructure) while the other two report environment.
+  // Grouping them that way is what makes the canvas read as an observatory
+  // rather than a list of nodes.
+  const infrastructure = model.stations.find((s) => s.kind === "gateway") ?? null;
+  const sensors = model.stations.filter((s) => s.kind !== "gateway");
+  const sensorSpans = computeSensorSpans(sensors);
+
   const mapStations: MapStation[] =
     model.mode === "real"
       ? model.stations.map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, freshness: s.freshness }))
@@ -367,25 +428,64 @@ export function ObservatoryCanvas({ model }: { model: ObservatoryViewModel }) {
         </div>
       ) : null}
 
-      {/* Network + three stations — one bordered field, unequal cells. */}
-      <section className="space-y-5">
-        <NetworkHeader network={model.network} stations={model.stations} />
+      {/*
+        The bento proper — a 12-column field whose regions are sized by how
+        much information they actually carry.
 
-        <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-2 lg:grid-cols-4">
-          {model.stations.map((station, index) => (
+        Two things keep this from becoming decorative: every region is backed
+        by real model data (there is no "network health" tile, because
+        nothing in the model would fill one beyond what the summary already
+        says), and every region collapses when its data is absent rather than
+        holding open an empty rectangle.
+      */}
+      <section className="space-y-4">
+        {/*
+          BAND 1 — network & infrastructure.
+
+          The gateway sits HERE, beside the network summary, not in a row with
+          the two sensor stations. That single move is what stops the page
+          reading as "three station boxes": the gateway is infrastructure —
+          it reports link health, not environment — so grouping it with the
+          network state makes the top band answer one question ("is the
+          network up?") instead of listing nodes.
+        */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+          <div className="instrument-in bento-tile rounded-lg border border-border p-5 md:p-6 lg:col-span-7">
+            <NetworkHeader network={model.network} stations={model.stations} />
+          </div>
+
+          {infrastructure ? (
             <StationCell
-              key={station.id}
-              station={station}
-              index={index}
-              selected={selectedId === station.id}
-              onSelect={() => setSelectedId(selectedId === station.id ? null : station.id)}
-              // The soil node spans two columns on wide screens: it carries
-              // six measurements to the water node's two, so equal widths
-              // would either crush it or leave the others padded with air.
-              className={cn(station.kind === "soil" && "lg:col-span-2")}
+              station={infrastructure}
+              index={model.stations.indexOf(infrastructure)}
+              selected={selectedId === infrastructure.id}
+              onSelect={() => setSelectedId(selectedId === infrastructure.id ? null : infrastructure.id)}
+              className="instrument-in instrument-in-1 lg:col-span-5"
             />
-          ))}
+          ) : null}
         </div>
+
+        {/*
+          BAND 2 — the environmental instruments. Two tiles, deliberately
+          unequal: spans follow how many readings each actually carries right
+          now (see computeSensorSpans), so the wider tile is always the one
+          with more to show rather than the one whose station type sounds
+          bigger.
+        */}
+        {sensors.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {sensors.map((station, i) => (
+              <StationCell
+                key={station.id}
+                station={station}
+                index={model.stations.indexOf(station)}
+                selected={selectedId === station.id}
+                onSelect={() => setSelectedId(selectedId === station.id ? null : station.id)}
+                className={cn("instrument-in instrument-in-2", SPAN_CLASS[sensorSpans[i]])}
+              />
+            ))}
+          </div>
+        ) : null}
 
         {selected ? (
           <div className="animate-entrance flex flex-wrap items-center justify-between gap-4 rounded-lg border border-accent/30 bg-accent/[0.04] px-5 py-4">
@@ -409,24 +509,47 @@ export function ObservatoryCanvas({ model }: { model: ObservatoryViewModel }) {
           </div>
         ) : null}
 
-        <AlertsPanel alerts={model.alerts} />
       </section>
 
-      {/* Observation log and map are the two surfaces allowed to exceed the
-          shell's text width on very wide screens — a chart and a map gain real
-          information from extra pixels, whereas the station cells and the
-          reference prose do not. Below ~1560 the cap is wider than the
-          viewport, so this collapses to exactly the shell width and nothing
-          changes at 1440 or below. */}
-      <div className="full-bleed">
-        <div className="mx-auto max-w-[min(1560px,calc(100vw-8rem))] px-4">
-          <ObservationLog series={model.series} />
+      {/*
+        BAND 3 — time and events, side by side.
+
+        The observation log answers "how has this been changing?" and the
+        alert stream answers "what changed enough to notice?". They are two
+        readings of the same axis, so they belong in one band rather than
+        separated by half a page. The log keeps the dominant span because a
+        chart converts width directly into resolution; the alert column does
+        not.
+
+        With no alerts the log takes the full band and the "all quiet" line
+        drops to a single strip beneath it — an empty event list gets the
+        space its information deserves, not a held-open rectangle.
+      */}
+      <section className="full-bleed">
+        <div className="h-spatial">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className={cn("min-w-0", hasAlerts ? "lg:col-span-8" : "lg:col-span-12")}>
+              <ObservationLog series={model.series} />
+            </div>
+
+            {hasAlerts ? (
+              <div className="bento-tile rounded-lg border border-border p-5 lg:col-span-4">
+                <AlertsPanel alerts={model.alerts} />
+              </div>
+            ) : null}
+          </div>
+
+          {hasAlerts ? null : (
+            <div className="mt-4">
+              <AlertsPanel alerts={model.alerts} />
+            </div>
+          )}
         </div>
-      </div>
+      </section>
 
       {/* Map — spatial anchor, after the charts. */}
       <section className="full-bleed">
-        <div className="mx-auto max-w-[min(1560px,calc(100vw-8rem))] space-y-5 px-4">
+        <div className="h-spatial space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Không gian</p>

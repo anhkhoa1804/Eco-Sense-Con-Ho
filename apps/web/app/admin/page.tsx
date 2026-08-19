@@ -497,6 +497,8 @@ export default async function AdminPage({
 
   return (
     <AdminShell
+      title="Bảng điều khiển"
+      description="Trạng thái mạng lưới, báo cáo hiện trường và cấu hình thiết bị."
       email={profile.email}
       actions={
         <>

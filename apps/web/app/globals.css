@@ -1,50 +1,302 @@
 @import "tailwindcss";
 
+/* ===========================================================================
+ * HORIZON — BRAND SYSTEM
+ * ===========================================================================
+ *
+ * One visual grammar, inherited by every page. The order of this file is the
+ * order of the system:
+ *
+ *   BRAND → CANVAS → TEXT → BORDER → DATA → ATMOSPHERE → TYPE → LAYOUT →
+ *   MOTION → COMPONENTS
+ *
+ * Every colour is a raw `--h-*` value declared three times:
+ *   1. `:root`                                → light (the default)
+ *   2. `@media (prefers-color-scheme: dark)`  → system dark, guarded by
+ *      `:not([data-theme="light"])`              so an explicit light choice wins
+ *   3. `:root[data-theme="dark"]`             → explicit dark choice wins
+ *
+ * Nothing below the palette blocks may hardcode a hex, and no component may
+ * invent an opacity: the wash tokens exist so `white/5`-style guesses never
+ * reappear.
+ * ======================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------- BRAND
+   * Sampled from logo.png's actual pixels. Green and orange ARE HORIZON —
+   * they carry identity, never data state. Blue is the interactive voice
+   * (links, controls, focus); it is deliberately teal-leaning rather than a
+   * default SaaS blue, so it sits beside the green without arguing with it.
+   */
+  --h-brand-green: #2c9e57;
+  --h-brand-orange: #f28c00;
+  --h-brand-blue: #0c5f7d;
+
+  /* --------------------------------------------------------------- CANVAS
+   * Warm paper, not grey. The reference is a field notebook / map sheet:
+   * pigment on stock, with the recessed step slightly *warmer* rather than
+   * simply darker.
+   */
+  --h-canvas: #f7f4ed;
+  --h-canvas-subtle: #f0ece1;
+  --h-canvas-elevated: #fbf9f4;
+  --h-surface: #fffdf8;
+  --h-surface-raised: #ffffff;
+
+  /* ----------------------------------------------------------------- TEXT
+   * Near-black carries a green cast so type belongs to the same family as
+   * the brand mark instead of reading as pure neutral ink.
+   */
+  --h-foreground: #131d1b;
+  --h-foreground-muted: #55635f;
+  --h-foreground-subtle: #626e69;
+
+  /* --------------------------------------------------------------- BORDER */
+  --h-border: rgba(19, 29, 27, 0.11);
+  --h-border-strong: rgba(19, 29, 27, 0.2);
+  --h-border-accent: rgba(12, 95, 125, 0.42);
+
+  /* ----------------------------------------------------------------- DATA
+   * The environmental status vocabulary. Semantic only — never brand, never
+   * decoration. `safe/warning/danger/informational` are the system-level
+   * names; the legacy healthy/watch/risk aliases below keep existing
+   * components compiling against the same values.
+   */
+  --h-safe: #197a3f;
+  --h-safe-bg: rgba(25, 122, 63, 0.09);
+  --h-warning: #a35f00;
+  --h-warning-bg: rgba(163, 95, 0, 0.09);
+  --h-danger: #b02318;
+  --h-danger-bg: rgba(176, 35, 24, 0.09);
+  --h-informational: #0c5f7d;
+  --h-informational-bg: rgba(12, 95, 125, 0.09);
+  --h-neutral: #5b6570;
+  --h-neutral-bg: rgba(91, 101, 112, 0.09);
+  --h-fault: #6d28d9;
+  --h-fault-bg: rgba(109, 40, 217, 0.09);
+
+  /* Data visualisation */
+  --h-threshold: #b02318;
+  --h-salinity: #0d8285;
+  --h-water-level: #2563eb;
+  --h-grid: rgba(19, 29, 27, 0.1);
+
+  /* ----------------------------------------------------------------- WASH
+   * Interaction surfaces. These replace scattered `bg-muted/20`,
+   * `bg-white/5`, `bg-black/20` guesses — every hover/active/selected state
+   * in the product resolves to one of these four, so the interaction
+   * language is identical on both themes and in every component.
+   */
+  --h-wash-hover: rgba(19, 29, 27, 0.04);
+  --h-wash-active: rgba(12, 95, 125, 0.07);
+  --h-wash-sunken: rgba(19, 29, 27, 0.03);
+  --h-scrim: rgba(19, 29, 27, 0.4);
+
+  /* ----------------------------------------------------------- ATMOSPHERE
+   * The background language, as tokens so the four layers can be tuned per
+   * theme without touching a component. Dark needs a lighter ink at a LOWER
+   * alpha than light does, or the grid becomes visible noise.
+   */
+  --h-grid-line: rgba(19, 29, 27, 0.05);
+  --h-grid-line-major: rgba(19, 29, 27, 0.08);
+  --h-dot-ink: rgba(19, 29, 27, 0.11);
+  /* Two atmospheric pools: a cool one for depth, a warm one carrying the
+     brand's sun. Both extremely low alpha — they should register as light,
+     never as a gradient. */
+  --h-atmos-cool: rgba(12, 95, 125, 0.07);
+  --h-atmos-warm: rgba(242, 140, 0, 0.05);
+
+  --h-selection: rgba(12, 95, 125, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /* An observatory at night: deep graphite carrying the same green cast as
+       the brand, NOT near-black. Pure black flattens the hairline borders
+       into glowing seams and makes the green/orange mark look like it is
+       floating on nothing. */
+    --h-brand-green: #45c078;
+    --h-brand-orange: #ffa62e;
+    --h-brand-blue: #4fb0d4;
+
+    --h-canvas: #0e1312;
+    --h-canvas-subtle: #0a0f0e;
+    --h-canvas-elevated: #141b19;
+    --h-surface: #141b19;
+    --h-surface-raised: #1a2320;
+
+    --h-foreground: #e7ece9;
+    --h-foreground-muted: #97a49f;
+    --h-foreground-subtle: #7f8b86;
+
+    --h-border: rgba(255, 255, 255, 0.1);
+    --h-border-strong: rgba(255, 255, 255, 0.19);
+    --h-border-accent: rgba(79, 176, 212, 0.45);
+
+    --h-safe: #4cb87a;
+    --h-safe-bg: rgba(76, 184, 122, 0.14);
+    --h-warning: #d69a44;
+    --h-warning-bg: rgba(214, 154, 68, 0.14);
+    --h-danger: #e27066;
+    --h-danger-bg: rgba(226, 112, 102, 0.14);
+    --h-informational: #4fb0d4;
+    --h-informational-bg: rgba(79, 176, 212, 0.14);
+    --h-neutral: #808c93;
+    --h-neutral-bg: rgba(128, 140, 147, 0.14);
+    --h-fault: #a78bfa;
+    --h-fault-bg: rgba(167, 139, 250, 0.14);
+
+    --h-threshold: #e27066;
+    --h-salinity: #34b7b0;
+    --h-water-level: #5b8def;
+    --h-grid: rgba(255, 255, 255, 0.1);
+
+    --h-wash-hover: rgba(255, 255, 255, 0.045);
+    --h-wash-active: rgba(79, 176, 212, 0.1);
+    --h-wash-sunken: rgba(0, 0, 0, 0.22);
+    --h-scrim: rgba(0, 0, 0, 0.55);
+
+    --h-grid-line: rgba(255, 255, 255, 0.038);
+    --h-grid-line-major: rgba(255, 255, 255, 0.06);
+    --h-dot-ink: rgba(255, 255, 255, 0.085);
+    --h-atmos-cool: rgba(79, 176, 212, 0.07);
+    --h-atmos-warm: rgba(255, 166, 46, 0.045);
+
+    --h-selection: rgba(79, 176, 212, 0.26);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --h-brand-green: #45c078;
+  --h-brand-orange: #ffa62e;
+  --h-brand-blue: #4fb0d4;
+
+  --h-canvas: #0e1312;
+  --h-canvas-subtle: #0a0f0e;
+  --h-canvas-elevated: #141b19;
+  --h-surface: #141b19;
+  --h-surface-raised: #1a2320;
+
+  --h-foreground: #e7ece9;
+  --h-foreground-muted: #97a49f;
+  --h-foreground-subtle: #7f8b86;
+
+  --h-border: rgba(255, 255, 255, 0.1);
+  --h-border-strong: rgba(255, 255, 255, 0.19);
+  --h-border-accent: rgba(79, 176, 212, 0.45);
+
+  --h-safe: #4cb87a;
+  --h-safe-bg: rgba(76, 184, 122, 0.14);
+  --h-warning: #d69a44;
+  --h-warning-bg: rgba(214, 154, 68, 0.14);
+  --h-danger: #e27066;
+  --h-danger-bg: rgba(226, 112, 102, 0.14);
+  --h-informational: #4fb0d4;
+  --h-informational-bg: rgba(79, 176, 212, 0.14);
+  --h-neutral: #808c93;
+  --h-neutral-bg: rgba(128, 140, 147, 0.14);
+  --h-fault: #a78bfa;
+  --h-fault-bg: rgba(167, 139, 250, 0.14);
+
+  --h-threshold: #e27066;
+  --h-salinity: #34b7b0;
+  --h-water-level: #5b8def;
+  --h-grid: rgba(255, 255, 255, 0.1);
+
+  --h-wash-hover: rgba(255, 255, 255, 0.045);
+  --h-wash-active: rgba(79, 176, 212, 0.1);
+  --h-wash-sunken: rgba(0, 0, 0, 0.22);
+  --h-scrim: rgba(0, 0, 0, 0.55);
+
+  --h-grid-line: rgba(255, 255, 255, 0.038);
+  --h-grid-line-major: rgba(255, 255, 255, 0.06);
+  --h-dot-ink: rgba(255, 255, 255, 0.085);
+  --h-atmos-cool: rgba(79, 176, 212, 0.07);
+  --h-atmos-warm: rgba(255, 166, 46, 0.045);
+
+  --h-selection: rgba(79, 176, 212, 0.26);
+}
+
+/*
+ * `@theme inline` maps Tailwind's utility namespace onto the palette.
+ * `inline` matters: `bg-canvas` compiles to `background-color:
+ * var(--h-canvas)` — resolved live per theme — instead of baking a snapshot
+ * of the light value into the utility, which would make runtime theme
+ * switching repaint nothing.
+ */
+@theme inline {
+  /* Brand */
+  --color-brand-green: var(--h-brand-green);
+  --color-brand-orange: var(--h-brand-orange);
+  --color-brand-blue: var(--h-brand-blue);
+
+  /* Canvas + surfaces */
+  --color-canvas: var(--h-canvas);
+  --color-canvas-subtle: var(--h-canvas-subtle);
+  --color-canvas-elevated: var(--h-canvas-elevated);
+  --color-surface: var(--h-surface);
+  --color-surface-raised: var(--h-surface-raised);
+  /* Legacy aliases — many components still say bg-background / bg-card. */
+  --color-background: var(--h-canvas);
+  --color-card: var(--h-surface);
+
+  /* Text */
+  --color-foreground: var(--h-foreground);
+  --color-foreground-muted: var(--h-foreground-muted);
+  --color-foreground-subtle: var(--h-foreground-subtle);
+  --color-muted: var(--h-foreground-muted);
+
+  /* Border */
+  --color-border: var(--h-border);
+  --color-border-strong: var(--h-border-strong);
+  --color-border-accent: var(--h-border-accent);
+
+  /* Interactive voice */
+  --color-accent: var(--h-brand-blue);
+  --color-accent-2: var(--h-salinity);
+
+  /* Data — system names */
+  --color-safe: var(--h-safe);
+  --color-safe-bg: var(--h-safe-bg);
+  --color-warning: var(--h-warning);
+  --color-warning-bg: var(--h-warning-bg);
+  --color-danger: var(--h-danger);
+  --color-danger-bg: var(--h-danger-bg);
+  --color-informational: var(--h-informational);
+  --color-informational-bg: var(--h-informational-bg);
+
+  /* Data — legacy aliases kept so status components need no rewrite */
+  --color-healthy: var(--h-safe);
+  --color-healthy-bg: var(--h-safe-bg);
+  --color-watch: var(--h-warning);
+  --color-watch-bg: var(--h-warning-bg);
+  --color-risk: var(--h-danger);
+  --color-risk-bg: var(--h-danger-bg);
+  --color-offline: var(--h-neutral);
+  --color-offline-bg: var(--h-neutral-bg);
+  --color-critical: var(--h-danger);
+  --color-fault: var(--h-fault);
+  --color-fault-bg: var(--h-fault-bg);
+
+  /* Wash — the only sanctioned interaction surfaces */
+  --color-wash-hover: var(--h-wash-hover);
+  --color-wash-active: var(--h-wash-active);
+  --color-wash-sunken: var(--h-wash-sunken);
+
+  /* Visualisation */
+  --color-threshold: var(--h-threshold);
+  --color-salinity: var(--h-salinity);
+  --color-water-level: var(--h-water-level);
+  --color-grid: var(--h-grid);
+}
+
 @theme {
-  /* Neutral foundation */
-  --color-background: #f7f6f1;
-  --color-foreground: #0b1417;
-  --color-card: #fbfaf7;
-  --color-muted: #59666b;
-  --color-border: rgba(15, 23, 42, 0.08);
-  --color-border-strong: rgba(15, 23, 42, 0.16);
-
-  /* Brand — a deep instrumentation blue, deliberately NOT green.
-     Green is reserved for the "healthy" status meaning below; using it
-     as the brand color as well would read as a generic eco-NGO site. */
-  --color-accent: #0e5f8a;
-  --color-accent-2: #0f766e;
-
-  --color-warning: #b45309;
-  --color-critical: #b91c1c;
-
-  /* Environmental status vocabulary — semantic only, never used as brand color */
-  --color-healthy: #1c7c42;
-  --color-healthy-bg: rgba(28, 124, 66, 0.08);
-  --color-watch: #a86400;
-  --color-watch-bg: rgba(168, 100, 0, 0.08);
-  --color-risk: #b42318;
-  --color-risk-bg: rgba(180, 35, 24, 0.08);
-  --color-offline: #5e6670;
-  --color-offline-bg: rgba(94, 102, 112, 0.08);
-  --color-fault: #6d28d9;
-  --color-fault-bg: rgba(109, 40, 217, 0.08);
-
-  /* Data visualization */
-  --color-threshold: #b42318;
-  --color-salinity: #0f8b8d;
-  --color-water-level: #2563eb;
-  --color-grid: rgba(15, 23, 42, 0.08);
-
-  /* Brand accent duo — sampled directly from logo.png's actual pixels
-     (REDESIGN_SPECIFICATION.md §24.3), not invented. A second color system
-     from the semantic status palette above: these exist only for brand/
-     identity moments (the logo itself, rare marketing accents) and must
-     never be read as environmental status — never used inside Badge,
-     StatusIndicator, QualityIndicator, or Tag. */
-  --color-brand-green: #2fa85c;
-  --color-brand-orange: #fb9600;
-
   /* Radius scale — replaces ad-hoc rounded-[Npx] arbitrary values */
   --radius-xs: 6px;
   --radius-sm: 10px;
@@ -52,48 +304,55 @@
   --radius-lg: 18px;
   --radius-xl: 24px;
 
-  /* Elevation — subtle borders over dramatic shadows */
-  --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.04);
-  --shadow-sm: 0 4px 12px rgb(15 23 42 / 0.06);
-  --shadow-md: 0 12px 32px rgb(15 23 42 / 0.10);
-  --shadow-lg: 0 24px 64px rgb(15 23 42 / 0.14);
+  --shadow-xs: 0 1px 2px rgb(19 29 27 / 0.04);
+  --shadow-sm: 0 4px 12px rgb(19 29 27 / 0.06);
+  --shadow-md: 0 12px 32px rgb(19 29 27 / 0.1);
+  --shadow-lg: 0 24px 64px rgb(19 29 27 / 0.14);
 
-  /* Typography scale — REDESIGN_SPECIFICATION.md §4, formalized as 8 named
-     roles per FRONTEND_REBUILD_SPECIFICATION.md §3. Marketing-register
-     pages (/, /about) are the only ones allowed to use --text-display;
-     everything else uses --text-h1/--text-h2 down to --text-caption.
-     Roles: display · h1 · h2 · body · body-dense · caption ·
-     label/eyebrow (--text-eyebrow) · data (--text-data, mono only). */
+  /* ------------------------------------------------------------ TYPE SCALE
+   * Six page-title registers, one per page purpose. The ORDER is the
+   * hierarchy and may not change; the exact sizes may. Each is a clamp() so
+   * the hierarchy holds at every viewport with no per-breakpoint overrides,
+   * and so no primary title ever needs a raw text-3xl/text-5xl again.
+   *
+   * The gap between `editorial` and `observatory` is deliberately small:
+   * Monitoring and Report are first-class destinations, not subsections of
+   * the marketing site.
+   */
+  --text-title-display: clamp(2.75rem, 1.5rem + 5.4vw, 5.5rem);
+  --text-title-editorial: clamp(2.25rem, 1.45rem + 3.6vw, 4rem);
+  --text-title-observatory: clamp(2.125rem, 1.5rem + 2.9vw, 3.5rem);
+  --text-title-task: clamp(2rem, 1.45rem + 2.5vw, 3.125rem);
+  --text-title-instrument: clamp(1.75rem, 1.35rem + 1.9vw, 2.625rem);
+  --text-title-operational: clamp(1.5rem, 1.25rem + 1.1vw, 2rem);
+
+  /* Section headings — one step below any page title. */
+  --text-section: clamp(1.5rem, 1.2rem + 1.3vw, 2.125rem);
+
   --text-eyebrow: 11px;
-  --text-display: 40px;
   --text-h1: 24px;
   --text-h2: 20px;
   --text-body: 16px;
   --text-body-dense: 14px;
   --text-caption: 12px;
-
-  /* Data role — instrument readouts only (measurement values, deltas,
-     relative timestamps: "1.05", "-78", "64 ngày trước"). Never for prose.
-     Font comes from --font-data (Geist Mono, self-hosted via next/font in
-     layout.tsx — no new dependency, no runtime request). Size intentionally
-     matches --text-h2 so a data value sits at body-heading weight by
-     default; MeasurementValue overrides size per its own size prop. */
   --text-data: 20px;
 
-  /* Layout width primitives — FRONTEND_REBUILD_SPECIFICATION.md §12.
-     Four distinct concepts, never collapsed into one max-width. Tightened in
-     the design-direction pass (previously 1280/1440): HORIZON should read as
-     a composed product sitting inside the viewport, not a SaaS page
-     stretched to the browser edge. --width-content-wide now also serves as
-     the shell chrome width (header/footer/main wrapper) so the whole page —
-     not just each section — shares one outer boundary. */
+  /* --------------------------------------------------------- WIDTH SYSTEM
+   * Five levels, the ONLY permitted horizontal measures:
+   *   reading  — prose column, measured in characters
+   *   content  — standard single-column page content
+   *   wide     — shell chrome and most page sections
+   *   spatial  — map / bento canvas; the deliberate, still-bounded breakout
+   *   full-bleed — edge to edge, via .full-bleed only
+   */
   --width-reading: 68ch;
   --width-content: 1040px;
-  --width-content-wide: 1200px;
+  --width-wide: 1200px;
+  --width-spatial: 1360px;
+  --width-content-wide: 1200px; /* legacy alias */
 
-  /* Spacing scale — REDESIGN_SPECIFICATION.md §7. Public marketing pages
-     default to the top of the range between major sections; tool-register
-     pages (dashboard/station/admin) default to the middle. */
+  --gutter: 1.25rem;
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -106,16 +365,22 @@
 }
 
 :root {
-  /* Motion — kept as plain vars since duration/easing are consumed via
-     inline style or arbitrary Tailwind values, not utility class names */
-  --motion-fast: 120ms;
-  --motion-base: 180ms;
-  --motion-medium: 220ms;
-  --motion-slow: 250ms;
-  --motion-skeleton: 1800ms;
+  /* Motion. `--ease-brand` is the product's signature curve: a fast start
+     that settles long, which is what makes compression and reveal read as
+     one object moving rather than a value being swapped. */
+  --motion-fast: 130ms;
+  --motion-base: 190ms;
+  --motion-medium: 260ms;
+  --motion-slow: 420ms;
+  --motion-reveal: 620ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-brand: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* Z-index scale */
+  /* Header geometry — single source for both states, so the shell, the
+     wordmark and the scroll-margin of anchor targets can never disagree. */
+  --header-h: 6.25rem;
+  --header-logo: 3.25rem;
+
   --z-sticky: 20;
   --z-dropdown: 40;
   --z-popover: 50;
@@ -125,34 +390,297 @@
   --z-critical: 100;
 }
 
+@media (min-width: 640px) {
+  :root {
+    --gutter: 1.75rem;
+    --header-h: 7rem;
+    --header-logo: 3.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --gutter: 2.5rem;
+    --header-h: 7.5rem;
+    --header-logo: 4.25rem;
+  }
+}
+
+/* The compact state. Declared once, on the header, so every dependent
+   measure interpolates from one class change. */
+.site-header.is-compact {
+  --header-h: 4.5rem;
+  --header-logo: 2.5rem;
+}
+@media (min-width: 1024px) {
+  .site-header.is-compact {
+    --header-h: 4.75rem;
+    --header-logo: 2.75rem;
+  }
+}
+
+/* ===========================================================================
+ * LAYOUT
+ * ======================================================================== */
+
 /*
- * Shared decorative panel surface (hero visuals, illustrative side panels).
- * Replaces the repeated ad-hoc rounded-[42px]/pale-green-gradient/dramatic-
- * shadow combination that appeared across the homepage, about, and report
- * pages — those values exceeded the radius scale and used a green-tinted
- * background that read as generic "eco" styling rather than HORIZON's own
- * water/instrumentation identity. Tint is brand-accent at low opacity, not green.
+ * The four bounded measures. Each applies the SAME gutter, so every section
+ * shares one left edge until the narrower measure runs out of room. There
+ * are no other permitted horizontal measures in the product.
  */
-.panel-surface {
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-  background: linear-gradient(180deg, rgba(14, 95, 138, 0.05) 0%, var(--color-card) 100%);
+.h-reading,
+.h-content,
+.h-wide,
+.h-spatial {
+  margin-inline: auto;
+  width: 100%;
+  padding-inline: var(--gutter);
+}
+.h-reading {
+  max-width: calc(var(--width-reading) + var(--gutter) * 2);
+}
+.h-content {
+  max-width: calc(var(--width-content) + var(--gutter) * 2);
+}
+.h-wide {
+  max-width: calc(var(--width-wide) + var(--gutter) * 2);
+}
+.h-spatial {
+  max-width: calc(var(--width-spatial) + var(--gutter) * 2);
+}
+
+.full-bleed {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Anchor targets clear the sticky header rather than hiding beneath it. */
+[id] {
+  scroll-margin-top: calc(var(--header-h) + 1.5rem);
+}
+
+/* ===========================================================================
+ * ATMOSPHERE — the four background layers
+ * ======================================================================== */
+
+/*
+ * LAYER 1 + 3: the drafting grid and the atmospheric pools, on one fixed
+ * element behind every page.
+ *
+ * Pure CSS, fixed position: no JS, no canvas, no image request, and nothing
+ * per-frame. Because it is fixed, it also *is* the hero parallax — content
+ * scrolls over a stationary surface, which is the cheapest correct way to
+ * express spatial depth.
+ */
+.horizon-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--h-canvas);
+}
+
+/* Layer 1 — the graticule. 64px minor module. */
+.horizon-atmosphere::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--h-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--h-grid-line) 1px, transparent 1px),
+    linear-gradient(to right, var(--h-grid-line-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--h-grid-line-major) 1px, transparent 1px);
+  background-size:
+    64px 64px,
+    64px 64px,
+    256px 256px,
+    256px 256px;
+  background-position: center center;
+}
+
+/* Layer 3 — two soft atmospheric pools. The warm one sits high-left where
+   the wordmark lives, so the brand's orange is present in the light of the
+   page itself rather than only in the logo. */
+.horizon-atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse 90% 60% at 72% 8%, var(--h-atmos-cool), transparent 62%),
+    radial-gradient(ellipse 70% 50% at 12% 0%, var(--h-atmos-warm), transparent 58%);
 }
 
 /*
- * The signal pulse — visual-signature element #3 (REDESIGN_SPECIFICATION.md
- * §24.2/§24.8). Applied only to map markers whose station is genuinely
- * `freshness === "live"` right now (see station-network-map.tsx) — this is
- * data wearing motion, not decoration. `prefers-reduced-motion` below
- * already forces 1-iteration/0.01ms on every animation on the page,
- * including this one, collapsing it to the static solid marker.
+ * LAYER 2: the dot field. Hero moments only — never a whole-page texture.
+ * `--dot-fade` keeps it from running into the content below the hero.
+ */
+.horizon-dotfield {
+  position: relative;
+  isolation: isolate;
+}
+/*
+ * The texture bleeds edge-to-edge; the CONTENT does not.
+ *
+ * Nesting a padded measure inside `.full-bleed` put hero content 8px off the
+ * page grid (measured: hero h1 at x=32 while every other section started at
+ * x=40) — `.full-bleed` is 100vw, which includes the scrollbar gutter, so it
+ * overhangs the visible content box by half a scrollbar on each side and
+ * drags its children with it.
+ *
+ * Bleeding only the pseudo-element fixes that at the source: the section
+ * itself stays in normal flow on the same measure as every other section, so
+ * the headline aligns with the wordmark and the footer, while the dot field
+ * still runs to both edges.
+ */
+.horizon-dotfield::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline: calc(50% - 50vw);
+  z-index: -1;
+  background-image: radial-gradient(circle, var(--h-dot-ink) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 100%);
+}
+
+/*
+ * Hero parallax. The dot field scrolls at a different rate from both the
+ * fixed atmosphere behind it and the content in front, which is what makes
+ * depth legible within the first scroll gesture rather than after three.
+ *
+ * `background-attachment: fixed` is the entire implementation — composited,
+ * so there is no scroll listener and no per-frame JavaScript. Scoped away
+ * from touch (iOS does not composite fixed backgrounds cleanly) and from
+ * reduced-motion, where parallax is exactly the vestibular trigger the
+ * setting exists for.
+ */
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .horizon-dotfield::before {
+    background-attachment: fixed;
+  }
+}
+
+/* A hairline brand rule — the green→orange sweep of the mark, used to open
+   major sections. One deliberate brand gesture, not a decoration. */
+.brand-rule {
+  height: 2px;
+  width: 2.5rem;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--h-brand-green), var(--h-brand-orange));
+}
+
+.panel-surface {
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  background: linear-gradient(180deg, var(--h-atmos-cool) 0%, var(--h-surface) 100%);
+}
+
+/* ===========================================================================
+ * MOTION
+ * ======================================================================== */
+
+/*
+ * Scroll reveal. Groups, not elements: a section's eyebrow, headline, body
+ * and visual arrive as one gesture with a small stagger, which communicates
+ * hierarchy. Staggering every element instead would just look busy.
+ *
+ * The hidden state is scoped to `.js .horizon-reveal` and `.js` is set by
+ * the component on mount — so a reader without JS (or one where hydration
+ * fails) sees content rather than a permanently blank page.
+ */
+.js .horizon-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+}
+.horizon-reveal {
+  transition:
+    opacity var(--motion-reveal) var(--ease-brand),
+    transform var(--motion-reveal) var(--ease-brand);
+}
+.js .horizon-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Grouped stagger. Applied by Reveal to its own direct children when
+   `stagger` is set — 70ms apart, four steps, then everything after arrives
+   together so a long section never turns into a slow cascade. */
+.js .horizon-reveal[data-stagger] > * {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity var(--motion-reveal) var(--ease-brand),
+    transform var(--motion-reveal) var(--ease-brand);
+}
+.js .horizon-reveal[data-stagger].is-visible > * {
+  opacity: 1;
+  transform: none;
+}
+.js .horizon-reveal[data-stagger].is-visible > *:nth-child(1) {
+  transition-delay: 0ms;
+}
+.js .horizon-reveal[data-stagger].is-visible > *:nth-child(2) {
+  transition-delay: 70ms;
+}
+.js .horizon-reveal[data-stagger].is-visible > *:nth-child(3) {
+  transition-delay: 140ms;
+}
+.js .horizon-reveal[data-stagger].is-visible > *:nth-child(n + 4) {
+  transition-delay: 210ms;
+}
+
+/* Instrument entrance — Monitoring only. Communicates "data has arrived",
+   so it plays once per mount and never loops. */
+@keyframes horizon-instrument-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.instrument-in {
+  animation: horizon-instrument-in var(--motion-slow) var(--ease-brand) both;
+}
+.instrument-in-1 {
+  animation-delay: 60ms;
+}
+.instrument-in-2 {
+  animation-delay: 130ms;
+}
+.instrument-in-3 {
+  animation-delay: 200ms;
+}
+
+/* Marketing hero entrance — once, on first paint. */
+@keyframes horizon-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-entrance {
+  animation: horizon-entrance var(--motion-slow) var(--ease-brand) both;
+}
+
+/*
+ * The signal pulse — applied only to map markers whose station is genuinely
+ * live right now. Data wearing motion, not decoration.
  */
 .horizon-marker-pulse {
   transform-box: fill-box;
   transform-origin: center;
   animation: horizon-pulse 2s var(--ease-standard) infinite;
 }
-
 @keyframes horizon-pulse {
   0% {
     transform: scale(0.9);
@@ -164,123 +692,63 @@
   }
 }
 
-/*
- * Nav active-indicator (R19 §1). The public header/mobile nav remounts on
- * every route change (PublicShell isn't a persisted layout segment), so a
- * plain `transition-colors` on the link never actually plays — there's no
- * surviving DOM node to transition from. This fades in just the background
- * wash on mount instead; text color stays instant/legible throughout, per
- * the "color transition remains, not motion" hover rule.
- */
+/* Nav active indicator. The header remounts on every route change, so a
+   plain transition never plays — there is no surviving node to animate
+   from. This fades the mark in on mount instead. */
 @keyframes horizon-nav-in {
   from {
     opacity: 0;
+    transform: scaleX(0.4);
   }
 }
-.nav-link-active {
-  position: relative;
-}
-.nav-link-active::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background-color: var(--color-accent);
-  opacity: 0.1;
-  animation: horizon-nav-in var(--motion-fast) var(--ease-standard);
+.nav-underline {
+  animation: horizon-nav-in var(--motion-medium) var(--ease-brand);
 }
 
 /*
- * Marketing-page hero entrance (R19 §4, REDESIGN_SPECIFICATION.md §24.8's
- * Entrance row) — once, on first paint, hero/brand moments only (`/`,
- * `/about`). Never on tool-register pages.
+ * Bento tile hover. Border accent + lift + wash together, so the response is
+ * unmistakably "this is interactive" rather than a colour twitch. Pointer-
+ * device only, so it never sticks on touch.
  */
-@keyframes horizon-entrance {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.animate-entrance {
-  animation: horizon-entrance var(--motion-medium) var(--ease-standard) both;
-}
-
-/*
- * Atmospheric dot field — the homepage hero's background surface.
- *
- * Pure CSS: one repeating radial-gradient for the matrix, one large soft
- * radial for depth. No canvas, no particle loop, no JS — so it costs nothing
- * per frame and cannot become "constant animation". The dot is deliberately
- * small and low-contrast: this should read as a spatial measurement surface
- * sitting behind the type, never as a decorative tech-startup backdrop. If
- * you can notice the dots before you notice the headline, it is too strong.
- *
- * `--dot-fade` controls how far down the field survives before dissolving,
- * so the texture never runs into the content below the hero.
- */
-.horizon-dotfield {
-  position: relative;
-  isolation: isolate;
-}
-.horizon-dotfield::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image:
-    radial-gradient(circle, rgba(15, 23, 42, 0.13) 1px, transparent 1px),
-    radial-gradient(ellipse 70% 60% at 62% 32%, rgba(14, 95, 138, 0.07), transparent 70%);
-  background-size:
-    26px 26px,
-    auto;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
-}
-
-/*
- * Scroll-reveal for editorial sections. The `is-visible` class is applied by
- * an IntersectionObserver (components/home/reveal.tsx) — one transition per
- * section on first entry, never re-run, never per-frame.
- *
- * The hidden state is scoped to `.js .horizon-reveal`, and `.js` is set on
- * <html> by the component itself on mount. That ordering matters: if the
- * hidden state lived on the bare class, a reader without JS (or one where
- * hydration fails) would be left with a permanently blank page, since
- * nothing would ever add `is-visible`. This way the server-rendered markup
- * is visible by default and only becomes animatable once JS is definitely
- * running.
- */
-.js .horizon-reveal {
-  opacity: 0;
-  transform: translateY(14px);
-}
-.horizon-reveal {
+.bento-tile {
   transition:
-    opacity var(--motion-slow) var(--ease-standard),
-    transform var(--motion-slow) var(--ease-standard);
+    border-color var(--motion-base) var(--ease-standard),
+    background-color var(--motion-base) var(--ease-standard),
+    transform var(--motion-base) var(--ease-brand),
+    box-shadow var(--motion-base) var(--ease-standard);
 }
-.js .horizon-reveal.is-visible {
-  opacity: 1;
-  transform: none;
+@media (hover: hover) and (pointer: fine) {
+  .bento-tile:hover {
+    border-color: var(--h-border-accent);
+    background-color: var(--h-wash-hover);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-sm);
+  }
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .js .horizon-reveal {
+  .js .horizon-reveal,
+  .js .horizon-reveal[data-stagger] > * {
     opacity: 1;
     transform: none;
   }
+  .bento-tile:hover {
+    transform: none;
+  }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-/*
- * Article body styling for rendered Markdown (lib/content/markdown.ts).
- * Scoped to .prose-horizon rather than added as a Tailwind plugin — the
- * renderer emits a small, known set of tags, so a handful of rules covers
- * it without pulling in @tailwindcss/typography.
- */
+/* ===========================================================================
+ * ARTICLE BODY
+ * ======================================================================== */
+
 .prose-horizon > * + * {
   margin-top: 1.5rem;
 }
@@ -288,12 +756,12 @@
 .prose-horizon li {
   font-size: 1.0625rem;
   line-height: 1.75;
-  color: var(--color-muted);
+  color: var(--h-foreground-muted);
 }
 .prose-horizon h2,
 .prose-horizon h3,
 .prose-horizon h4 {
-  color: var(--color-foreground);
+  color: var(--h-foreground);
   font-weight: 600;
   letter-spacing: -0.01em;
   margin-top: 2.75rem;
@@ -308,7 +776,7 @@
   font-size: 1.0625rem;
 }
 .prose-horizon strong {
-  color: var(--color-foreground);
+  color: var(--h-foreground);
   font-weight: 600;
 }
 .prose-horizon ul,
@@ -325,79 +793,65 @@
   margin-top: 0.5rem;
 }
 
-/*
- * Full-bleed breakout (FRONTEND_REBUILD_SPECIFICATION.md §12). Formalizes
- * the pattern first used ad hoc for the homepage's closing CTA band — one
- * named utility instead of repeating the calc every time. Escapes any
- * max-width ancestor regardless of nesting depth; caller still needs its
- * own inner max-width wrapper for the content that sits inside it.
- * Budget: at most one full-bleed element per viewport height (§12).
- */
-.full-bleed {
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
-}
+/* ===========================================================================
+ * BASE
+ * ======================================================================== */
 
 /*
- * Silent header scroll-compress (R2). Two heights, one CSS transition;
- * the .is-compressed class is toggled by a small client-side scroll
- * listener (see components/layout/header-scroll.tsx) — the animation
- * itself is pure CSS, no motion library involved.
+ * These resets MUST stay inside `@layer base`. `@import "tailwindcss"`
+ * declares `@layer theme, base, components, utilities`, and an unlayered
+ * rule outranks every layered rule regardless of specificity — when
+ * `a { color: inherit }` sat unlayered it beat `.text-background` and every
+ * other text-colour utility on anchors, rendering filled buttons at 2.33:1.
  */
-.silent-header {
-  height: 88px;
-  transition: height var(--motion-base) var(--ease-standard);
-}
-.silent-header.is-compressed {
-  height: 64px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  ::before,
-  ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+@layer base {
+  * {
+    box-sizing: border-box;
   }
-}
 
-* {
-  box-sizing: border-box;
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--h-brand-blue);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--h-selection);
+  }
 }
 
 html,
 body {
   margin: 0;
   min-height: 100%;
-  /* .full-bleed uses 100vw, which includes the scrollbar gutter on desktop
-     browsers while the containing block's clientWidth does not — the
-     centering math overshoots by the gutter width. Clipping here is the
-     standard fix: it doesn't touch the (otherwise correct) full-bleed
-     algebra, it just prevents that sub-pixel/gutter overshoot from ever
-     becoming an actual horizontal scrollbar. */
-  overflow-x: hidden;
-  background: var(--color-background);
-  color: var(--color-foreground);
+  /*
+   * `clip`, NOT `hidden`. `overflow-x: hidden` forces the other axis to
+   * `auto`, making <html> a scroll container — and a scroll-container
+   * ancestor silently disables `position: sticky` on everything inside it,
+   * which is what made the header scroll away instead of sticking.
+   * `clip` clips the .full-bleed 100vw overshoot identically but creates no
+   * scroll container.
+   */
+  overflow-x: clip;
+  background: var(--h-canvas);
+  color: var(--h-foreground);
   font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  color-scheme: light;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-::selection {
-  background: rgba(22, 101, 52, 0.16);
+/* Theme transition — colour only, never transform or layout, so flipping
+   the toggle reads as the canvas changing rather than the page re-animating. */
+body,
+header,
+footer,
+main {
+  transition:
+    background-color var(--motion-medium) var(--ease-standard),
+    border-color var(--motion-medium) var(--ease-standard),
+    color var(--motion-medium) var(--ease-standard);
 }
