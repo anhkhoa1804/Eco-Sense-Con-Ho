@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Wordmark } from "@/components/ui/wordmark";
+import { useDict } from "@/lib/i18n/client";
 import { PRIMARY_NAV_LINKS } from "@/lib/publicNav";
 
 /**
@@ -16,6 +19,8 @@ import { PRIMARY_NAV_LINKS } from "@/lib/publicNav";
  * data-honesty rule the product is built around.
  */
 export function Footer() {
+  const dict = useDict();
+
   return (
     // pb-24 clears the fixed mobile bottom nav so the footer's tail is never
     // hidden behind it — md:pb-0 because that nav is md:hidden.
@@ -26,10 +31,10 @@ export function Footer() {
             <div className="flex items-center gap-4">
               <Wordmark markSize="compact" />
               <span className="h-6 w-px bg-border" aria-hidden />
-              <p className="text-sm text-foreground-muted">Cồn Hô · Vĩnh Long</p>
+              <p className="text-sm text-foreground-muted">{dict.footer.place}</p>
             </div>
 
-            <nav aria-label="Điều hướng chân trang">
+            <nav aria-label={dict.nav.footerLabel}>
               <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
                 {PRIMARY_NAV_LINKS.map((link) => (
                   <li key={link.href}>
@@ -37,7 +42,7 @@ export function Footer() {
                       href={link.href}
                       className="text-foreground-subtle transition-colors duration-[var(--motion-base)] hover:text-foreground"
                     >
-                      {link.label}
+                      {dict.nav[link.key]}
                     </Link>
                   </li>
                 ))}
@@ -46,8 +51,8 @@ export function Footer() {
           </div>
 
           <div className="mt-6 flex flex-col gap-1.5 pb-8 text-[11px] text-foreground-subtle sm:flex-row sm:items-center sm:justify-between">
-            <p>Dữ liệu bản đồ © OpenStreetMap contributors, nền bản đồ © CARTO.</p>
-            <p className="[font-family:var(--font-data)]">© Magnus</p>
+            <p>{dict.footer.mapAttribution}</p>
+            <p className="[font-family:var(--font-data)]">{dict.footer.copyright}</p>
           </div>
         </div>
       </div>

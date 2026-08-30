@@ -1,4 +1,5 @@
 import type { ObservatoryReferenceItem } from "./types";
+import type { Dictionary } from "@/lib/i18n/vi";
 
 /**
  * Reference guidance shown on Monitoring.
@@ -23,18 +24,19 @@ const FAO_URL = "https://www.fao.org/4/t0234e/t0234e01.htm";
 
 export function buildReference(
   threshold: { warningLevel: number; criticalLevel: number } | null,
+  dict: Dictionary,
 ): ObservatoryReferenceItem[] {
+  const r = dict.reference;
   const items: ObservatoryReferenceItem[] = [
     {
-      title: "Độ mặn nước tưới — hướng dẫn quốc tế",
+      title: r.faoTitle,
       standing: "external",
       rows: [
-        { range: "< 0,7 dS/m", meaning: "Không hạn chế sử dụng" },
-        { range: "0,7 – 3,0 dS/m", meaning: "Hạn chế nhẹ đến trung bình" },
-        { range: "> 3,0 dS/m", meaning: "Hạn chế nghiêm trọng" },
+        { range: "< 0,7 dS/m", meaning: r.faoNoRestriction },
+        { range: "0,7 – 3,0 dS/m", meaning: r.faoSlight },
+        { range: "> 3,0 dS/m", meaning: r.faoSevere },
       ],
-      detail:
-        "Ngưỡng của FAO tính theo độ dẫn điện của nước tưới (dS/m). HORIZON hiển thị độ mặn theo ‰ — quy đổi giữa hai đơn vị phụ thuộc thành phần ion của từng nguồn nước, nên bảng này là ngữ cảnh tham chiếu, không phải ngưỡng áp trực tiếp lên số đo của trạm.",
+      detail: r.faoDetail,
       sourceLabel: FAO_SOURCE,
       sourceUrl: FAO_URL,
     },
@@ -44,35 +46,32 @@ export function buildReference(
     // A threshold configured in crop_thresholds is a real operational
     // setting, but it is the project's own choice — not an external standard.
     items.push({
-      title: "Ngưỡng cảnh báo đang dùng",
+      title: r.configuredTitle,
       standing: "internal",
       rows: [
-        { range: `≥ ${threshold.warningLevel.toFixed(2)}‰`, meaning: "Cần chú ý" },
-        { range: `≥ ${threshold.criticalLevel.toFixed(2)}‰`, meaning: "Nguy cơ cao" },
+        { range: `≥ ${threshold.warningLevel.toFixed(2)}‰`, meaning: r.configuredWatch },
+        { range: `≥ ${threshold.criticalLevel.toFixed(2)}‰`, meaning: r.configuredRisk },
       ],
-      detail:
-        "Giá trị do dự án cấu hình để sinh cảnh báo. Đây là lựa chọn vận hành của HORIZON, chưa được đối chiếu với một nguồn khoa học độc lập.",
-      sourceLabel: "Cấu hình hệ thống HORIZON",
+      detail: r.configuredDetail,
+      sourceLabel: r.configuredSource,
       sourceUrl: null,
     });
   } else {
     items.push({
-      title: "Ngưỡng cảnh báo độ mặn",
+      title: r.unconfiguredTitle,
       standing: "unverified",
       rows: [],
-      detail:
-        "Chưa có ngưỡng cảnh báo nào được cấu hình trong hệ thống. Các con số từng xuất hiện trong ghi chú kỹ thuật nội bộ chưa đủ cơ sở để hiển thị như một khuyến nghị, nên không được nêu ở đây.",
+      detail: r.unconfiguredDetail,
       sourceLabel: null,
       sourceUrl: null,
     });
   }
 
   items.push({
-    title: "Đất và dinh dưỡng",
+    title: r.soilTitle,
     standing: "unverified",
     rows: [],
-    detail:
-      "HORIZON đo được độ ẩm, EC, pH và nhiệt độ đất. Việc diễn giải các giá trị này thành khuyến nghị canh tác phụ thuộc loại cây, loại đất và mùa vụ — dự án chưa xác lập được ngưỡng tham chiếu có nguồn cho bối cảnh Cồn Hô, nên chưa công bố con số nào.",
+    detail: r.soilDetail,
     sourceLabel: null,
     sourceUrl: null,
   });

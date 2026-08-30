@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getI18n } from "@/lib/i18n/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Bell, ShieldCheck, Trash2, UserPlus } from "lucide-react";
@@ -418,6 +419,7 @@ export default async function AdminPage({
 }) {
   const params = searchParams ? await searchParams : {};
   const { profile, scope } = await requireAdmin();
+  const { dict } = await getI18n();
 
   const supabase = createServiceClient();
   const repos = supabase ? createRepositories(supabase) : null;
@@ -705,6 +707,7 @@ export default async function AdminPage({
                   </div>
                   <StatusIndicator
                     status={freshnessStatus(snapshot.reading?.timestamp ?? snapshot.health?.timestamp ?? null)}
+                    dict={dict}
                     compact
                   />
                 </li>

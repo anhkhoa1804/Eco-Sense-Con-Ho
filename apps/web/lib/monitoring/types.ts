@@ -13,15 +13,58 @@ import type { StationKind } from "@/lib/stationProfile";
  * forget to check.
  */
 
+/**
+ * Stable identifier for a measurement label, so the UI can render it in the
+ * reader's language.
+ *
+ * These are deliberately CONTEXTUAL short forms — "temperature", not "soil
+ * temperature" — because the metric-first canvas always renders them beneath
+ * a domain heading that supplies the missing word. Repeating "soil" on every
+ * reading inside a group already labelled "Soil" is noise in both languages.
+ * A caller rendering a metric outside its group should fall back to `label`,
+ * which keeps the fully-qualified wording.
+ */
+export type MetricLabelKey =
+  | "salinity"
+  | "waterLevel"
+  | "moisture"
+  | "ec"
+  | "ph"
+  | "temperature"
+  | "humidity"
+  | "signal"
+  | "battery"
+  /* Regional context, supplied by the external weather adapter rather than
+     by a HORIZON sensor. They are ordinary label keys because the canvas
+     renders them with the same cell component; what marks them as external
+     is their provenance, never their label. */
+  | "wind"
+  | "precipitation";
+
 export interface ObservatoryMetric {
+  /** Fully-qualified Vietnamese label. The fallback when no `labelKey` is set. */
   label: string;
+  /** Preferred for display — resolved through the dictionary so it translates. */
+  labelKey?: MetricLabelKey;
   value: string | null;
   unit?: string;
   provenance: DataProvenance;
 }
 
+/**
+ * Which physical domain a group of readings belongs to.
+ *
+ * A stable key, not the display label: the metric-first canvas groups
+ * readings across stations by domain (all water readings together, all soil
+ * readings together), and doing that by matching the Vietnamese strings
+ * "Đất"/"Không khí" would break the moment the interface rendered in English.
+ * The label is now derived from this key through the dictionary.
+ */
+export type MetricDomain = "water" | "soil" | "air";
+
 export interface ObservatoryEnvironmentGroup {
-  /** "Đất" | "Không khí" | "Nước" — only groups structurally relevant to the station's kind are ever present. */
+  domain: MetricDomain;
+  /** Display label. Kept for callers that render a group standalone; prefer deriving from `domain`. */
   label: string;
   metrics: ObservatoryMetric[];
 }
@@ -105,7 +148,17 @@ export interface ObservatoryAlert {
   id: string;
   stationName: string;
   severity: "info" | "warning" | "critical";
+  /**
+   * Raw fallback, shown only when the event type has no dictionary entry —
+   * an unmapped code is more useful to an operator than an invented phrase.
+   */
   title: string;
+  /**
+   * Preferred for display, resolved through the dictionary at render time.
+   * Same pattern as ObservatoryMetric.labelKey, and for the same reason: the
+   * view model is built once on the server and must not bake in a language.
+   */
+  titleKey?: "highSalinity" | "sensorFault" | "lowBattery" | "offline";
   message: string;
   timestamp: string;
   provenance: DataProvenance;
@@ -143,6 +196,17 @@ export interface ObservatoryNetworkState {
 
 export interface ObservatoryViewModel {
   mode: "real" | "demo";
+  /**
+   * The project's configured salinity warning/critical levels, or null when
+   * no crop row is configured.
+   *
+   * Carried on the model rather than re-derived in the UI because it is the
+   * ONLY basis this system has for colouring an environmental reading. A
+   * component that guessed a band would be inventing a claim; a null here
+   * means the canvas renders that metric neutral, which is the truthful
+   * result when nothing has been configured.
+   */
+  salinityThreshold: { warningLevel: number; criticalLevel: number } | null;
   network: ObservatoryNetworkState;
   stations: ObservatoryStation[];
   /** Precomputed for every range so switching is instant and refetch-free. */

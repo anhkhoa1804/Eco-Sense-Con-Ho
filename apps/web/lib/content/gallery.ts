@@ -7,7 +7,7 @@ import { parseFrontmatter } from "./frontmatter";
 
 /**
  * Gallery manifest — one Markdown file per image in apps/web/content/gallery/,
- * so adding an image means dropping a file in `public/images/gallery/` and a
+ * so adding an image means dropping a file in `public/assets/gallery/` and a
  * short `.md` beside it, with no React changes.
  *
  * `status` is load-bearing, not decorative: the UI renders a visible marker

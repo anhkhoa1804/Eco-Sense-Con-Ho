@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
@@ -37,6 +37,17 @@ function apiKeyKind(value) {
 
 const env = { ...loadLocalEnv(), ...process.env };
 const databaseUrl = env.DATABASE_URL ?? env.DATABASE_POOLER_URL;
+
+/** Migration filenames on disk, used to report what `db:migrate` would apply. */
+const MIGRATION_FILES = (() => {
+  try {
+    return readdirSync(path.join(__dirname, "migrations"))
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+  } catch {
+    return [];
+  }
+})();
 
 const required = [
   "SUPABASE_URL",
@@ -97,6 +108,59 @@ if (databaseUrl) {
       "select count(*)::int as count from public.schema_migrations",
     ).catch(() => ({ rows: [{ count: 0 }] }));
     console.log(`OK      schema_migrations: ${migRows[0]?.count ?? 0} recorded`);
+
+    // Pending migrations, so a release can see what `db:migrate` would do
+    // before it does it.
+    try {
+      const { rows: pending } = await client.query(
+        `select v from unnest($1::text[]) as v
+          where v not in (select version from public.schema_migrations)`,
+        [MIGRATION_FILES],
+      );
+      if (pending.length === 0) {
+        console.log("OK      All migrations applied");
+      } else {
+        console.log(`INFO    ${pending.length} migration(s) pending: ${pending.map((r) => r.v).join(", ")}`);
+      }
+    } catch {
+      console.log("WARN    Could not determine pending migrations");
+    }
+
+    /*
+     * Device secrets are the HMAC keys that authenticate telemetry
+     * (services/edge-ingestion/src/canonical.ts). The pilot seed ships
+     * placeholder values so a fresh clone can run the ingestion path, and
+     * those values are committed to the repository — i.e. public. A database
+     * still holding them will accept forged readings from anyone who can read
+     * the repo, which is precisely the fabricated-data failure this project
+     * exists to avoid.
+     *
+     * Compared by digest so nothing is printed and nothing is logged.
+     */
+    try {
+      const { rows: weak } = await client.query(
+        `select device_id from public.devices
+          where device_secret in (
+            'gateway-secret-01','station-secret-01','station-secret-02',
+            'station-secret-03','station-secret-04','station-secret-05'
+          )
+          order by device_id`,
+      );
+      if (weak.length === 0) {
+        console.log("OK      Device secrets rotated (no repo placeholders in use)");
+      } else {
+        console.log(
+          `FAIL    ${weak.length} device(s) still use the PUBLIC placeholder secret: ${weak
+            .map((r) => r.device_id)
+            .join(", ")}`,
+        );
+        console.log("        These are committed in infra/supabase/seed/pilot_seed.sql and are public.");
+        console.log("        Rotate before exposing the ingestion endpoint — see docs/PRODUCTION_READINESS.md.");
+        ok = false;
+      }
+    } catch (error) {
+      console.log(`WARN    Could not check device secrets: ${error instanceof Error ? error.message : error}`);
+    }
   } catch (error) {
     console.log(`FAIL    Database connection: ${error instanceof Error ? error.message : error}`);
     if (databaseUrl.includes("db.") && databaseUrl.includes(".supabase.co:5432")) {

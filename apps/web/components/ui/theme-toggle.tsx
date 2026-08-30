@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDict } from "@/lib/i18n/client";
 import { applyTheme, resolveTheme, THEME_ATTRIBUTE, type ResolvedTheme } from "@/lib/theme";
 
 /**
@@ -21,6 +22,7 @@ import { applyTheme, resolveTheme, THEME_ATTRIBUTE, type ResolvedTheme } from "@
  * displayed, which is the intended precedence.
  */
 export function ThemeToggle({ className }: { className?: string }) {
+  const dict = useDict();
   const [theme, setTheme] = useState<ResolvedTheme | null>(null);
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   }
 
   const next: ResolvedTheme = theme === "dark" ? "light" : "dark";
-  const label = next === "dark" ? "Chuyển sang giao diện tối" : "Chuyển sang giao diện sáng";
+  const label = next === "dark" ? dict.controls.toDark : dict.controls.toLight;
   const Icon = theme === "dark" ? Sun : Moon;
 
   return (

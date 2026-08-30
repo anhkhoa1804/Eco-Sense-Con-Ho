@@ -4,6 +4,7 @@ import type {
 } from "@/components/stations/station-live-chart";
 import type { QualityState } from "@/components/ui/status-indicator";
 import type { EnvironmentalReading, SensorStatus, SoilReading, Station, TrendPoint } from "@/types";
+import type { Dictionary } from "@/lib/i18n/vi";
 
 /**
  * Pure station-profile/formatting logic, deliberately kept free of any
@@ -69,15 +70,15 @@ export const stationProfiles: Record<string, StationProfile> = {
   },
 };
 
-export function stationStatusLabel(status?: string): string {
+export function stationStatusLabel(status: string | undefined, dict: Dictionary): string {
   switch (status) {
     case "active":
-      return "Đang hoạt động";
+      return dict.stationProfiles.statusActive;
     case "maintenance":
-      return "Bảo trì";
+      return dict.stationProfiles.statusMaintenance;
     case "offline":
     case "inactive":
-      return "Ngoại tuyến";
+      return dict.stationProfiles.statusOffline;
     default:
       return "Không rõ trạng thái";
   }
@@ -216,4 +217,30 @@ export function qualityFor(profile: StationProfile, reading: EnvironmentalReadin
   if (profile.kind !== "water" || !reading) return "valid";
   const hasFault = reading.fault_flags > 0 || reading.ec_probe_status === "fault" || reading.ultrasonic_status === "fault";
   return hasFault ? "error" : "valid";
+}
+
+/**
+ * The reader-facing text for a station, in the reader's language.
+ *
+ * `stationProfiles` above stays the STRUCTURAL source — id, kind, series
+ * keys, colours, units — and its Vietnamese strings remain only as the
+ * fallback for an id the dictionary does not know. Display text comes from
+ * here so that "Trạm 1 - Gần sông" becomes "Station 1 — Riverside" when the
+ * interface is English. Only "Cồn Hô" stays put; it is a place name.
+ */
+export function stationText(
+  id: string,
+  dict: Dictionary,
+): { name: string; location: string; intro: string; chartTitle: string; chartNote: string } {
+  const localized = dict.stationProfiles[id as "STATION_01" | "STATION_02" | "STATION_03"];
+  if (localized) return localized;
+
+  const profile = stationProfiles[id];
+  return {
+    name: profile?.name ?? id,
+    location: profile?.location ?? "",
+    intro: profile?.intro ?? "",
+    chartTitle: profile?.chartTitle ?? "",
+    chartNote: profile?.chartNote ?? "",
+  };
 }

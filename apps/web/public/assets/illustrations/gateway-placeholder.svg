@@ -1,39 +1,39 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" width="800" height="560" role="img" aria-label="Sơ đồ minh họa gateway truyền dữ liệu">
   <defs>
     <pattern id="hwdots3" width="20" height="20" patternUnits="userSpaceOnUse">
-      <circle cx="1.5" cy="1.5" r="1" fill="rgba(15,23,42,0.09)" />
+      <circle cx="1.5" cy="1.5" r="1" fill="rgba(19,29,27,0.09)" />
     </pattern>
   </defs>
-  <rect width="800" height="560" fill="#f2f1ec" />
+  <rect width="800" height="560" fill="#f0ece1" />
   <rect width="800" height="560" fill="url(#hwdots3)" />
 
   <!-- mast -->
-  <rect x="394" y="150" width="10" height="270" fill="rgba(15,23,42,0.32)" />
+  <rect x="394" y="150" width="10" height="270" fill="rgba(19,29,27,0.32)" />
   <!-- enclosure -->
-  <rect x="326" y="250" width="146" height="104" rx="8" fill="#fbfaf7" stroke="#0e5f8a" stroke-opacity="0.45" stroke-width="2.5" />
-  <text x="399" y="292" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="15" fill="rgba(15,23,42,0.55)">ESP32</text>
-  <text x="399" y="316" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(15,23,42,0.38)">GATEWAY</text>
-  <text x="399" y="338" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(15,23,42,0.32)">SIM · SX1278</text>
+  <rect x="326" y="250" width="146" height="104" rx="8" fill="#fffdf8" stroke="#0c5f7d" stroke-opacity="0.45" stroke-width="2.5" />
+  <text x="399" y="292" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="15" fill="rgba(19,29,27,0.55)">ESP32</text>
+  <text x="399" y="316" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(19,29,27,0.38)">GATEWAY</text>
+  <text x="399" y="338" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(19,29,27,0.32)">SIM · SX1278</text>
 
   <!-- antenna -->
-  <line x1="399" y1="150" x2="399" y2="106" stroke="rgba(15,23,42,0.40)" stroke-width="3" />
-  <circle cx="399" cy="100" r="7" fill="#0e5f8a" fill-opacity="0.45" />
+  <line x1="399" y1="150" x2="399" y2="106" stroke="rgba(19,29,27,0.40)" stroke-width="3" />
+  <circle cx="399" cy="100" r="7" fill="#0c5f7d" fill-opacity="0.45" />
 
   <!-- uplink arcs -->
-  <g stroke="#0e5f8a" stroke-opacity="0.28" stroke-width="2" fill="none">
+  <g stroke="#0c5f7d" stroke-opacity="0.28" stroke-width="2" fill="none">
     <path d="M340 120 Q399 60 458 120" />
     <path d="M306 146 Q399 26 492 146" />
   </g>
 
   <!-- inbound LoRa from two stations -->
-  <g stroke="#1c7c42" stroke-opacity="0.40" stroke-width="2" stroke-dasharray="7 7">
+  <g stroke="#197a3f" stroke-opacity="0.40" stroke-width="2" stroke-dasharray="7 7">
     <line x1="120" y1="300" x2="322" y2="300" />
     <line x1="678" y1="300" x2="476" y2="300" />
   </g>
-  <text x="60" y="284" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(15,23,42,0.45)">TRẠM 1</text>
-  <text x="640" y="284" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(15,23,42,0.45)">TRẠM 2</text>
-  <text x="132" y="322" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(15,23,42,0.32)">LoRa</text>
-  <text x="612" y="322" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(15,23,42,0.32)">LoRa</text>
+  <text x="60" y="284" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(19,29,27,0.45)">TRẠM 1</text>
+  <text x="640" y="284" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(19,29,27,0.45)">TRẠM 2</text>
+  <text x="132" y="322" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(19,29,27,0.32)">LoRa</text>
+  <text x="612" y="322" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(19,29,27,0.32)">LoRa</text>
 
-  <text x="32" y="524" font-family="ui-monospace, Menlo, monospace" font-size="16" letter-spacing="3" fill="rgba(15,23,42,0.40)">SƠ ĐỒ MINH HỌA · PLACEHOLDER</text>
+  <text x="32" y="524" font-family="ui-monospace, Menlo, monospace" font-size="16" letter-spacing="3" fill="rgba(19,29,27,0.40)">SƠ ĐỒ MINH HỌA · PLACEHOLDER</text>
 </svg>

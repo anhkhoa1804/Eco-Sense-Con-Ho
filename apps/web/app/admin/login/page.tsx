@@ -1,15 +1,19 @@
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { LoginForm } from "@/components/auth/login-form";
 import { SiteHeader } from "@/components/layout/site-header";
+import { getI18n } from "@/lib/i18n/server";
+import type { Dictionary } from "@/lib/i18n/vi";
 
-function errorMessage(error?: string): string | null {
+function errorMessage(error: string | undefined, dict: Dictionary): string | null {
   switch (error) {
     case "unauthorized":
-      return "Email này chưa nằm trong danh sách được phép quản trị.";
+      return dict.errors.loginNotAllowed;
     case "bad-password":
-      return "Mật khẩu quản trị chưa đúng.";
+      return dict.errors.loginBadPassword;
     case "rate-limited":
-      return "Đã thử sai quá nhiều lần. Vui lòng chờ ít phút rồi thử lại.";
+      return dict.errors.loginRateLimited;
+    case "not-configured":
+      return dict.errors.loginNotConfigured;
     default:
       return null;
   }
@@ -22,12 +26,18 @@ export default async function AdminLoginPage({
 }) {
   const params = await searchParams;
   const redirectTo = params.redirect ?? "/admin";
-  const message = errorMessage(params.error);
+  const { dict } = await getI18n();
+  const message = errorMessage(params.error, dict);
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <SiteHeader register="admin" />
-      <main className="flex min-h-[calc(100dvh-88px)] flex-col items-center justify-center px-4 py-10">
+      {/* var(--header-h), not a hardcoded pixel figure: the header's resting
+          height is fluid (--header-h scales 6.25rem/7rem/7.5rem across
+          breakpoints and shrinks further once scrolled), so a fixed "88px"
+          left over from the pre-rebrand header under- or over-shot the real
+          offset depending on viewport. */}
+      <main className="flex min-h-[calc(100dvh-var(--header-h))] flex-col items-center justify-center px-4 py-10">
         <div className="w-full max-w-md space-y-4">
           {message ? (
             <div className="flex flex-col items-center gap-3 text-center">

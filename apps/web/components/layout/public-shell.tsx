@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Footer } from "@/components/layout/footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { useDict } from "@/lib/i18n/client";
 import { isPublicNavActive, PRIMARY_NAV_LINKS } from "@/lib/publicNav";
 
 export function PublicShell({
@@ -11,6 +14,8 @@ export function PublicShell({
   children: React.ReactNode;
   activePath?: string;
 }) {
+  const dict = useDict();
+
   return (
     // No background of its own: the drafting-grid canvas painted in
     // RootLayout sits behind every page, and giving the shell an opaque
@@ -27,11 +32,11 @@ export function PublicShell({
       <Footer />
 
       <nav
-        aria-label="Điều hướng di động"
+        aria-label={dict.nav.mobileLabel}
         className="fixed inset-x-0 bottom-0 z-[var(--z-drawer)] border-t border-border bg-canvas/85 backdrop-blur md:hidden"
       >
         <ul className="mx-auto flex max-w-lg items-center justify-around px-1 py-2">
-          {PRIMARY_NAV_LINKS.map(({ href, label, icon: Icon }) => {
+          {PRIMARY_NAV_LINKS.map(({ href, key, icon: Icon }) => {
             const active = href === "/admin" ? false : isPublicNavActive(href, activePath);
             return (
               <li key={href}>
@@ -45,7 +50,7 @@ export function PublicShell({
                   )}
                 >
                   <Icon className="h-5 w-5" aria-hidden />
-                  <span className="font-medium">{label}</span>
+                  <span className="font-medium">{dict.nav[key]}</span>
                 </Link>
               </li>
             );

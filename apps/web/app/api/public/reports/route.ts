@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { addDemoReport } from "@/lib/reports/demoReportStore";
 import { classifyInsertError } from "@/lib/reports/reportPersistence";
+import { clientIdentifier, consumeReportQuota } from "@/lib/reports/rateLimit";
+import { logger } from "@/lib/observability/logger";
 import { createServiceClient } from "@/lib/supabase/service";
 
 const CATEGORIES = [
@@ -14,32 +16,6 @@ const CATEGORIES = [
 
 const MIN_DESCRIPTION = 10;
 const MAX_DESCRIPTION = 2000;
-const RATE_WINDOW_MS = 60 * 60 * 1000;
-const RATE_MAX = 5;
-
-const hits = new Map<string, number[]>();
-
-function clientIp(request: Request): string {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const windowStart = now - RATE_WINDOW_MS;
-  const times = (hits.get(ip) ?? []).filter((t) => t > windowStart);
-
-  if (times.length >= RATE_MAX) {
-    return true;
-  }
-
-  times.push(now);
-  hits.set(ip, times);
-  return false;
-}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -71,11 +47,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "description_too_long" }, { status: 400 });
   }
 
-  if (rateLimited(clientIp(request))) {
+  // Created before the throttle check so the durable limiter (which shares
+  // this client) is consulted rather than the per-instance fallback.
+  const supabase = createServiceClient();
+
+  const quota = await consumeReportQuota(supabase, clientIdentifier(request));
+  if (quota.limited) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
+  if (quota.backend === "memory" && supabase) {
+    // Supabase is configured but the durable counter did not answer — almost
+    // always migration 021 not applied. Worth a log line: throttling is
+    // running per-instance and is therefore bypassable.
+    logger.warn("reports.rate_limit_degraded", {
+      reason: "durable limiter unavailable; using per-instance fallback",
+    });
+  }
 
-  const supabase = createServiceClient();
   let reportLat = typeof lat === "number" ? lat : null;
   let reportLng = typeof lng === "number" ? lng : null;
 
@@ -164,7 +152,9 @@ export async function POST(request: Request) {
       });
     }
 
-    console.error("[reports] Insert failed:", error.message);
+    // Message only, never the error object: a Postgres error can carry the
+    // failing statement and its parameters, i.e. the reporter's own text.
+    logger.error("reports.insert_failed", { message: error.message, code: error.code });
     return NextResponse.json({ ok: false, error: "insert_failed" }, { status: 502 });
   }
 

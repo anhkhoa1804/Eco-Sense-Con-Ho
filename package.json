@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "description": "Eco-Sense Con Ho monorepo scaffold",
+  "engines": {
+    "node": ">=22.0.0 <25"
+  },
   "workspaces": [
     "apps/*",
     "services/*",

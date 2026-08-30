@@ -1,17 +1,19 @@
 import Link from "next/link";
+import { getI18n } from "@/lib/i18n/server";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const { dict } = await getI18n();
   return (
     <PublicShell>
       <EmptyState
-        title="Không tìm thấy trang này"
-        description="Đường dẫn không tồn tại hoặc trạm quan trắc đã được đổi mã. Quay lại bảng quan trắc để xem danh sách trạm hiện có."
+        title={dict.errors.notFoundTitle}
+        description={dict.errors.notFoundBody}
         cta={
           <Button asChild>
-            <Link href="/dashboard">Về bảng quan trắc</Link>
+            <Link href="/dashboard">{dict.station.backToMonitoring}</Link>
           </Button>
         }
       />

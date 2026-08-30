@@ -1,7 +1,12 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import type { AppSupabase } from "@/lib/repositories/base";
-import { isLikelySupabasePublicKey, isValidHttpUrl } from "@/lib/supabase/env";
+import {
+  isLikelySupabasePublicKey,
+  isValidHttpUrl,
+  supabaseAnonKey,
+  supabaseUrl,
+} from "@/lib/supabase/env";
 
 /**
  * Anon-key client for server-side reads that don't need an authenticated
@@ -14,11 +19,15 @@ import { isLikelySupabasePublicKey, isValidHttpUrl } from "@/lib/supabase/env";
  * structurally can't read them regardless of what the query asks for.
  */
 export function createAnonClient(): AppSupabase | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = supabaseUrl();
+  const key = supabaseAnonKey();
 
   if (!isValidHttpUrl(url) || !isLikelySupabasePublicKey(key)) {
-    console.warn("[Horizon] Public Supabase credentials missing. Running in demo mode.");
+    console.warn(
+      "[Horizon] Public Supabase credentials missing — running in DEMO MODE. " +
+        "Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and NEXT_PUBLIC_SUPABASE_ANON_KEY " +
+        "(or SUPABASE_ANON_KEY). Check /api/health after deploying.",
+    );
     return null;
   }
 

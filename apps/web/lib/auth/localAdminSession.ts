@@ -18,32 +18,39 @@ function base64UrlDecode(value: string): string {
   return Buffer.from(value, "base64url").toString("utf8");
 }
 
-function sessionSecret(): string {
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret) {
-    throw new Error(
-      "ADMIN_SESSION_SECRET is not configured. Admin login is disabled until it is set — no insecure default is used.",
-    );
-  }
-  return secret;
+/**
+ * Whether admin login can operate at all on this deployment.
+ *
+ * Both secrets are required and neither has a default — an admin console
+ * guarded by a fallback password is worse than one that is switched off.
+ * Callers use this to fail CLOSED and say so, rather than throwing: an
+ * unconfigured deployment previously turned every /admin request into an
+ * unhandled 500 (the thrown Error propagated out of a Server Component)
+ * instead of a redirect to the login page. It never granted access — but a
+ * 500 is an outage, not a security control, and it made a missing
+ * environment variable look like a broken application.
+ */
+export function isAdminAuthConfigured(): boolean {
+  return Boolean(process.env.ADMIN_SESSION_SECRET) && Boolean(process.env.ADMIN_PASSWORD);
 }
 
-function configuredPassword(): string {
-  const password = process.env.ADMIN_PASSWORD;
-  if (!password) {
-    throw new Error(
-      "ADMIN_PASSWORD is not configured. Admin login is disabled until it is set — no insecure default is used.",
-    );
-  }
-  return password;
+function sessionSecret(): string | null {
+  return process.env.ADMIN_SESSION_SECRET || null;
 }
 
-function signPayload(encodedPayload: string): string {
-  return createHmac("sha256", sessionSecret()).update(encodedPayload).digest("base64url");
+function configuredPassword(): string | null {
+  return process.env.ADMIN_PASSWORD || null;
+}
+
+function signPayload(encodedPayload: string, secret: string): string {
+  return createHmac("sha256", secret).update(encodedPayload).digest("base64url");
 }
 
 function verifySignature(encodedPayload: string, signature: string): boolean {
-  const expected = signPayload(encodedPayload);
+  const secret = sessionSecret();
+  if (!secret) return false;
+
+  const expected = signPayload(encodedPayload, secret);
   const expectedBuffer = Buffer.from(expected);
   const actualBuffer = Buffer.from(signature);
 
@@ -51,20 +58,32 @@ function verifySignature(encodedPayload: string, signature: string): boolean {
 }
 
 export function isLocalAdminPasswordValid(password: string): boolean {
-  const expectedBuffer = Buffer.from(configuredPassword());
+  const expected = configuredPassword();
+  if (!expected) return false;
+
+  const expectedBuffer = Buffer.from(expected);
   const actualBuffer = Buffer.from(password);
 
   return expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
 export async function createLocalAdminSession(email: string): Promise<void> {
+  const secret = sessionSecret();
+  if (!secret) {
+    // Unreachable through the login action, which checks
+    // isAdminAuthConfigured() first. Throwing rather than issuing an
+    // unsigned cookie is the correct failure here: a session nobody can
+    // verify is worse than no session.
+    throw new Error("ADMIN_SESSION_SECRET is not configured; refusing to mint an unsigned session.");
+  }
+
   const cookieStore = await cookies();
   const payload: SessionPayload = {
     email,
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS,
   };
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-  const token = `${encodedPayload}.${signPayload(encodedPayload)}`;
+  const token = `${encodedPayload}.${signPayload(encodedPayload, secret)}`;
 
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,

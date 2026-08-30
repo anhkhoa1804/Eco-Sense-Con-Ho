@@ -18,6 +18,15 @@
 
 export const THEME_STORAGE_KEY = "horizon-theme";
 export const THEME_ATTRIBUTE = "data-theme";
+/**
+ * Fired on `window` after an explicit preference is applied. Exists for the
+ * few components that read a CSS custom property into JavaScript instead of
+ * a plain class (the Leaflet map: marker fill/tile-layer URL are canvas/DOM
+ * attributes, not CSS, so they cannot simply inherit `--h-safe` the way a
+ * styled <div> does) — those components resolve the theme once on mount and
+ * otherwise have no way to learn the toggle was clicked.
+ */
+export const THEME_CHANGE_EVENT = "horizon-theme-change";
 
 export type ThemePreference = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
@@ -66,4 +75,6 @@ export function applyTheme(preference: ThemePreference): void {
   } catch {
     // Preference simply does not persist — the current page still switches.
   }
+
+  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
 }

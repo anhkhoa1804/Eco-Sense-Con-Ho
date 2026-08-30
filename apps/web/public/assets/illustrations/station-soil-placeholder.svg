@@ -1,34 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" width="800" height="560" role="img" aria-label="Sơ đồ minh họa trạm đo đất">
   <defs>
     <pattern id="hwdots2" width="20" height="20" patternUnits="userSpaceOnUse">
-      <circle cx="1.5" cy="1.5" r="1" fill="rgba(15,23,42,0.09)" />
+      <circle cx="1.5" cy="1.5" r="1" fill="rgba(19,29,27,0.09)" />
     </pattern>
   </defs>
-  <rect width="800" height="560" fill="#f2f1ec" />
+  <rect width="800" height="560" fill="#f0ece1" />
   <rect width="800" height="560" fill="url(#hwdots2)" />
 
   <!-- ground -->
-  <line x1="0" y1="330" x2="800" y2="330" stroke="rgba(15,23,42,0.30)" stroke-width="2.5" />
-  <rect y="330" width="800" height="230" fill="#2fa85c" fill-opacity="0.07" />
+  <line x1="0" y1="330" x2="800" y2="330" stroke="rgba(19,29,27,0.30)" stroke-width="2.5" />
+  <rect y="330" width="800" height="230" fill="#2c9e57" fill-opacity="0.07" />
 
   <!-- post + enclosure -->
-  <rect x="392" y="150" width="10" height="180" fill="rgba(15,23,42,0.32)" />
-  <rect x="330" y="150" width="134" height="96" rx="8" fill="#fbfaf7" stroke="#1c7c42" stroke-opacity="0.50" stroke-width="2.5" />
-  <text x="397" y="193" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="15" fill="rgba(15,23,42,0.55)">ESP32</text>
-  <text x="397" y="218" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(15,23,42,0.38)">TRẠM 2</text>
+  <rect x="392" y="150" width="10" height="180" fill="rgba(19,29,27,0.32)" />
+  <rect x="330" y="150" width="134" height="96" rx="8" fill="#fffdf8" stroke="#197a3f" stroke-opacity="0.50" stroke-width="2.5" />
+  <text x="397" y="193" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="15" fill="rgba(19,29,27,0.55)">ESP32</text>
+  <text x="397" y="218" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(19,29,27,0.38)">TRẠM 2</text>
 
   <!-- air sensor -->
-  <rect x="486" y="176" width="44" height="30" rx="5" fill="#fbfaf7" stroke="#1c7c42" stroke-opacity="0.45" stroke-width="2" />
-  <text x="544" y="196" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(15,23,42,0.45)">SHT30 · không khí</text>
+  <rect x="486" y="176" width="44" height="30" rx="5" fill="#fffdf8" stroke="#197a3f" stroke-opacity="0.45" stroke-width="2" />
+  <text x="544" y="196" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(19,29,27,0.45)">SHT30 · không khí</text>
 
   <!-- soil probes -->
-  <g stroke="#1c7c42" stroke-opacity="0.50" stroke-width="2" fill="#fbfaf7">
+  <g stroke="#197a3f" stroke-opacity="0.50" stroke-width="2" fill="#fffdf8">
     <rect x="286" y="330" width="20" height="120" rx="4" />
     <rect x="486" y="330" width="20" height="150" rx="4" />
   </g>
-  <text x="150" y="404" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(15,23,42,0.45)">ES-SM-THEC-01</text>
-  <text x="150" y="424" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(15,23,42,0.35)">ẩm · EC · nhiệt độ</text>
-  <text x="532" y="434" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(15,23,42,0.45)">ES-PH-SOIL-01 · pH</text>
+  <text x="150" y="404" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(19,29,27,0.45)">ES-SM-THEC-01</text>
+  <text x="150" y="424" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(19,29,27,0.35)">ẩm · EC · nhiệt độ</text>
+  <text x="532" y="434" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="rgba(19,29,27,0.45)">ES-PH-SOIL-01 · pH</text>
 
-  <text x="32" y="524" font-family="ui-monospace, Menlo, monospace" font-size="16" letter-spacing="3" fill="rgba(15,23,42,0.40)">SƠ ĐỒ MINH HỌA · PLACEHOLDER</text>
+  <text x="32" y="524" font-family="ui-monospace, Menlo, monospace" font-size="16" letter-spacing="3" fill="rgba(19,29,27,0.40)">SƠ ĐỒ MINH HỌA · PLACEHOLDER</text>
 </svg>

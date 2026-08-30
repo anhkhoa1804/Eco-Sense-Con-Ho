@@ -1,4 +1,5 @@
 "use client";
+import { useDict } from "@/lib/i18n/client";
 
 import {
   CartesianGrid,
@@ -42,6 +43,7 @@ export function StationLiveChart({
   data: StationLiveChartPoint[];
   series: StationLiveChartSeries[];
 }) {
+  const dict = useDict();
   const units = [...new Set(series.map((item) => item.unit))].slice(0, 2);
   const seriesByUnit = new Map(units.map((unit) => [unit, series.filter((item) => item.unit === unit)]));
 
@@ -54,7 +56,7 @@ export function StationLiveChart({
       <div className="relative h-80 overflow-hidden rounded-xl bg-[linear-gradient(180deg,rgba(15,23,42,0.02)_0%,rgba(15,23,42,0)_100%)] ring-1 ring-border/70">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted">Chưa có dữ liệu gần nhất.</p>
+            <p className="text-sm text-muted">{dict.errors.noRecentData}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">

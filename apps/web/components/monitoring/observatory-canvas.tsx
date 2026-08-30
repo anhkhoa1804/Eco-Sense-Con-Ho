@@ -1,338 +1,495 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { ArrowRight, FlaskConical, Radio, Send, Sprout, Waves } from "lucide-react";
+import { CloudRain, Droplets, Send, Thermometer, Waves, Wind } from "lucide-react";
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { ObservationLog } from "@/components/monitoring/observation-log";
-import { SourceNote } from "@/components/ui/source-note";
-import { QualityIndicator, relativeTimeVi, StatusIndicator, type FreshnessState } from "@/components/ui/status-indicator";
-import { cn, severityLabel } from "@/lib/utils";
-import type { StationKind } from "@/lib/stationProfile";
+import type { ExternalWeather } from "@/lib/external/weather";
+import { useDict } from "@/lib/i18n/client";
+import type { Dictionary } from "@/lib/i18n/vi";
+import { buildSignalGroups, type SignalGroup } from "@/lib/monitoring/signals";
+import { statusFor, worstStatus, STATUS_SURFACE, type MetricStatus } from "@/lib/monitoring/status";
+import { cn } from "@/lib/utils";
 import type {
-  ObservatoryAlert,
   ObservatoryMetric,
   ObservatoryReferenceItem,
-  ObservatoryStation,
   ObservatoryViewModel,
 } from "@/lib/monitoring/types";
 
-const KIND_ICON: Record<StationKind, typeof Waves> = { water: Waves, soil: Sprout, gateway: Send };
-const KIND_LABEL: Record<StationKind, string> = { water: "Nước", soil: "Đất", gateway: "Hạ tầng" };
-
-const FRESHNESS_BAR: Record<FreshnessState, string> = {
-  live: "bg-healthy",
-  recent: "bg-healthy",
-  stale: "bg-watch",
-  offline: "bg-offline",
-  never_connected: "bg-border-strong",
-  unavailable: "bg-border-strong",
-};
-
-const SEVERITY_TONE: Record<ObservatoryAlert["severity"], string> = {
-  info: "text-muted",
-  warning: "text-watch",
-  critical: "text-risk",
-};
-
 // ---------------------------------------------------------------------------
-// Bento allocation
+// The Bento — one square base cell, two explicit arrangements
 // ---------------------------------------------------------------------------
 
 /**
- * Tailwind must be able to see every class it generates, so spans are looked
- * up from this static map rather than built as `lg:col-span-${n}`.
- */
-const SPAN_CLASS: Record<number, string> = {
-  3: "lg:col-span-3",
-  4: "lg:col-span-4",
-  5: "lg:col-span-5",
-  6: "lg:col-span-6",
-  7: "lg:col-span-7",
-  8: "lg:col-span-8",
-  12: "lg:col-span-12",
-};
-
-/** How many of a station's readings actually carry a value right now. */
-function populatedMetricCount(station: ObservatoryStation): number {
-  const all = [
-    station.primary,
-    ...station.environment.flatMap((group) => group.metrics),
-    ...station.device,
-  ];
-  return all.filter((metric) => metric.value !== null).length;
-}
-
-/**
- * Column spans for the two environmental instrument tiles, driven by how much
- * information each currently holds — not by what kind of node it is.
+ * PROVENANCE IS NO LONGER MARKED ON THE VALUE.
  *
- * The obvious rule ("soil is widest, it has six sensors") is wrong here:
- * production currently holds zero soil rows, so a kind-based allocation would
- * hand the wider tile to the emptier station and produce exactly the large
- * blank card this layout is meant to avoid. When neither has reported they are
- * equally uninformative and the band splits evenly, rather than inventing a
- * hierarchy the data does not support.
+ * Every figure used to carry a superscript — `*` for an external source, `~`
+ * for demo — plus a visually-hidden sentence explaining it, plus a notice
+ * above the Bento explaining both. The owner's call is that the markers cost
+ * the canvas more than they bought: chrome hanging off numbers whose whole
+ * job is to be read at a glance.
+ *
+ * What remains: demo mode still says so, once, in the badge beside the page
+ * title. That is the fact a reader must have. Which particular cell is
+ * regional rather than local is documentation — /about carries it — not a
+ * caption on every number.
+ *
+ * The model still carries each value's `DataOrigin`; only its rendering
+ * here is gone.
  */
-function computeSensorSpans(stations: ObservatoryStation[]): number[] {
-  const counts = stations.map(populatedMetricCount);
 
-  if (stations.length !== 2) return stations.map(() => 12);
-  if (counts[0] === counts[1]) return [6, 6];
-  return counts[0] > counts[1] ? [7, 5] : [5, 7];
+/**
+ * THE OBSERVATORY BENTO.
+ *
+ * Eight boxes on an explicit grid — not derived from content length,
+ * companion count, or data availability. The grid IS the design.
+ *
+ * ONE BASE CELL, THREE ARRANGEMENTS.
+ *
+ * The rule that makes this read as one instrument is that every region is an
+ * INTEGER MULTIPLE of a square base cell, at every width. What changes
+ * between breakpoints is how many columns the canvas has, and how many units
+ * a region buys — never whether it is a whole number of them.
+ *
+ *            columns x rows      base cell @ the breakpoint's low end
+ *   <md          4 x 15          ~81px  (390)
+ *   md           4 x 7           ~167px (768)
+ *   lg           6 x 3           ~148px (1024)
+ *
+ *   region      <md          md          lg
+ *   BOX 0       4x2          4x1         2x1   primary: salinity + level
+ *   BOX 1       4x4          4x2         3x2   the chart
+ *   BOX 2       4x3          4x2         2x2   the map
+ *   BOX 3       4x2          4x1         2x1   infrastructure
+ *   BOX 4-7     2x2 each     1x1 each    1x1 each   regional context
+ *
+ * Each of the three is a complete, non-overlapping tiling (there is a test
+ * that proves it for all three). `aspect-[4/15]` / `aspect-[4/7]` /
+ * `aspect-[2/1]` on the container is what makes the base cell square at any
+ * width without measuring anything in JS — the ratio is columns : rows.
+ *
+ * WHY THE ROW COUNT CHANGES BETWEEN <md AND md. A base cell is ~81px at 390
+ * and ~167px at 768, but a header plus two numerals needs an absolute
+ * ~110px whatever the viewport is. So Box 0 buys two units of height at 390
+ * and one at 768 — the same physical box, expressed in the unit available.
+ * Giving it one unit everywhere left it 80px tall at 390 with its numerals
+ * clipped; giving it two everywhere left it 342px tall at 768 holding two
+ * numbers.
+ *
+ * WHY THE CONTEXT CELLS ARE 2x2 BELOW md AND 1x1 AT md. At 390 one unit is
+ * 81px, and an icon, a label and a value do not belong in 81px: the labels
+ * wrapped and the figures had to shrink below the size the owner wanted. Two
+ * units square gives them 171px there — the same physical size the md
+ * arrangement gets from ONE unit at 768. The four stay a block of equal
+ * squares either way; only how many units each is made of changes.
+ *
+ * STATUS BELONGS TO THE REGION, NOT THE VALUE. Each box resolves ONE status
+ * (worstStatus across whatever it holds) and tints its whole surface. The
+ * previous build tinted each value separately inside a neutral parent,
+ * which produced small coloured cards nested in white ones — two answers to
+ * "is this fine?" in the same box, and a wall of rounded cards rather than
+ * one canvas. Untinted boxes are plain white; the status boxes are the only
+ * ones that carry colour.
+ *
+ * Soil chemistry, the stations' own air readings, and station identity are
+ * deliberately absent — not deleted from the model, just not rendered here.
+ * This grid is the observatory read as one instrument, not three stations
+ * side by side; per-station detail lives on each station's own page.
+ */
+
+const STATUS_LABEL: Record<MetricStatus["level"], keyof Dictionary["alerts"]> = {
+  ok: "normal",
+  watch: "warning",
+  warn: "warning",
+  critical: "critical",
+};
+
+/** A box's surface: its own status tint, or plain white.
+ *
+ * The untinted boxes used to be a near-transparent grey wash so the page's
+ * atmosphere showed through them. Against the strengthened status tints that
+ * read as two greys and a colour rather than as one set of cards, so the
+ * neutral boxes are now the surface white the rest of the product uses. The
+ * status boxes are still the only coloured things on the canvas. */
+function regionSurface(status: MetricStatus | null): string {
+  return status ? STATUS_SURFACE[status.level] : "bg-surface";
 }
 
-// ---------------------------------------------------------------------------
-// Network header
-// ---------------------------------------------------------------------------
+/**
+ * One measurement inside a box. Deliberately carries NO surface of its own —
+ * the region it sits in owns the status colour. This is just a label and a
+ * number.
+ */
+const VALUE_SIZE = {
+  /* Primary — salinity and water level. Stepped back down from 60px: at that
+     size they dominated a canvas whose other figures are just as real, and
+     the owner's read was that the box had gone from confident to loud. */
+  primary: "text-3xl md:text-4xl xl:text-5xl",
+  /* Device health, and regional context. One tier, because they are the same
+     kind of reading: supporting figures that should be comfortably legible
+     rather than ranked against each other. The context cells were a step
+     below this and read as an afterthought at the sizes their cells allow. */
+  secondary: "text-3xl md:text-4xl",
+  context: "text-3xl md:text-4xl",
+} as const;
 
-function NetworkHeader({ network, stations }: { network: ObservatoryViewModel["network"]; stations: ObservatoryStation[] }) {
+function Value({
+  label,
+  metric,
+  dict,
+  size = "secondary",
+}: {
+  label: string;
+  metric: ObservatoryMetric | null | undefined;
+  dict: Dictionary;
+  size?: keyof typeof VALUE_SIZE;
+}) {
+  const hasValue = !!metric && metric.value !== null;
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Mạng lưới</p>
-        <p className="max-w-xl text-xl font-semibold leading-snug tracking-tight md:text-2xl">
-          <span className="[font-family:var(--font-data)]">{network.total}</span> trạm quan trắc ·{" "}
-          {network.live > 0 ? (
-            <>
-              <span className="[font-family:var(--font-data)]">{network.live}</span> đang gửi dữ liệu
-            </>
-          ) : (
-            <span className="text-muted">chưa trạm nào gửi dữ liệu</span>
-          )}
-        </p>
-        <p className="text-sm text-muted">
-          {network.lastObservationAt
-            ? `Quan trắc gần nhất ${relativeTimeVi(network.lastObservationAt)}.`
-            : "Hệ thống chưa nhận được quan trắc nào từ mạng lưới."}
-        </p>
-      </div>
-
-      <div className="flex items-end gap-8">
-        <div className="space-y-2">
-          <div className="flex gap-1" aria-hidden>
-            {stations.map((s) => (
-              <span
-                key={s.id}
-                className={cn("h-1 w-10 rounded-full transition-colors duration-[var(--motion-medium)]", FRESHNESS_BAR[s.freshness])}
-              />
-            ))}
-          </div>
-          <p className="text-xs text-muted">
-            {network.noData > 0 ? `${network.noData} chưa có dữ liệu` : null}
-            {network.noData > 0 && network.offline > 0 ? " · " : null}
-            {network.offline > 0 ? `${network.offline} mất kết nối` : null}
-            {network.noData === 0 && network.offline === 0 ? "Toàn mạng đang hoạt động" : null}
-          </p>
-        </div>
-
-        <div className="space-y-1 text-right">
-          <p
-            className={cn(
-              "text-2xl font-semibold [font-family:var(--font-data)]",
-              network.alertsNeedingAttention > 0 ? "text-watch" : "text-muted",
-            )}
-          >
-            {network.alertsNeedingAttention}
-          </p>
-          <p className="text-xs uppercase tracking-[0.12em] text-muted">Cần chú ý</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Station cells
-// ---------------------------------------------------------------------------
-
-function MetricRow({ metric, dense = false }: { metric: ObservatoryMetric; dense?: boolean }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className={cn("text-muted", dense ? "text-xs" : "text-sm")}>{metric.label}</dt>
-      <dd
+    <div className="min-w-0">
+      <p className="whitespace-nowrap text-xs font-medium uppercase tracking-[0.1em] text-foreground-subtle">{label}</p>
+      <p
         className={cn(
-          "shrink-0 tabular-nums [font-family:var(--font-data)]",
-          dense ? "text-xs" : "text-sm",
-          metric.value === null ? "text-muted/70" : "font-semibold",
+          "mt-1 font-semibold tabular-nums leading-none tracking-tight [font-family:var(--font-data)]",
+          VALUE_SIZE[size],
+          // Always plain foreground, never the status hue.
+          //
+          // The region behind this now carries a genuinely strong status tint,
+          // and amber numerals on an amber surface is the one combination that
+          // gets worse the better the status colour works. Contrast belongs to
+          // the value; colour belongs to the surface. This also stops a reader
+          // having to decode two encodings of the same fact.
+          hasValue ? undefined : "text-foreground-subtle",
         )}
       >
-        {metric.value === null ? "—" : `${metric.value}${metric.unit ? ` ${metric.unit}` : ""}`}
-      </dd>
+        {hasValue ? (
+          <>
+            {metric!.value}
+            {metric!.unit ? (
+              <span className="ml-1 text-[0.4em] font-normal text-foreground-muted [font-family:inherit]">
+                {metric!.unit}
+              </span>
+            ) : null}
+          </>
+        ) : (
+          "—"
+        )}
+      </p>
+      {hasValue ? null : (
+        <p className="mt-1.5 truncate text-[11px] text-foreground-subtle">{dict.common.noData}</p>
+      )}
     </div>
   );
 }
 
-function StationCell({
-  station,
-  index,
-  selected,
-  onSelect,
-  className,
+/**
+ * The value half of a context cell.
+ *
+ * A context cell states its label in its HEADER — same as every other box in
+ * the grid — so unlike `Value` this renders the number alone. The two used to
+ * share one component, which meant a weather cell printed an icon, then a
+ * label, then another label, then the number: three stacked lines for one
+ * figure, and the reason the four of them read as a different species of card
+ * from the boxes around them.
+ */
+function ContextValue({
+  metric,
+  dict,
 }: {
-  station: ObservatoryStation;
-  index: number;
-  selected: boolean;
-  onSelect: () => void;
-  className?: string;
+  metric: ObservatoryMetric | null | undefined;
+  dict: Dictionary;
 }) {
-  const Icon = KIND_ICON[station.kind];
-  const isGateway = station.kind === "gateway";
-  const hasValue = station.primary.value !== null;
-
+  const hasValue = !!metric && metric.value !== null;
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
+    <p
       className={cn(
-        // A standalone tile now, not a cell inside one bordered field: each
-        // station owns its own border so the row can carry unequal spans
-        // without the shared grid lines making the widths look accidental.
-        "bento-tile group flex flex-col gap-4 rounded-lg border p-5 text-left",
-        "transition-colors duration-[var(--motion-base)]",
-        selected ? "border-accent/40 bg-accent/[0.04]" : "border-border hover:bg-muted/15",
-        className,
+        "font-semibold tabular-nums leading-none tracking-tight [font-family:var(--font-data)]",
+        VALUE_SIZE.context,
+        hasValue ? undefined : "text-foreground-subtle",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="text-[11px] tracking-[0.16em] text-muted [font-family:var(--font-data)]">
-            {String(index + 1).padStart(2, "0")}
-          </span>
-          <Icon className={cn("h-4 w-4", selected ? "text-accent" : "text-muted")} aria-hidden />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-            {KIND_LABEL[station.kind]}
-          </span>
-        </div>
-        <StatusIndicator status={station.freshness} compact />
-      </div>
-
-      <div className="space-y-0.5">
-        <p className={cn("text-sm font-semibold tracking-tight", selected && "text-accent")}>{station.name}</p>
-        <p className="text-xs text-muted">{station.location}</p>
-      </div>
-
-      {/* Primary instrument. The gateway deliberately renders prose instead of
-          a large dash — it is infrastructure, and a giant empty numeral would
-          imply a measurement that this node is not designed to take. */}
-      {isGateway && !hasValue ? (
-        <div className="flex-1 space-y-2 border-t border-border/50 pt-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Vai trò</p>
-          <p className="text-sm leading-relaxed text-muted">{station.capabilityNote}</p>
-        </div>
-      ) : (
-        <div className="flex-1 space-y-3 border-t border-border/50 pt-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{station.primary.label}</p>
-          {hasValue ? (
-            <p className="text-4xl font-semibold tracking-tight tabular-nums [font-family:var(--font-data)]">
-              {station.primary.value}
-              {station.primary.unit ? (
-                <span className="ml-1.5 text-base font-normal text-muted [font-family:inherit]">
-                  {station.primary.unit}
-                </span>
-              ) : null}
-            </p>
-          ) : (
-            <p className="text-sm text-muted">Chưa có dữ liệu</p>
-          )}
-
-          {station.environment.map((group) => (
-            <dl key={group.label} className="space-y-1.5 pt-1">
-              <p className="text-[10px] uppercase tracking-[0.12em] text-muted/80">{group.label}</p>
-              {group.metrics.map((m) => (
-                <MetricRow key={m.label} metric={m} dense />
-              ))}
-            </dl>
-          ))}
-
-          {station.device.length > 0 ? (
-            <dl className="space-y-1.5 border-t border-border/40 pt-3">
-              <p className="text-[10px] uppercase tracking-[0.12em] text-muted/80">Thiết bị</p>
-              {station.device.map((m) => (
-                <MetricRow key={m.label} metric={m} dense />
-              ))}
-            </dl>
+      {hasValue ? (
+        <>
+          {metric!.value}
+          {metric!.unit ? (
+            <span className="ml-0.5 text-[0.4em] font-normal text-foreground-muted [font-family:inherit]">
+              {metric!.unit}
+            </span>
           ) : null}
-        </div>
+        </>
+      ) : (
+        "—"
       )}
-
-      <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-3">
-        {station.quality ? (
-          <QualityIndicator status={station.quality} compact />
-        ) : (
-          <span className="text-[11px] text-muted">
-            {station.timestamp ? `Cập nhật ${relativeTimeVi(station.timestamp)}` : "Chưa có phép đo"}
-          </span>
-        )}
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-accent opacity-0 transition-opacity duration-[var(--motion-base)] group-hover:opacity-100">
-          Chi tiết
-          <ArrowRight className="h-3 w-3" aria-hidden />
-        </span>
-      </div>
-    </button>
+    </p>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Compact panels
-// ---------------------------------------------------------------------------
-
-function AlertsPanel({ alerts }: { alerts: ObservatoryAlert[] }) {
-  if (alerts.length === 0) {
-    // Compressed to a single line — an empty alert list carries almost no
-    // information and must not occupy a screen of vertical space.
-    return (
-      <div className="flex items-center gap-2.5 border-t border-border/60 py-4">
-        <span className="h-1.5 w-1.5 rounded-full bg-healthy" aria-hidden />
-        <p className="text-sm">
-          <span className="font-medium">Không có cảnh báo</span>
-          <span className="text-muted"> · mạng lưới không ghi nhận sự kiện nào cần chú ý</span>
-        </p>
-      </div>
-    );
-  }
-
+/**
+ * A region's header: what the region is, and — immediately after it, on the
+ * same line — what state it is in.
+ *
+ * The status word has now been in three places. It began on its own line
+ * below the values, which gave every status-bearing box a third horizontal
+ * band and made the word read as a caption floating under the numbers. It
+ * then moved to the far right of the title row, which fixed the band but
+ * split the statement across ~300px of empty space: at a glance the eye read
+ * "QUAN TRẮC" and "CẢNH BÁO" as two separate labels that happened to share a
+ * row. Set directly after the title with a separator, they read as one
+ * phrase — QUAN TRẮC · CẢNH BÁO — which is what it is.
+ *
+ * The word is plain foreground, never the status hue: it sits ON the status
+ * surface, where same-hue text gives back exactly the contrast the strong
+ * tint just bought. Colour is the at-a-glance signal; the word is the
+ * accessible, non-colour-dependent one.
+ */
+function RegionHeader({
+  icon: Icon,
+  title,
+  status,
+  dict,
+}: {
+  icon: typeof Waves;
+  title: string;
+  status: MetricStatus | null;
+  dict: Dictionary;
+}) {
   return (
-    <div className="space-y-3 border-t border-border/60 pt-4">
-      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">
-        Cảnh báo · {alerts.length} đang hoạt động
-      </p>
-      <div className="divide-y divide-border/50">
-        {alerts.map((alert) => (
-          <div key={alert.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">{alert.stationName}</p>
-              <p className="text-sm text-muted">{alert.title}</p>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className={cn("font-semibold uppercase tracking-[0.08em]", SEVERITY_TONE[alert.severity])}>
-                {severityLabel(alert.severity)}
-              </span>
-              <span className="text-muted [font-family:var(--font-data)]">
-                {new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(
-                  new Date(alert.timestamp),
-                )}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <SourceNote provenance={alerts[0].provenance} />
+    <div className="flex min-w-0 items-center gap-1.5 text-foreground-muted">
+      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em]">{title}</span>
+      {status ? (
+        <>
+          <span aria-hidden className="shrink-0 text-[11px] opacity-50">
+            ·
+          </span>
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground">
+            {dict.alerts[STATUS_LABEL[status.level]]}
+          </span>
+        </>
+      ) : null}
     </div>
   );
 }
+
+function ObservatoryBento({
+  groups,
+  dict,
+  isDemo,
+  salinityThreshold,
+  series,
+  mapStations,
+  network,
+}: {
+  groups: SignalGroup[];
+  dict: Dictionary;
+  isDemo: boolean;
+  salinityThreshold: { warningLevel: number; criticalLevel: number } | null;
+  series: ObservatoryViewModel["series"];
+  mapStations: MapStation[];
+  network: ObservatoryViewModel["network"];
+}) {
+  const water = groups.find((g) => g.domain === "water");
+  const infra = groups.find((g) => g.domain === "infrastructure");
+  const context = groups.find((g) => g.domain === "context");
+
+  const status = (metric: ObservatoryMetric | null | undefined) =>
+    metric
+      ? statusFor(metric.labelKey, metric.value !== null ? Number(metric.value) : null, {
+          salinity: salinityThreshold,
+          isDemo,
+        })
+      : null;
+
+  const salinity = water?.primary;
+  const waterLevel = water?.secondary[0];
+  const contextMetric = (key: string) => context?.secondary.find((m) => m.labelKey === key);
+  const infraMetric = (key: string) => infra?.secondary.find((m) => m.labelKey === key);
+
+  const signal = infraMetric("signal");
+  const battery = infraMetric("battery");
+
+  // One status per region — see the note above ObservatoryBento.
+  const primaryStatus = worstStatus([status(salinity), status(waterLevel)]);
+  const infraStatus = worstStatus([status(signal), status(battery)]);
+
+  // Every cell, without exception: same corner, same hairline, same inset.
+  // A box differs from its neighbours only in what it spans and what colour
+  // its status gives it — never in its construction.
+  const cell = "rounded-xl border border-border";
+  const padded = "flex flex-col justify-between p-[var(--bento-pad)]";
+
+  return (
+    <div
+      className={cn(
+        "grid gap-[var(--bento-gap)]",
+        "aspect-[4/15] grid-cols-4 grid-rows-15",
+        "md:aspect-[4/7] md:grid-rows-7",
+        "lg:aspect-[2/1] lg:grid-cols-6 lg:grid-rows-3",
+      )}
+    >
+      {/* BOX 0 — primary. Salinity and water level side by side, no divider,
+          no nested card: one region, one surface, one status. */}
+      <div
+        className={cn(
+          cell,
+          padded,
+          regionSurface(primaryStatus),
+          "col-start-1 col-end-5 row-start-1 row-end-3",
+          "md:col-start-1 md:col-end-5 md:row-start-1 md:row-end-2",
+          "lg:col-start-1 lg:col-end-3 lg:row-start-1 lg:row-end-2",
+        )}
+      >
+        {/* "QUAN TRẮC", not "NƯỚC": this box is the observatory's primary
+            observation surface, not one domain among several. */}
+        <RegionHeader icon={Waves} title={dict.nav.monitoring} status={primaryStatus} dict={dict} />
+        {/* `auto auto`, not `grid-cols-2`.
+            Equal halves gave each value exactly 170px at 1440 — and "1.24‰"
+            at 60px measures 173px, so the pair collided while "48cm" left
+            71px of its own half empty. Content-sized columns spend the width
+            where the digits actually are: the same two values now occupy
+            304px of 355px, which is what lets the primary numerals be the
+            size they should be instead of the size equal halves allowed. */}
+        <div className="mt-auto grid grid-cols-[auto_auto] justify-start gap-6 pt-[var(--bento-header-gap)] md:gap-8">
+          <Value label={dict.metricLabels.salinity} metric={salinity} dict={dict} size="primary" />
+          <Value label={dict.metricLabels.waterLevel} metric={waterLevel} dict={dict} size="primary" />
+        </div>
+      </div>
+
+      {/* BOX 1 — the chart. Widest and tallest region in the grid. It carries
+          no extra height floor of its own: the row tracks decide how tall it
+          is, and a floor taller than the track pushed the plot down through
+          the box's bottom edge. */}
+      <div
+        className={cn(
+          cell,
+          "min-w-0 overflow-hidden bg-surface p-[var(--bento-pad)]",
+          "col-start-1 col-end-5 row-start-3 row-end-7",
+          "md:col-start-1 md:col-end-5 md:row-start-2 md:row-end-4",
+          "lg:col-start-3 lg:col-end-6 lg:row-start-1 lg:row-end-3",
+        )}
+      >
+        <ObservationLog series={series} />
+      </div>
+
+      {/* BOX 2 — the map. It IS the region: edge to edge, no header bar, no
+          inner padding.
+
+          It previously carried a "VỊ TRÍ CÁC TRẠM" title strip above it, which
+          cost the map ~10% of its height to state something the map already
+          says — a reader looking at markers on a coastline does not need to be
+          told it is a map. Losing the strip is what lets this read as
+          geographic space rather than as a card that happens to contain a map.
+          The region is labelled for assistive tech by the map's own
+          `role="img"` + aria-label. */}
+      <div
+        className={cn(
+          cell,
+          "overflow-hidden bg-surface",
+          "col-start-1 col-end-5 row-start-7 row-end-10",
+          "md:col-start-1 md:col-end-5 md:row-start-4 md:row-end-6",
+          "lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:row-end-4",
+        )}
+      >
+        {/* `basemapOnly` in demo: the island is real geography, the demo
+            stations have no coordinates, and drawing the first without the
+            second is exactly the honest combination. See the prop's own note. */}
+        <StationNetworkMap stations={mapStations} variant="grid" basemapOnly={isDemo} />
+      </div>
+
+      {/* BOX 3 — infrastructure. Same region-level treatment as BOX 0: signal
+          and battery share one surface and one status, at one tier down in
+          the type ladder because device health is not what the page is for. */}
+      <div
+        className={cn(
+          cell,
+          padded,
+          regionSurface(infraStatus),
+          "col-start-1 col-end-5 row-start-10 row-end-12",
+          "md:col-start-1 md:col-end-5 md:row-start-6 md:row-end-7",
+          "lg:col-start-5 lg:col-end-7 lg:row-start-3 lg:row-end-4",
+        )}
+      >
+        {/* The infrastructure box is titled by WHAT THE NETWORK IS DOING,
+            not by the word "Hạ tầng". "1/3 ĐANG GỬI DỮ LIỆU · BÌNH THƯỜNG"
+            says everything the label said and everything the separate
+            network line above the Bento used to say, in the box that already
+            holds signal and battery — which is where a reader goes to ask
+            the question anyway. The standalone "MẠNG LƯỚI · …" line is gone
+            with it. */}
+        <RegionHeader
+          icon={Send}
+          title={
+            network.live > 0
+              ? `${network.live}/${network.total} ${dict.monitoring.sendingData}`
+              : dict.monitoring.noneSending
+          }
+          status={infraStatus}
+          dict={dict}
+        />
+        <div className="mt-auto grid grid-cols-[auto_auto] justify-start gap-6 pt-[var(--bento-header-gap)] md:gap-8">
+          <Value label={dict.metricLabels.signal} metric={signal} dict={dict} size="secondary" />
+          <Value label={dict.metricLabels.battery} metric={battery} dict={dict} size="secondary" />
+        </div>
+      </div>
+
+      {/* BOX 4-7 — the four regional figures, each one base cell, each a
+          secondary context layer.
+
+          They use the SAME header grammar as every other box — icon, then a
+          short uppercase label — with no status word, because there is none
+          to give: statusFor() has no threshold for weather, so these can only
+          ever render neutral. Their `*` marker is what says these come from
+          outside the HORIZON network; the honest distinction here is
+          provenance, not colour.
+
+          `justify-between` rather than `justify-center` is what keeps the
+          four aligned with each other: the header sits on the top edge and
+          the value on the bottom, so a label that wraps to two lines in the
+          narrowest cell (LƯỢNG MƯA at 390) pushes nothing — all four values
+          still share one baseline. */}
+      {(
+        [
+          { icon: Thermometer, label: dict.metricLabels.temperature, key: "temperature", cell: "col-start-1 col-end-3 row-start-12 row-end-14 md:col-start-1 md:col-end-2 md:row-start-7 md:row-end-8 lg:col-start-6 lg:col-end-7 lg:row-start-1 lg:row-end-2" },
+          { icon: Droplets, label: dict.metricLabels.humidity, key: "humidity", cell: "col-start-3 col-end-5 row-start-12 row-end-14 md:col-start-2 md:col-end-3 md:row-start-7 md:row-end-8 lg:col-start-6 lg:col-end-7 lg:row-start-2 lg:row-end-3" },
+          { icon: Wind, label: dict.metricLabels.wind, key: "wind", cell: "col-start-1 col-end-3 row-start-14 row-end-16 md:col-start-3 md:col-end-4 md:row-start-7 md:row-end-8 lg:col-start-3 lg:col-end-4 lg:row-start-3 lg:row-end-4" },
+          { icon: CloudRain, label: dict.metricLabels.precipitation, key: "precipitation", cell: "col-start-3 col-end-5 row-start-14 row-end-16 md:col-start-4 md:col-end-5 md:row-start-7 md:row-end-8 lg:col-start-4 lg:col-end-5 lg:row-start-3 lg:row-end-4" },
+        ] as const
+      ).map(({ icon: Icon, label, key, cell: placement }) => (
+        <div
+          key={key}
+          className={cn(
+            cell,
+            padded,
+            "gap-1 bg-surface",
+            placement,
+          )}
+        >
+          <div className="flex min-w-0 items-start gap-1.5 text-foreground-subtle">
+            <Icon className="h-3.5 w-3.5 shrink-0 translate-y-px" aria-hidden />
+            <span className="min-w-0 text-[11px] font-semibold uppercase leading-[1.3] tracking-[0.1em]">
+              {label}
+            </span>
+          </div>
+          <ContextValue metric={contextMetric(key)} dict={dict} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reference
+// ---------------------------------------------------------------------------
 
 const STANDING_META: Record<
   ObservatoryReferenceItem["standing"],
-  { label: string; className: string }
+  { key: "standingExternal" | "standingInternal" | "standingUnverified"; className: string }
 > = {
-  external: { label: "Nguồn quốc tế", className: "bg-accent/10 text-accent" },
-  internal: { label: "Cấu hình dự án", className: "bg-muted/30 text-muted" },
-  unverified: { label: "Chưa xác minh", className: "bg-watch-bg text-watch" },
+  external: { key: "standingExternal", className: "bg-accent/10 text-accent" },
+  internal: { key: "standingInternal", className: "bg-muted/30 text-muted" },
+  unverified: { key: "standingUnverified", className: "bg-watch-bg text-watch" },
 };
 
-function ReferencePanel({ reference }: { reference: ObservatoryReferenceItem[] }) {
+function ReferencePanel({ reference, dict }: { reference: ObservatoryReferenceItem[]; dict: Dictionary }) {
   return (
     <div className="grid gap-x-10 gap-y-8 md:grid-cols-3">
       {reference.map((item) => {
@@ -347,7 +504,7 @@ function ReferencePanel({ reference }: { reference: ObservatoryReferenceItem[] }
                   meta.className,
                 )}
               >
-                {meta.label}
+                {dict.monitoring[meta.key]}
               </span>
             </div>
 
@@ -366,7 +523,7 @@ function ReferencePanel({ reference }: { reference: ObservatoryReferenceItem[] }
 
             {item.sourceLabel ? (
               <p className="text-xs leading-relaxed text-muted">
-                Nguồn:{" "}
+                {dict.common.source}:{" "}
                 {item.sourceUrl ? (
                   <a
                     href={item.sourceUrl}
@@ -392,186 +549,67 @@ function ReferencePanel({ reference }: { reference: ObservatoryReferenceItem[] }
 // Canvas
 // ---------------------------------------------------------------------------
 
-export function ObservatoryCanvas({ model }: { model: ObservatoryViewModel }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = model.stations.find((s) => s.id === selectedId) ?? null;
+export function ObservatoryCanvas({
+  model,
+  weather = null,
+}: {
+  model: ObservatoryViewModel;
+  /** External regional context. Shares the canvas, never the provenance. */
+  weather?: ExternalWeather | null;
+}) {
+  const dict = useDict();
 
-  const hasAlerts = model.alerts.length > 0;
+  // Domain-grouped, not station-grouped — see lib/monitoring/signals.ts for
+  // why this is the information architecture rather than a layout choice.
+  // Weather joins the SAME canvas here rather than being rendered as its own
+  // block below it; buildSignalGroups keeps its provenance distinct.
+  const signalGroups = buildSignalGroups(model, weather);
+  // Status colour is only permitted where a threshold genuinely exists. The
+  // model carries the configured salinity levels; every other environmental
+  // metric has no basis in this system and renders neutral by design.
+  const salinityThreshold = model.salinityThreshold;
 
-  // Split by information TYPE, not by station number: the gateway reports
-  // link health (infrastructure) while the other two report environment.
-  // Grouping them that way is what makes the canvas read as an observatory
-  // rather than a list of nodes.
-  const infrastructure = model.stations.find((s) => s.kind === "gateway") ?? null;
-  const sensors = model.stations.filter((s) => s.kind !== "gateway");
-  const sensorSpans = computeSensorSpans(sensors);
-
+  // Real coordinates only. `buildObservatory` falls back to lat/lng 0 for a
+  // station with no snapshot row, and 0,0 is a real place in the Gulf of
+  // Guinea — plotting three markers there would be inventing geography, not
+  // reporting it. Filtering here keeps the map's own honest empty state as
+  // the thing a reader sees until real coordinates arrive.
   const mapStations: MapStation[] =
     model.mode === "real"
-      ? model.stations.map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, freshness: s.freshness }))
+      ? model.stations
+          .filter((s) => s.lat !== 0 && s.lng !== 0)
+          .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, freshness: s.freshness }))
       : [];
 
   return (
-    <div className="space-y-12 md:space-y-16">
-      {model.mode === "demo" ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-watch-bg px-5 py-4">
-          <div className="flex items-center gap-3">
-            <FlaskConical className="h-4 w-4 shrink-0 text-watch" aria-hidden />
-            <p className="text-sm font-medium text-watch">
-              DỮ LIỆU MINH HỌA — toàn bộ số liệu trên trang này là tổng hợp để trình bày giao diện, không phải quan
-              trắc thật từ Cồn Hô.
-            </p>
-          </div>
-          <Link href="/dashboard" className="shrink-0 text-xs font-medium text-watch underline-offset-2 hover:underline">
-            Xem dữ liệu thật →
-          </Link>
-        </div>
-      ) : null}
-
-      {/*
-        The bento proper — a 12-column field whose regions are sized by how
-        much information they actually carry.
-
-        Two things keep this from becoming decorative: every region is backed
-        by real model data (there is no "network health" tile, because
-        nothing in the model would fill one beyond what the summary already
-        says), and every region collapses when its data is absent rather than
-        holding open an empty rectangle.
-      */}
-      <section className="space-y-4">
-        {/*
-          BAND 1 — network & infrastructure.
-
-          The gateway sits HERE, beside the network summary, not in a row with
-          the two sensor stations. That single move is what stops the page
-          reading as "three station boxes": the gateway is infrastructure —
-          it reports link health, not environment — so grouping it with the
-          network state makes the top band answer one question ("is the
-          network up?") instead of listing nodes.
-        */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <div className="instrument-in bento-tile rounded-lg border border-border p-5 md:p-6 lg:col-span-7">
-            <NetworkHeader network={model.network} stations={model.stations} />
-          </div>
-
-          {infrastructure ? (
-            <StationCell
-              station={infrastructure}
-              index={model.stations.indexOf(infrastructure)}
-              selected={selectedId === infrastructure.id}
-              onSelect={() => setSelectedId(selectedId === infrastructure.id ? null : infrastructure.id)}
-              className="instrument-in instrument-in-1 lg:col-span-5"
-            />
-          ) : null}
-        </div>
-
-        {/*
-          BAND 2 — the environmental instruments. Two tiles, deliberately
-          unequal: spans follow how many readings each actually carries right
-          now (see computeSensorSpans), so the wider tile is always the one
-          with more to show rather than the one whose station type sounds
-          bigger.
-        */}
-        {sensors.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            {sensors.map((station, i) => (
-              <StationCell
-                key={station.id}
-                station={station}
-                index={model.stations.indexOf(station)}
-                selected={selectedId === station.id}
-                onSelect={() => setSelectedId(selectedId === station.id ? null : station.id)}
-                className={cn("instrument-in instrument-in-2", SPAN_CLASS[sensorSpans[i]])}
-              />
-            ))}
-          </div>
-        ) : null}
-
-        {selected ? (
-          <div className="animate-entrance flex flex-wrap items-center justify-between gap-4 rounded-lg border border-accent/30 bg-accent/[0.04] px-5 py-4">
-            <div className="flex items-center gap-3">
-              <Radio className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-              <p className="text-sm">
-                <span className="font-semibold">{selected.name}</span>
-                <span className="text-muted"> · {selected.location}</span>
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <SourceNote provenance={selected.primary.provenance} />
-              <Link
-                href={`/s/${selected.id}`}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
-              >
-                Trang trạm
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-              </Link>
-            </div>
-          </div>
-        ) : null}
-
+    <div className="space-y-10 md:space-y-14">
+      {/* The observatory: the Bento, and nothing above it.
+          Two bands used to sit here — a demo notice explaining the `*` and
+          `~` markers, and a "MẠNG LƯỚI · 2/3 ĐANG GỬI DỮ LIỆU" summary. The
+          markers are gone, which left the notice explaining nothing; and the
+          summary now titles the infrastructure box, where the reader is
+          already looking at the network's signal and battery. Demo mode is
+          still declared, once, by the badge beside the page title. */}
+      <section className="instrument-in">
+        <ObservatoryBento
+          groups={signalGroups}
+          dict={dict}
+          isDemo={model.mode === "demo"}
+          salinityThreshold={salinityThreshold}
+          series={model.series}
+          mapStations={mapStations}
+          network={model.network}
+        />
       </section>
 
-      {/*
-        BAND 3 — time and events, side by side.
-
-        The observation log answers "how has this been changing?" and the
-        alert stream answers "what changed enough to notice?". They are two
-        readings of the same axis, so they belong in one band rather than
-        separated by half a page. The log keeps the dominant span because a
-        chart converts width directly into resolution; the alert column does
-        not.
-
-        With no alerts the log takes the full band and the "all quiet" line
-        drops to a single strip beneath it — an empty event list gets the
-        space its information deserves, not a held-open rectangle.
-      */}
-      <section className="full-bleed">
-        <div className="h-spatial">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            <div className={cn("min-w-0", hasAlerts ? "lg:col-span-8" : "lg:col-span-12")}>
-              <ObservationLog series={model.series} />
-            </div>
-
-            {hasAlerts ? (
-              <div className="bento-tile rounded-lg border border-border p-5 lg:col-span-4">
-                <AlertsPanel alerts={model.alerts} />
-              </div>
-            ) : null}
-          </div>
-
-          {hasAlerts ? null : (
-            <div className="mt-4">
-              <AlertsPanel alerts={model.alerts} />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Map — spatial anchor, after the charts. */}
-      <section className="full-bleed">
-        <div className="h-spatial space-y-5">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Không gian</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">Vị trí các trạm</h2>
-            </div>
-            <p className="text-xs text-muted">Cồn Hô · Vĩnh Long</p>
-          </div>
-          <StationNetworkMap
-            stations={mapStations}
-            variant="observatory"
-            selectedStationId={selected?.id ?? undefined}
-          />
-        </div>
-      </section>
-
-      {/* References. */}
-      <section className="space-y-6">
+      <section className="instrument-in-2 space-y-6">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Tham chiếu</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">Cơ sở diễn giải số liệu</h2>
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">
+            {dict.monitoring.referenceEyebrow}
+          </p>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight md:text-2xl">{dict.monitoring.referenceTitle}</h2>
         </div>
-        <ReferencePanel reference={model.reference} />
+        <ReferencePanel reference={model.reference} dict={dict} />
       </section>
     </div>
   );

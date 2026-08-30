@@ -11,9 +11,23 @@ set name = excluded.name,
     lng = excluded.lng,
     status = excluded.status;
 
--- Dev/pilot secrets only — matches the placeholders used throughout
--- tests/scripts (services/edge-ingestion/tests, scripts/simulator.ts).
--- Real deployments must set unique, non-guessable secrets per device.
+-- DEVELOPMENT PLACEHOLDER SECRETS. These values are committed to the
+-- repository and are therefore PUBLIC. They match the fixtures used by
+-- services/edge-ingestion/tests and scripts/simulator.ts so a local checkout
+-- can run the ingestion path without configuration.
+--
+-- device_secret is the HMAC key that authenticates telemetry (see
+-- services/edge-ingestion/src/canonical.ts signPayload). A deployment still
+-- holding these values will accept forged readings from anyone who has read
+-- the repo. Every production device MUST be rotated to a unique,
+-- non-guessable secret — `npm run verify` fails if any remain.
+--
+-- NOTE THE MISSING `device_secret` IN THE UPDATE CLAUSE BELOW. This seed is
+-- re-run by apply-migrations.mjs on EVERY `npm run db:migrate`, and it
+-- previously carried `device_secret = excluded.device_secret`, which silently
+-- reset every rotated production secret back to the public placeholder on the
+-- next deploy. New rows still get a placeholder (that is what makes a fresh
+-- clone work); existing rows keep whatever the operator set.
 insert into public.devices (device_id, station_id, device_secret, status, kind)
 values
   ('GATEWAY_01', null, 'gateway-secret-01', 'active', 'gateway'),
@@ -24,6 +38,5 @@ values
   ('STATION_05', 'STATION_05', 'station-secret-05', 'active', 'station')
 on conflict (device_id) do update
 set station_id = excluded.station_id,
-    device_secret = excluded.device_secret,
     status = excluded.status,
     kind = excluded.kind;

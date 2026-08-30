@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { cache, Suspense } from "react";
-import { ArrowRight, ClipboardList, Info, LayoutDashboard, Send, Sprout, Waves, Wind } from "lucide-react";
+import { ArrowRight, ClipboardList, Info, LayoutDashboard, Send, Sprout, Waves } from "lucide-react";
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { FieldNotesCarousel } from "@/components/home/field-notes-carousel";
 import { Hero } from "@/components/home/hero";
 import { Reveal } from "@/components/ui/reveal";
 import { PublicShell } from "@/components/layout/public-shell";
+import { TranslationNotice } from "@/components/layout/translation-notice";
+import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { Skeleton } from "@/components/ui/skeleton";
 import { freshnessStatus, StatusIndicator } from "@/components/ui/status-indicator";
 import { getRecentPosts } from "@/lib/content/posts";
+import { getI18n } from "@/lib/i18n/server";
 import { getPublicRepositories } from "@/lib/publicRead";
-import { filterSnapshotsToPilotStations, PILOT_STATION_IDS, type PilotStationId } from "@/lib/publicStations";
-import { stationProfiles, type StationKind } from "@/lib/stationProfile";
+import { filterSnapshotsToPilotStations, PILOT_STATION_IDS, stationHref, type PilotStationId } from "@/lib/publicStations";
+import { stationProfiles, stationText, type StationKind } from "@/lib/stationProfile";
 import type { SoilReading, StationReadingSnapshot } from "@/types";
 
 export const revalidate = 60;
@@ -63,20 +66,36 @@ function latestTimestampFor(stationId: PilotStationId, data: ObservatoryData | n
 // 02 — The network
 // ---------------------------------------------------------------------------
 
+/**
+ * What each node is built to measure — capability, not current readings.
+ *
+ * Absorbed from the deleted "04 · Quan trắc" chapter. That section restated
+ * these same metrics under these same station names in its own three-column
+ * grid, directly beneath this one: the reader met "Trạm 1 — Gần sông" twice
+ * within one screen, and the homepage ran four consecutive grids of boxes.
+ */
+const STATION_METRICS: Record<PilotStationId, readonly string[]> = {
+  STATION_01: ["Độ mặn", "Mực nước"],
+  STATION_02: ["Độ ẩm đất", "EC đất", "Độ pH đất", "Nhiệt độ đất", "Nhiệt độ không khí", "Độ ẩm không khí"],
+  STATION_03: [],
+};
+
 async function NetworkChapter() {
   const data = await getObservatoryData();
+  const { dict } = await getI18n();
 
   return (
     <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
       {PILOT_STATION_IDS.map((id, index) => {
         const profile = stationProfiles[id];
+        const text = stationText(id, dict);
         const Icon = KIND_ICON[profile.kind];
         const timestamp = latestTimestampFor(id, data);
 
         return (
           <Link
             key={id}
-            href={`/s/${id}`}
+            href={stationHref(id)}
             className="group flex flex-col gap-6 bg-background p-6 transition-colors duration-[var(--motion-base)] hover:bg-muted/20 md:p-8"
           >
             <div className="flex items-start justify-between">
@@ -87,13 +106,32 @@ async function NetworkChapter() {
             </div>
 
             <div className="flex-1 space-y-2">
-              <h3 className="text-xl font-semibold tracking-tight">{profile.name}</h3>
-              <p className="text-sm text-muted">{profile.location}</p>
-              <p className="pt-1 text-sm leading-relaxed text-muted">{profile.intro}</p>
+              <h3 className="text-xl font-semibold tracking-tight">{text.name}</h3>
+              <p className="text-sm text-muted">{text.location}</p>
+              <p className="pt-1 text-sm leading-relaxed text-muted">{text.intro}</p>
             </div>
 
+            {/* What this node is built to measure. This absorbed the old "04 ·
+                Quan trắc" chapter, which listed the same metrics under the same
+                station names in a second three-column grid immediately below
+                this one — two sections, one fact, and the page's third
+                consecutive grid of boxes. Stated here it belongs to the station
+                it describes. */}
+            {STATION_METRICS[id].length > 0 ? (
+              <ul className="flex flex-wrap gap-x-2 gap-y-1">
+                {STATION_METRICS[id].map((metric) => (
+                  <li
+                    key={metric}
+                    className="rounded-sm border border-border/70 px-1.5 py-0.5 text-[11px] text-foreground-subtle"
+                  >
+                    {metric}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
             <div className="flex items-center justify-between border-t border-border/60 pt-4">
-              <StatusIndicator status={freshnessStatus(timestamp)} compact />
+              <StatusIndicator status={freshnessStatus(timestamp)} dict={dict} compact />
               <span className="inline-flex items-center gap-1 text-xs font-medium text-accent opacity-0 transition-opacity duration-[var(--motion-base)] group-hover:opacity-100">
                 Xem trạm
                 <ArrowRight className="h-3 w-3" aria-hidden />
@@ -126,10 +164,11 @@ function NetworkFallback() {
 
 async function MapChapter() {
   const data = await getObservatoryData();
+  const { dict } = await getI18n();
 
   const mapStations: MapStation[] = (data?.snapshots ?? []).map((snapshot) => ({
     id: snapshot.station.id,
-    name: stationProfiles[snapshot.station.id]?.name ?? snapshot.station.name,
+    name: stationText(snapshot.station.id, dict).name,
     lat: snapshot.station.lat,
     lng: snapshot.station.lng,
     freshness: freshnessStatus(latestTimestampFor(snapshot.station.id as PilotStationId, data)),
@@ -140,58 +179,6 @@ async function MapChapter() {
 
 function MapFallback() {
   return <Skeleton className="h-[420px] w-full rounded-lg sm:h-[480px] lg:h-[560px]" />;
-}
-
-// ---------------------------------------------------------------------------
-// 04 — What the network observes (capability, not current telemetry)
-// ---------------------------------------------------------------------------
-
-const OBSERVED_DOMAINS = [
-  {
-    icon: Waves,
-    domain: "Nước",
-    at: "Trạm 1 · khu ven sông",
-    metrics: ["Độ mặn", "Mực nước"],
-  },
-  {
-    icon: Sprout,
-    domain: "Đất",
-    at: "Trạm 2 · khu canh tác",
-    metrics: ["Độ ẩm đất", "EC đất", "Độ pH đất", "Nhiệt độ đất"],
-  },
-  {
-    // Wind, not Send — Send is the gateway/transmission mark used in the
-    // network chapter, and reusing it here would imply this row is about
-    // data delivery rather than atmospheric measurement.
-    icon: Wind,
-    domain: "Không khí",
-    at: "Trạm 2 · khu canh tác",
-    metrics: ["Nhiệt độ không khí", "Độ ẩm không khí"],
-  },
-] as const;
-
-function ObservesChapter() {
-  return (
-    <div className="grid gap-10 md:grid-cols-3 md:gap-12">
-      {OBSERVED_DOMAINS.map(({ icon: Icon, domain, at, metrics }) => (
-        <div key={domain} className="space-y-5 border-t-2 border-accent/40 pt-6">
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="text-2xl font-semibold tracking-tight">{domain}</h3>
-            <Icon className="h-5 w-5 shrink-0 text-accent" aria-hidden />
-          </div>
-          <p className="text-xs uppercase tracking-[0.14em] text-muted">{at}</p>
-          <ul className="space-y-2.5">
-            {metrics.map((metric) => (
-              <li key={metric} className="flex items-baseline gap-3 text-base">
-                <span className="h-1 w-1 shrink-0 rounded-full bg-accent" aria-hidden />
-                {metric}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -280,20 +267,47 @@ function ChapterHeading({
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
   const posts = getRecentPosts(5);
+  const { dict } = await getI18n();
 
   return (
     <PublicShell activePath="/">
       <Hero />
 
-      <div className="space-y-28 pt-20 md:space-y-36 md:pt-28">
-        {/* 02 — Network */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+      <div className="h-flow-large">
+        {/* The pilot disclosure. It used to be the fourth item stacked under
+            the hero's title, which is exactly the accumulation of small print
+            that made the hero feel unfinished. It is not decoration though —
+            without it a reader can mistake this for live field data — so it
+            moves out of the hero rather than being deleted, and sits on the
+            seam between the opening and the network chapter where it reads as
+            a caption on the whole page. */}
+        <p className="border-l-2 border-accent/40 pl-4 text-sm text-foreground-subtle">
+          {dict.home.pilotNote}
+        </p>
+
+        <TranslationNotice />
+
+        {/* Moved here from Monitoring, where it opened the page as a full
+            card above the title. Home is where a first-time visitor lands,
+            and it renders only when the browser has actually fired
+            `beforeinstallprompt` — so most visits never see it at all. */}
+        <InstallPrompt />
+
+        <div className="h-flow-chapter">
+        {/* 02 — Network.
+            No width className — this section already sits inside
+            PublicShell's `main.h-wide`, which supplies the same 1200px cap
+            and gutter. Re-stating `max-w-[var(--width-content-wide)]` here
+            was a provable no-op (it can never bind tighter than the parent
+            already does) left over from before the width system had a
+            single source of truth; removing it changes nothing on screen. */}
+        <Reveal stagger as="section">
           <ChapterHeading
             eyebrow="02 · Mạng lưới"
             title="Ba điểm nhìn, một mạng lưới."
-            lead="Hai trạm đo đặt ở hai vùng khác nhau của cù lao, cùng một điểm truyền dữ liệu về hệ thống."
+            lead="Hai trạm đo đặt ở hai vùng khác nhau của cù lao, cùng một điểm truyền dữ liệu về hệ thống. Danh sách chỉ số bên dưới là năng lực đo của từng trạm, không phải số liệu hiện tại — trạng thái thật nằm ở trang Quan trắc."
           />
           <div className="mt-10">
             <Suspense fallback={<NetworkFallback />}>
@@ -328,21 +342,17 @@ export default function HomePage() {
           </div>
         </Reveal>
 
-        {/* 04 — What it observes */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
-          <ChapterHeading
-            eyebrow="04 · Quan trắc"
-            title="Mạng lưới được thiết kế để quan trắc những gì."
-            lead="Đây là năng lực đo của hệ thống, không phải số liệu hiện tại. Trạng thái thật của từng chỉ số nằm ở trang Quan trắc."
-          />
-          <div className="mt-12">
-            <ObservesChapter />
-          </div>
-        </Reveal>
-
-        {/* 05 — Why it matters */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">05 · Vì sao</p>
+        {/* 04 — Why it matters.
+            The old "04 · Quan trắc" chapter is gone: it listed each station's
+            metrics in a three-column grid immediately after the network
+            chapter had already named those same stations, which made the
+            homepage run four consecutive grids of boxes and introduced the
+            reader to "Trạm 1" twice within one screen. The metrics now sit on
+            the station they belong to; its honesty caveat — that this is
+            measurement capability, not current readings — moved to the
+            network chapter's lead, where the claim is actually made. */}
+        <Reveal stagger as="section" className="h-gap-large mx-auto max-w-[var(--width-reading)]">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">04 · Vì sao</p>
           <h2 className="mt-3 text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
             Điều kiện môi trường thay đổi ở quy mô rất nhỏ.
           </h2>
@@ -365,17 +375,17 @@ export default function HomePage() {
         </Reveal>
 
         {/* 06 — How it works */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
-          <ChapterHeading eyebrow="06 · Cách vận hành" title="Từ hiện trường đến màn hình." />
+        <Reveal stagger as="section" className="h-gap-large">
+          <ChapterHeading eyebrow="05 · Cách vận hành" title="Từ hiện trường đến màn hình." />
           <div className="mt-10">
             <HowChapter />
           </div>
         </Reveal>
 
         {/* 07 — Field notes */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section">
           <ChapterHeading
-            eyebrow="07 · Ghi chép"
+            eyebrow="06 · Ghi chép"
             title="Ghi chép trong quá trình xây dựng."
             lead="Các bài viết về thiết kế, phương pháp và những gì dự án đang thử nghiệm."
           />
@@ -385,10 +395,11 @@ export default function HomePage() {
         </Reveal>
 
         {/* 08 — Explore */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)] pb-8">
-          <ChapterHeading eyebrow="08 · Tiếp tục" title="Đi sâu hơn." className="mb-10" />
+        <Reveal stagger as="section" className="pb-8">
+          <ChapterHeading eyebrow="07 · Tiếp tục" title="Đi sâu hơn." className="mb-10" />
           <ExploreChapter />
         </Reveal>
+        </div>
       </div>
     </PublicShell>
   );

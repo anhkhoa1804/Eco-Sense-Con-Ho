@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDict } from "@/lib/i18n/client";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -10,6 +10,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function InstallPrompt() {
+  const dict = useDict();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -27,14 +28,19 @@ export function InstallPrompt() {
     return null;
   }
 
+  // A single quiet bar, not a Card with a heading and a description. As a
+  // full card at the top of a page it advertised the app ahead of the
+  // content the reader came for; the offer is the same, the volume is not.
   return (
-    <Card className="mb-6 border-accent/20">
-      <CardHeader>
-        <CardTitle>Cài ứng dụng HORIZON</CardTitle>
-        <CardDescription>Thêm bảng quan trắc vào màn hình chính để truy cập nhanh hơn.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border px-4 py-2.5">
+      <p className="min-w-0 flex-1 text-sm text-foreground-muted">
+        <span className="font-medium text-foreground">{dict.pwa.installTitle}</span>
+        <span className="hidden sm:inline"> · {dict.pwa.installBody}</span>
+      </p>
+      <div className="flex shrink-0 items-center gap-1">
         <Button
+          size="sm"
+          variant="ghost"
           onClick={async () => {
             await deferredPrompt.prompt();
             setDeferredPrompt(null);
@@ -42,10 +48,10 @@ export function InstallPrompt() {
         >
           Cài đặt
         </Button>
-        <Button variant="ghost" onClick={() => setDismissed(true)}>
+        <Button size="sm" variant="ghost" className="text-foreground-subtle" onClick={() => setDismissed(true)}>
           Để sau
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

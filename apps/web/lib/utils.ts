@@ -1,3 +1,5 @@
+import type { Dictionary } from "@/lib/i18n/vi";
+import { fmt } from "@/lib/i18n";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -20,52 +22,76 @@ export function formatTimestamp(value: string): string {
   }).format(new Date(value));
 }
 
-export function severityLabel(severity: string): string {
+export function severityLabel(severity: string, dict: Dictionary): string {
   switch (severity) {
     case "critical":
-      return "Nghiêm trọng";
+      return dict.alerts.critical;
     case "warning":
-      return "Cảnh báo";
+      return dict.alerts.warning;
     case "info":
-      return "Thông tin";
+      return dict.alerts.info;
     default:
-      return "Bình thường";
+      return dict.alerts.normal;
   }
 }
 
-export function eventTitle(eventType: string): string {
+/**
+ * Wire event type → dictionary key. Returns undefined for an unmapped code so
+ * the caller can fall back to showing the raw type rather than inventing a
+ * phrase for an event this build does not know about.
+ */
+export function eventTitleKey(
+  eventType: string,
+): "highSalinity" | "sensorFault" | "lowBattery" | "offline" | undefined {
   switch (eventType) {
     case "HIGH_SALINITY":
-      return "Cảnh báo độ mặn";
+      return "highSalinity";
     case "SENSOR_FAULT":
-      return "Lỗi cảm biến";
+      return "sensorFault";
     case "LOW_BATTERY":
-      return "Pin yếu";
+      return "lowBattery";
     case "OFFLINE":
-      return "Tín hiệu yếu";
+      return "offline";
     default:
+      return undefined;
+  }
+}
+
+export function eventTitle(eventType: string, dict: Dictionary): string {
+  switch (eventType) {
+    case "HIGH_SALINITY":
+      return dict.alerts.highSalinity;
+    case "SENSOR_FAULT":
+      return dict.alerts.sensorFault;
+    case "LOW_BATTERY":
+      return dict.alerts.lowBattery;
+    case "OFFLINE":
+      return dict.alerts.offline;
+    default:
+      // An unmapped event type is shown raw rather than guessed at — the
+      // code is more useful to an operator than an invented sentence.
       return eventType;
   }
 }
 
-export function formatAlertDetails(details: Record<string, unknown>): string {
+export function formatAlertDetails(details: Record<string, unknown>, dict: Dictionary): string {
   const salinity = details.salinity;
   const threshold = details.threshold;
   const voltage = details.voltage;
   const signal = details.signal_strength_dbm;
 
   if (salinity !== undefined && threshold !== undefined) {
-    return `Độ mặn ${Number(salinity).toFixed(2)}‰ (ngưỡng ${Number(threshold).toFixed(2)}‰)`;
+    return fmt(dict.alerts.salinityDetail, { value: Number(salinity).toFixed(2), threshold: Number(threshold).toFixed(2) });
   }
   if (voltage !== undefined) {
-    return `Pin ${Number(voltage).toFixed(2)} V`;
+    return fmt(dict.alerts.batteryDetail, { value: Number(voltage).toFixed(2) });
   }
   if (signal !== undefined) {
-    return `Tín hiệu ${signal} dBm`;
+    return fmt(dict.alerts.signalDetail, { value: String(signal) });
   }
 
   const parts = Object.entries(details)
     .filter(([, v]) => v !== undefined && v !== null)
     .map(([k, v]) => `${k}: ${String(v)}`);
-  return parts.length > 0 ? parts.join(" · ") : "Không có chi tiết bổ sung";
+  return parts.length > 0 ? parts.join(" · ") : dict.alerts.noDetail;
 }

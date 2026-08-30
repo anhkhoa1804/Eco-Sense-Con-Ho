@@ -2,18 +2,21 @@ import Link from "next/link";
 import { ArrowRight, ClipboardList, Home, LayoutDashboard, Send, Sprout, Waves } from "lucide-react";
 import { FieldNotesList } from "@/components/about/field-notes-list";
 import { GalleryStrip } from "@/components/about/gallery-strip";
+import { PageHero } from "@/components/layout/page-hero";
+import { TranslationNotice } from "@/components/layout/translation-notice";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Reveal } from "@/components/ui/reveal";
 import { getGalleryItems } from "@/lib/content/gallery";
 import { getRecentPosts } from "@/lib/content/posts";
-import { PILOT_STATION_IDS } from "@/lib/publicStations";
-import { stationProfiles, type StationKind } from "@/lib/stationProfile";
+import { getI18n } from "@/lib/i18n/server";
+import { PILOT_STATION_IDS, stationHref } from "@/lib/publicStations";
+import { stationProfiles, stationText, type StationKind } from "@/lib/stationProfile";
 
 export const revalidate = 3600;
 
 const KIND_ICON: Record<StationKind, typeof Waves> = { water: Waves, soil: Sprout, gateway: Send };
 
-/** Printed on public/images/con-ho-station-map.png — read off the asset, not estimated here. */
+/** Printed on public/assets/illustrations/con-ho-station-map.png — read off the asset, not estimated here. */
 const ISLAND_STATS = [
   { label: "Chiều dài", value: "~1.000 m" },
   { label: "Chiều ngang", value: "~300 m" },
@@ -31,7 +34,7 @@ const HARDWARE_GROUPS = [
   {
     domain: "Nước",
     station: "Trạm 1",
-    image: "/images/hardware/station-water-placeholder.svg",
+    image: "/assets/illustrations/station-water-placeholder.svg",
     parts: [
       {
         part: "A02YYUW",
@@ -48,7 +51,7 @@ const HARDWARE_GROUPS = [
   {
     domain: "Đất và không khí",
     station: "Trạm 2",
-    image: "/images/hardware/station-soil-placeholder.svg",
+    image: "/assets/illustrations/station-soil-placeholder.svg",
     parts: [
       {
         part: "ES-SM-THEC-01",
@@ -62,7 +65,7 @@ const HARDWARE_GROUPS = [
   {
     domain: "Truyền dữ liệu",
     station: "Gateway",
-    image: "/images/hardware/gateway-placeholder.svg",
+    image: "/assets/illustrations/gateway-placeholder.svg",
     parts: [
       {
         part: "SX1278 (LoRa)",
@@ -117,41 +120,29 @@ function ChapterHeading({
   );
 }
 
-export default function AboutPage() {
+export default async function AboutPage() {
   const posts = getRecentPosts(5);
   const gallery = getGalleryItems();
+  const { dict } = await getI18n();
 
   return (
     <PublicShell activePath="/about">
-      {/* Hero — documentary, not the homepage's atmospheric composition. */}
-      <section className="py-10 md:py-16">
-        <div className="mx-auto max-w-[var(--width-content-wide)]">
-          <div className="animate-entrance max-w-3xl space-y-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">Giới thiệu</p>
-            <h1 className="text-[length:var(--text-title-editorial)] font-semibold leading-[1.12] tracking-tight">
-              HORIZON là một mạng lưới quan trắc môi trường được thiết kế cho một pilot cộng đồng tại Cồn Hô.
-            </h1>
-            <p className="max-w-2xl text-lg leading-relaxed text-muted">
-              Trang này giải thích dự án đang xây dựng cái gì, vì sao, hệ thống hoạt động ra sao, và phần nào vẫn còn
-              đang dang dở.
-            </p>
-            <dl className="flex flex-wrap gap-x-8 gap-y-3 pt-2 text-sm">
-              {[
-                { k: "Địa điểm", v: "Cồn Hô, Vĩnh Long" },
-                { k: "Quy mô", v: "3 điểm quan trắc" },
-                { k: "Giai đoạn", v: "Pilot — chưa triển khai thực địa" },
-              ].map(({ k, v }) => (
-                <div key={k}>
-                  <dt className="text-[11px] uppercase tracking-[0.14em] text-muted">{k}</dt>
-                  <dd className="mt-1 font-medium">{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </section>
+      {/* Hero — documentary, not the homepage's atmospheric composition, but
+          the same grammar. The definition list that used to sit here (Địa
+          điểm / Quy mô / Giai đoạn) has gone: it was the only hero on the
+          site carrying one, it was hardcoded Vietnamese so it never
+          translated, and all three facts are stated again within the first
+          two sections below. That is precisely the small print under the
+          title the owner asked to remove. */}
+      <PageHero
+        eyebrow={dict.about.eyebrow}
+        title={dict.about.title}
+        subtitle={dict.about.subtitle}
+      />
 
-      <div className="space-y-28 md:space-y-36">
+      <TranslationNotice />
+
+      <div className="h-flow-chapter">
         {/* 01 — Cồn Hô */}
         <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">
           <ChapterHeading eyebrow="01 · Nơi chốn" title="Một cù lao nông nghiệp giữa sông." />
@@ -173,7 +164,7 @@ export default function AboutPage() {
             <figure className="space-y-4">
               {/* eslint-disable-next-line @next/next/no-img-element -- local static asset with known aspect ratio; next/image has previously failed to resolve in this project (see wordmark.tsx) */}
               <img
-                src="/images/con-ho-station-map.png"
+                src="/assets/illustrations/con-ho-station-map.png"
                 alt="Bản đồ minh họa vị trí ba điểm quan trắc trên Cồn Hô: Trạm 1 gần sông, Trạm 2 giữa cồn, Gateway cuối cồn"
                 width={1614}
                 height={974}
@@ -213,8 +204,14 @@ export default function AboutPage() {
           </div>
         </Reveal>
 
-        {/* 03 — The network */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        {/* 03 — The network.
+            No width className on any of this page's "wide" sections from
+            here on — PublicShell's `main.h-wide` already supplies the same
+            1200px cap and gutter, so restating it was a provable no-op. Only
+            the narrower `.h-reading`-equivalent sections above/below still
+            carry their own max-width, since those genuinely constrain
+            tighter than the parent. */}
+        <Reveal stagger as="section">
           <ChapterHeading
             eyebrow="03 · Mạng lưới"
             title="Ba vai trò, không phải ba bản sao."
@@ -227,7 +224,7 @@ export default function AboutPage() {
               return (
                 <Link
                   key={id}
-                  href={`/s/${id}`}
+                  href={stationHref(id)}
                   className="group flex flex-col gap-4 py-7 transition-colors duration-[var(--motion-base)] hover:bg-muted/20 md:flex-row md:items-baseline md:gap-10 md:py-9"
                 >
                   <div className="flex shrink-0 items-center gap-4 md:w-56">
@@ -240,9 +237,9 @@ export default function AboutPage() {
                     </span>
                   </div>
                   <div className="min-w-0 flex-1 space-y-2">
-                    <h3 className="text-xl font-semibold tracking-tight md:text-2xl">{profile.name}</h3>
-                    <p className="text-sm text-muted">{profile.location}</p>
-                    <p className="max-w-2xl text-sm leading-relaxed text-muted">{profile.intro}</p>
+                    <h3 className="text-xl font-semibold tracking-tight md:text-2xl">{stationText(profile.id, dict).name}</h3>
+                    <p className="text-sm text-muted">{stationText(profile.id, dict).location}</p>
+                    <p className="max-w-2xl text-sm leading-relaxed text-muted">{stationText(profile.id, dict).intro}</p>
                   </div>
                   <ArrowRight
                     className="hidden h-5 w-5 shrink-0 text-muted transition-transform duration-[var(--motion-base)] group-hover:translate-x-1 group-hover:text-accent md:block"
@@ -255,7 +252,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* 04 — Hardware */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section">
           <ChapterHeading
             eyebrow="04 · Phần cứng"
             title="Thiết bị được chọn theo câu hỏi cần trả lời."
@@ -291,7 +288,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* 05 — How data moves */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)]">
+        <Reveal stagger as="section">
           <ChapterHeading eyebrow="05 · Dòng dữ liệu" title="Từ một đầu dò đến một dòng trên màn hình." />
           <ol className="mt-10 grid gap-px overflow-hidden border-y border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
             {DATA_FLOW.map(({ step, text }, index) => (
@@ -327,22 +324,28 @@ export default function AboutPage() {
           </div>
         </Reveal>
 
-        {/* 07 — Gallery */}
-        <section className="full-bleed">
-          <Reveal className="h-spatial">
-            <ChapterHeading
-              eyebrow="07 · Thư viện"
-              title="Hình ảnh dự án."
-              lead="Hiện tại thư viện gồm sơ đồ kỹ thuật và hình minh họa do dự án tự dựng. Chưa có ảnh thực địa, và không hình nào ở đây được trình bày như ảnh tư liệu hiện trường."
-            />
-            <div className="mt-10">
+        {/* 07 — Gallery.
+            Heading stays in normal flow (same fix as the homepage's map
+            chapter) — only the strip itself takes the spatial breakout.
+            The whole section previously sat inside `.full-bleed`, whose
+            100vw includes the scrollbar gutter and so dragged the heading
+            8px off the page grid (measured: "Hình ảnh dự án" landing at
+            x=20 against every sibling heading's x=28 at 768px). */}
+        <Reveal as="section">
+          <ChapterHeading
+            eyebrow="07 · Thư viện"
+            title="Hình ảnh dự án."
+            lead="Hiện tại thư viện gồm sơ đồ kỹ thuật và hình minh họa do dự án tự dựng. Chưa có ảnh thực địa, và không hình nào ở đây được trình bày như ảnh tư liệu hiện trường."
+          />
+          <div className="full-bleed mt-10">
+            <div className="h-spatial">
               <GalleryStrip items={gallery} />
             </div>
-          </Reveal>
-        </section>
+          </div>
+        </Reveal>
 
         {/* 08 — Field notes */}
-        <Reveal as="section" id="ghi-chep" className="mx-auto max-w-[var(--width-content-wide)] scroll-mt-28">
+        <Reveal as="section" id="ghi-chep" className="scroll-mt-28">
           <ChapterHeading
             eyebrow="08 · Ghi chép"
             title="Ghi chép trong quá trình xây dựng."
@@ -383,7 +386,7 @@ export default function AboutPage() {
         </Reveal>
 
         {/* Final navigation */}
-        <Reveal stagger as="section" className="mx-auto max-w-[var(--width-content-wide)] pb-8">
+        <Reveal stagger as="section" className="pb-8">
           <div className="border-t border-border">
             {EXPLORE.map(({ href, icon: Icon, label, text }) => (
               <Link

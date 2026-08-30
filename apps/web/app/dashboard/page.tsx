@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { FlaskConical } from "lucide-react";
 import { getObservatoryViewModel } from "@/lib/monitoring/buildObservatory";
+import { getExternalWeather } from "@/lib/external/weather";
+import { getI18n } from "@/lib/i18n/server";
 import { ObservatoryCanvas } from "@/components/monitoring/observatory-canvas";
+import { PageHero } from "@/components/layout/page-hero";
 import { PublicShell } from "@/components/layout/public-shell";
-import { InstallPrompt } from "@/components/pwa/install-prompt";
-import { Button } from "@/components/ui/button";
 import DashboardLoading from "./loading";
 
 export const revalidate = 60;
@@ -21,8 +21,20 @@ function resolveMode(raw: string | string[] | undefined): "real" | "demo" {
 }
 
 async function MonitoringContent({ mode }: { mode: "real" | "demo" }) {
-  const model = await getObservatoryViewModel(mode);
-  return <ObservatoryCanvas model={model} />;
+  const { dict } = await getI18n();
+  // External context is fetched alongside the model. It shares the canvas but
+  // never the provenance — see lib/monitoring/signals.ts. A failure here
+  // resolves to null and costs the page nothing.
+  //
+  // The dictionary is threaded INTO the builder rather than applied at render
+  // because the view model bakes station names, the gateway capability note
+  // and the whole reference panel as strings. Building it language-blind is
+  // what left "Trạm 1 - Gần sông" on the English observatory.
+  const [model, weather] = await Promise.all([
+    getObservatoryViewModel(mode, dict),
+    getExternalWeather(),
+  ]);
+  return <ObservatoryCanvas model={model} weather={weather} />;
 }
 
 export default async function DashboardPage({
@@ -32,43 +44,45 @@ export default async function DashboardPage({
 }) {
   const params = await searchParams;
   const mode = resolveMode(params.mode);
+  const { dict } = await getI18n();
 
   return (
     <PublicShell activePath="/dashboard">
-      {/* Deliberately tight above the canvas: at 1440×900 every pixel spent
-          here pushes the three stations and the trend surface below the fold,
-          which is the one thing this page must show immediately. */}
-      <div className="space-y-6 py-3 md:py-5">
-        <div className="space-y-4">
-          <InstallPrompt />
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Quan trắc trực tiếp</p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-3">
-                <h1 className="text-[length:var(--text-title-observatory)] font-semibold leading-tight tracking-tight">Đài quan trắc</h1>
-                {mode === "demo" ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-sm bg-watch-bg px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-watch">
-                    <FlaskConical className="h-3 w-3" aria-hidden />
-                    Dữ liệu minh họa
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild variant="outline" size="sm">
-                <Link href="/report">Gửi báo cáo hiện trường</Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link href="/about">Về dự án</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
+      {/* The PWA install prompt used to open this page: a full Card, above
+          the title, advertising the app before the reader had seen a single
+          measurement. It now lives on Home — the page a first-time visitor
+          actually arrives on — as a compact bar. Monitoring opens on its
+          subject. */}
 
-        <Suspense fallback={<DashboardLoading />}>
-          <MonitoringContent mode={mode} />
-        </Suspense>
-      </div>
+      {/* Same hero grammar as About and Report. This page previously used a
+          smaller title tier and a tighter eyebrow than the other three, which
+          is what made Monitoring read as a utility screen rather than a
+          sibling of the pages that link to it.
+
+          No `actions` at all now. "Gửi báo cáo hiện trường" was the last one
+          standing, and it went for the same reason "Về dự án" did before it:
+          Báo cáo is in the header on every viewport, so the button bought
+          nothing and cost the observatory a screen. On a monitoring page the
+          measurements should be the first thing a reader reaches, not the
+          fourth. The demo flag stays — it changes how every number below
+          should be read, which is the bar `aside` has to clear. */}
+      <PageHero
+        scale="observatory"
+        eyebrow={dict.monitoring.eyebrow}
+        title={dict.monitoring.title}
+        aside={
+          mode === "demo" ? (
+            <span className="inline-flex items-center gap-1.5 rounded-sm bg-watch-bg px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-watch">
+              <FlaskConical className="h-3 w-3" aria-hidden />
+              {dict.monitoring.demoBannerTitle}
+            </span>
+          ) : null
+        }
+      />
+
+      <Suspense fallback={<DashboardLoading />}>
+        <MonitoringContent mode={mode} />
+      </Suspense>
     </PublicShell>
   );
 }

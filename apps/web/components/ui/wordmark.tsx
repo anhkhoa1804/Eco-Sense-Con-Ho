@@ -23,7 +23,13 @@ const LOGO_INTRINSIC_HEIGHT = 200;
 const markSizeClasses: Record<NonNullable<WordmarkProps["markSize"]>, string> = {
   // The transition is on `height`, and the value comes from a var the header
   // reassigns — so one class change on the header interpolates the mark.
-  fluid: "h-[var(--header-logo)] transition-[height] duration-[var(--motion-slow)] ease-[var(--ease-brand)]",
+  //
+  // Duration and easing MUST match the header row's own height transition
+  // (site-header.tsx). They were 420ms/ease-brand against the header's
+  // 190ms/ease-standard, so the mark carried on shrinking for 230ms after
+  // the bar around it had already settled — read as the logo bouncing
+  // independently of the header rather than the two moving as one object.
+  fluid: "h-[var(--header-logo)] transition-[height] duration-[var(--motion-base)] ease-[var(--ease-standard)]",
   compact: "h-8",
 };
 
@@ -40,7 +46,7 @@ export function Wordmark({ href = "/", markSize = "fluid", className }: Wordmark
           a module-resolution error unrelated to the asset itself. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/assets/brand/horizon-wordmark.png"
+        src="/assets/brand/horizon-logo.png"
         alt="HORIZON"
         width={Math.round(LOGO_INTRINSIC_HEIGHT * LOGO_ASPECT_RATIO)}
         height={LOGO_INTRINSIC_HEIGHT}

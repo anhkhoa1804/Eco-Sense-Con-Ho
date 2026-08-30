@@ -10,6 +10,8 @@ import {
   WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Dictionary } from "@/lib/i18n/vi";
+import type { Locale } from "@/lib/i18n/config";
 
 /**
  * Freshness — when did data last arrive, if ever. Independent of value
@@ -26,25 +28,32 @@ export type FreshnessState = "live" | "recent" | "stale" | "offline" | "never_co
 /** Value quality — when a reading exists, should it be trusted. Orthogonal to freshness. */
 export type QualityState = "valid" | "estimated" | "error";
 
+/**
+ * Freshness presentation. The LABEL is not stored here — it is looked up per
+ * render from the dictionary, because these words appear on every page and
+ * an English reader meeting "Chưa từng kết nối" on a status chip has no way
+ * to tell it apart from a station name. Only the icon and tone, which do not
+ * translate, are static.
+ */
 const FRESHNESS_META: Record<
   FreshnessState,
-  { label: string; icon: React.ComponentType<{ className?: string }>; tone: "healthy" | "watch" | "risk" | "offline"; pulse?: boolean }
+  { key: keyof Dictionary["freshness"]; icon: React.ComponentType<{ className?: string }>; tone: "healthy" | "watch" | "risk" | "offline"; pulse?: boolean }
 > = {
-  live: { label: "Trực tiếp", icon: Radio, tone: "healthy", pulse: true },
-  recent: { label: "Gần đây", icon: Clock, tone: "healthy" },
-  stale: { label: "Dữ liệu cũ", icon: History, tone: "watch" },
-  offline: { label: "Mất kết nối", icon: WifiOff, tone: "offline" },
-  never_connected: { label: "Chưa từng kết nối", icon: CircleSlash, tone: "offline" },
-  unavailable: { label: "Chưa có dữ liệu", icon: CircleDashed, tone: "offline" },
+  live: { key: "live", icon: Radio, tone: "healthy", pulse: true },
+  recent: { key: "recent", icon: Clock, tone: "healthy" },
+  stale: { key: "stale", icon: History, tone: "watch" },
+  offline: { key: "offline", icon: WifiOff, tone: "offline" },
+  never_connected: { key: "neverConnected", icon: CircleSlash, tone: "offline" },
+  unavailable: { key: "unavailable", icon: CircleDashed, tone: "offline" },
 };
 
 const QUALITY_META: Record<
   QualityState,
-  { label: string; icon: React.ComponentType<{ className?: string }>; tone: "healthy" | "watch" | "risk" | "offline" }
+  { key: keyof Dictionary["quality"]; icon: React.ComponentType<{ className?: string }>; tone: "healthy" | "watch" | "risk" | "offline" }
 > = {
-  valid: { label: "Đo trực tiếp", icon: Radio, tone: "healthy" },
-  estimated: { label: "Giá trị ước tính", icon: Sparkles, tone: "watch" },
-  error: { label: "Cảm biến lỗi", icon: AlertOctagon, tone: "risk" },
+  valid: { key: "valid", icon: Radio, tone: "healthy" },
+  estimated: { key: "estimated", icon: Sparkles, tone: "watch" },
+  error: { key: "error", icon: AlertOctagon, tone: "risk" },
 };
 
 /**
@@ -53,15 +62,16 @@ const QUALITY_META: Record<
  * structurally independent (see FreshnessState/QualityState above) and a
  * shared prop type would blur that distinction back together.
  */
-export function QualityIndicator({ status, compact = false, className }: { status: QualityState; compact?: boolean; className?: string }) {
+export function QualityIndicator({ status, dict, compact = false, className }: { status: QualityState; dict: Dictionary; compact?: boolean; className?: string }) {
   const meta = QUALITY_META[status];
+  const label = dict.quality[meta.key];
   const Icon = meta.icon;
 
   if (compact) {
     return (
       <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", toneClasses[meta.tone], className)}>
         <Icon className="h-3 w-3" aria-hidden />
-        {meta.label}
+        {label}
       </span>
     );
   }
@@ -69,7 +79,7 @@ export function QualityIndicator({ status, compact = false, className }: { statu
   return (
     <div className={cn("inline-flex items-center gap-2", className)}>
       <Icon className={cn("h-3.5 w-3.5 shrink-0", toneClasses[meta.tone])} aria-hidden />
-      <p className={cn("text-xs font-semibold uppercase tracking-[0.12em]", toneClasses[meta.tone])}>{meta.label}</p>
+      <p className={cn("text-xs font-semibold uppercase tracking-[0.12em]", toneClasses[meta.tone])}>{label}</p>
     </div>
   );
 }
@@ -90,6 +100,14 @@ const dotClasses: Record<"healthy" | "watch" | "risk" | "offline", string> = {
 
 interface StatusIndicatorProps {
   status: FreshnessState;
+  /**
+   * Required, not optional with a Vietnamese default. A default would have
+   * let every existing call site keep compiling while silently rendering
+   * Vietnamese into the English UI — which is exactly how these labels
+   * survived three phases of "bilingual" work. Making it required turns each
+   * un-migrated call site into a build error.
+   */
+  dict: Dictionary;
   detail?: string;
   compact?: boolean;
   className?: string;
@@ -101,15 +119,16 @@ interface StatusIndicatorProps {
  * that a measurement's state (live/recent/stale/offline/...) is legible on
  * its own, not inferred from a colored dot.
  */
-export function StatusIndicator({ status, detail, compact = false, className }: StatusIndicatorProps) {
+export function StatusIndicator({ status, dict, detail, compact = false, className }: StatusIndicatorProps) {
   const meta = FRESHNESS_META[status];
+  const label = dict.freshness[meta.key];
   const Icon = meta.icon;
 
   if (compact) {
     return (
       <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", toneClasses[meta.tone], className)}>
         <span className={cn("h-1.5 w-1.5 rounded-full", dotClasses[meta.tone], meta.pulse && "animate-pulse")} aria-hidden />
-        {meta.label}
+        {label}
       </span>
     );
   }
@@ -118,7 +137,7 @@ export function StatusIndicator({ status, detail, compact = false, className }: 
     <div className={cn("inline-flex items-start gap-2", className)}>
       <Icon className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", toneClasses[meta.tone])} aria-hidden />
       <div className="space-y-0.5">
-        <p className={cn("text-xs font-semibold uppercase tracking-[0.12em]", toneClasses[meta.tone])}>{meta.label}</p>
+        <p className={cn("text-xs font-semibold uppercase tracking-[0.12em]", toneClasses[meta.tone])}>{label}</p>
         {detail ? <p className="text-xs text-muted">{detail}</p> : null}
       </div>
     </div>
@@ -149,15 +168,30 @@ export function freshnessStatus(
   return "offline";
 }
 
-export function relativeTimeVi(timestampIso: string): string {
+/**
+ * "3 giờ trước" / "3 hours ago".
+ *
+ * Built on `Intl.RelativeTimeFormat` rather than a dictionary of time words.
+ * The units are the one part of the interface where a translation table is
+ * the wrong tool: every locale has its own pluralisation and word order for
+ * them, the platform already knows all of it, and hand-written entries would
+ * drift the moment a third language was considered.
+ *
+ * Locale is a parameter with no default — same reasoning as `dict` on the
+ * indicators. This replaced `relativeTimeVi`, which hardcoded Vietnamese and
+ * was rendering "phút trước" underneath English station headings.
+ */
+export function relativeTime(timestampIso: string, locale: Locale): string {
   const ms = Date.now() - new Date(timestampIso).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return "vừa xong";
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+
+  if (!Number.isFinite(ms) || ms < 0) return rtf.format(0, "second");
+
   const sec = Math.floor(ms / 1000);
-  if (sec < 60) return `${sec}s trước`;
+  if (sec < 60) return rtf.format(-sec, "second");
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} phút trước`;
+  if (min < 60) return rtf.format(-min, "minute");
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} giờ trước`;
-  const day = Math.floor(hr / 24);
-  return `${day} ngày trước`;
+  if (hr < 24) return rtf.format(-hr, "hour");
+  return rtf.format(-Math.floor(hr / 24), "day");
 }

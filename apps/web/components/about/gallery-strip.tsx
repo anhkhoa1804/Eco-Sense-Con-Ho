@@ -1,4 +1,5 @@
 "use client";
+import { useDict } from "@/lib/i18n/client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
@@ -12,12 +13,13 @@ import type { GalleryItem, GalleryStatus } from "@/lib/content/gallery";
  * diagram.
  */
 const STATUS_LABEL: Record<GalleryStatus, string | null> = {
-  placeholder: "Minh họa · giữ chỗ",
-  illustrative: "Hình minh họa",
+  placeholder: "placeholder",
+  illustrative: "illustrative",
   verified: null,
 };
 
 export function GalleryStrip({ items }: { items: GalleryItem[] }) {
+  const dict = useDict();
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
@@ -50,7 +52,7 @@ export function GalleryStrip({ items }: { items: GalleryItem[] }) {
   };
 
   if (items.length === 0) {
-    return <p className="text-sm leading-relaxed text-muted">Chưa có hình ảnh nào trong thư viện.</p>;
+    return <p className="text-sm leading-relaxed text-muted">{dict.gallery.empty}</p>;
   }
 
   return (
@@ -76,7 +78,7 @@ export function GalleryStrip({ items }: { items: GalleryItem[] }) {
                 <p className="text-[11px] uppercase tracking-[0.14em] text-accent">{item.category}</p>
                 <p className="text-base font-semibold tracking-tight">{item.title}</p>
                 <p className="text-sm leading-relaxed text-muted">{item.caption}</p>
-                {item.source ? <p className="text-xs text-muted/70">Nguồn: {item.source}</p> : null}
+                {item.source ? <p className="text-xs text-muted/70">{dict.common.source}: {item.source}</p> : null}
               </figcaption>
             </figure>
           );
@@ -86,8 +88,8 @@ export function GalleryStrip({ items }: { items: GalleryItem[] }) {
       <div className="flex items-center gap-2">
         {(
           [
-            { dir: -1 as const, label: "Xem hình trước", Icon: ArrowLeft, disabled: atStart },
-            { dir: 1 as const, label: "Xem hình tiếp theo", Icon: ArrowRight, disabled: atEnd },
+            { dir: -1 as const, label: dict.gallery.prev, Icon: ArrowLeft, disabled: atStart },
+            { dir: 1 as const, label: dict.gallery.next, Icon: ArrowRight, disabled: atEnd },
           ]
         ).map(({ dir, label, Icon, disabled }) => (
           <button

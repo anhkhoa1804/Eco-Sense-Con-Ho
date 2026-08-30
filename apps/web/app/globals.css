@@ -66,8 +66,13 @@
    */
   --h-safe: #197a3f;
   --h-safe-bg: rgba(25, 122, 63, 0.09);
-  --h-warning: #a35f00;
-  --h-warning-bg: rgba(163, 95, 0, 0.09);
+  /* Darkened from #a35f00, which gave the 10px "Chưa xác minh" provenance
+   * badge only 4.07:1 on its own 9% tint — below the 4.5:1 that text this
+   * small requires. #8f5300 is the same amber at 5.01:1 on the chip and
+   * 5.61:1 on bare canvas. The dark-mode amber already passed, so only the
+   * light value moves. */
+  --h-warning: #8f5300;
+  --h-warning-bg: rgba(143, 83, 0, 0.09);
   --h-danger: #b02318;
   --h-danger-bg: rgba(176, 35, 24, 0.09);
   --h-informational: #0c5f7d;
@@ -76,6 +81,32 @@
   --h-neutral-bg: rgba(91, 101, 112, 0.09);
   --h-fault: #6d28d9;
   --h-fault-bg: rgba(109, 40, 217, 0.09);
+
+  /* ------------------------------------------------------- STATUS SURFACES
+   * A SECOND, STRONGER STATUS TINT — for whole regions, not chips.
+   *
+   * The `-bg` values above are sized for a 10px badge sitting inside body
+   * text: at 9% they colour a chip without shouting. Fill a 400px Bento
+   * region with the same value and the status stops registering as status
+   * at all — which is exactly what the owner reported ("too soft", "muddy
+   * beige") against a screenshot of the Monitoring canvas.
+   *
+   * These are deliberately not just the same hues at higher alpha. The
+   * warning *text* colour is #8f5300 — a brown, chosen for contrast against
+   * a pale chip — and a large surface of it reads as beige, not as caution.
+   * The surface therefore uses a true amber (#e08600), the safe surface a
+   * brighter green than its text token, and critical a coral red. Each is
+   * the colour the status should *look* like at scale; the text tokens above
+   * remain the colour it must be to stay readable at 10px.
+   *
+   * Kept separate rather than raising --h-*-bg so alert banners, provenance
+   * badges and the report form — all tuned against the 9% chip — are
+   * untouched by a change made for the observatory canvas.
+   */
+  --h-status-normal: rgba(20, 158, 79, 0.40);
+  --h-status-warning: rgba(240, 146, 0, 0.52);
+  --h-status-critical: rgba(214, 46, 35, 0.38);
+  --h-status-none: rgba(91, 101, 112, 0.05);
 
   /* Data visualisation */
   --h-threshold: #b02318;
@@ -101,12 +132,22 @@
    */
   --h-grid-line: rgba(19, 29, 27, 0.05);
   --h-grid-line-major: rgba(19, 29, 27, 0.08);
-  --h-dot-ink: rgba(19, 29, 27, 0.11);
-  /* Two atmospheric pools: a cool one for depth, a warm one carrying the
-     brand's sun. Both extremely low alpha — they should register as light,
-     never as a gradient. */
-  --h-atmos-cool: rgba(12, 95, 125, 0.07);
-  --h-atmos-warm: rgba(242, 140, 0, 0.05);
+  /* Atmospheric pools. Extremely low alpha — they should register as light,
+     never as a gradient. Light mode reads as morning survey paper: warm
+     white at the top, a cool blue-white pool through the centre, warm
+     neutral at the edges.
+
+     `--h-atmos-lift` is the cool-white centre bloom and `--h-atmos-vignette`
+     the edge falloff. Light mode previously set the vignette to
+     `transparent`, which is why the page read as a flat sheet: with no
+     centre-to-edge falloff at all there was no depth for the pools to sit
+     in. It is now a WARM NEUTRAL rather than a black — light mode gains
+     depth by warming its edges, not by darkening them. */
+  --h-atmos-cool: rgba(12, 95, 125, 0.085);
+  --h-atmos-warm: rgba(242, 140, 0, 0.055);
+  --h-atmos-green: rgba(25, 122, 63, 0.05);
+  --h-atmos-lift: rgba(212, 231, 240, 0.5);
+  --h-atmos-vignette: rgba(193, 180, 152, 0.2);
 
   --h-selection: rgba(12, 95, 125, 0.18);
 }
@@ -123,15 +164,21 @@
     --h-brand-orange: #ffa62e;
     --h-brand-blue: #4fb0d4;
 
-    --h-canvas: #0e1312;
-    --h-canvas-subtle: #0a0f0e;
-    --h-canvas-elevated: #141b19;
-    --h-surface: #141b19;
-    --h-surface-raised: #1a2320;
+    /* Graphite, not near-black. The previous ramp bottomed out at #121817 —
+       dark enough that the atmosphere gradient, the grid and the Bento's own
+       surfaces all collapsed into one flat black field. These are a step
+       lighter and a step cooler (green-black → blue-grey graphite), which
+       gives the layered background somewhere to actually be visible and
+       keeps the status tints readable on top of it. */
+    --h-canvas: #191d23;
+    --h-canvas-subtle: #14181d;
+    --h-canvas-elevated: #212730;
+    --h-surface: #1f242c;
+    --h-surface-raised: #272e38;
 
-    --h-foreground: #e7ece9;
-    --h-foreground-muted: #97a49f;
-    --h-foreground-subtle: #7f8b86;
+    --h-foreground: #eef2f0;
+    --h-foreground-muted: #a3afaa;
+    --h-foreground-subtle: #8a9691;
 
     --h-border: rgba(255, 255, 255, 0.1);
     --h-border-strong: rgba(255, 255, 255, 0.19);
@@ -150,6 +197,14 @@
     --h-fault: #a78bfa;
     --h-fault-bg: rgba(167, 139, 250, 0.14);
 
+    /* Region-scale status surfaces — see the note in :root. Slightly higher
+       alpha than light mode: a tint has to work harder to read as colour
+       against graphite than against off-white. */
+    --h-status-normal: rgba(74, 214, 136, 0.46);
+    --h-status-warning: rgba(255, 186, 66, 0.52);
+    --h-status-critical: rgba(255, 118, 106, 0.46);
+    --h-status-none: rgba(160, 175, 190, 0.06);
+
     --h-threshold: #e27066;
     --h-salinity: #34b7b0;
     --h-water-level: #5b8def;
@@ -160,11 +215,15 @@
     --h-wash-sunken: rgba(0, 0, 0, 0.22);
     --h-scrim: rgba(0, 0, 0, 0.55);
 
-    --h-grid-line: rgba(255, 255, 255, 0.038);
-    --h-grid-line-major: rgba(255, 255, 255, 0.06);
-    --h-dot-ink: rgba(255, 255, 255, 0.085);
-    --h-atmos-cool: rgba(79, 176, 212, 0.07);
-    --h-atmos-warm: rgba(255, 166, 46, 0.045);
+    --h-grid-line: rgba(255, 255, 255, 0.045);
+    --h-grid-line-major: rgba(255, 255, 255, 0.07);
+    --h-atmos-cool: rgba(79, 176, 212, 0.14);
+    --h-atmos-warm: rgba(255, 166, 46, 0.05);
+    --h-atmos-green: rgba(69, 192, 120, 0.07);
+    /* The lighter graphite centre. Without it the canvas token alone is a
+       single flat value and dark mode reads as one sheet of near-black. */
+    --h-atmos-lift: rgba(150, 172, 186, 0.26);
+    --h-atmos-vignette: rgba(10, 14, 20, 0.3);
 
     --h-selection: rgba(79, 176, 212, 0.26);
   }
@@ -177,15 +236,16 @@
   --h-brand-orange: #ffa62e;
   --h-brand-blue: #4fb0d4;
 
-  --h-canvas: #0e1312;
-  --h-canvas-subtle: #0a0f0e;
-  --h-canvas-elevated: #141b19;
-  --h-surface: #141b19;
-  --h-surface-raised: #1a2320;
+  /* Kept in lockstep with the media-query block above — see the note there. */
+  --h-canvas: #191d23;
+  --h-canvas-subtle: #14181d;
+  --h-canvas-elevated: #212730;
+  --h-surface: #1f242c;
+  --h-surface-raised: #272e38;
 
-  --h-foreground: #e7ece9;
-  --h-foreground-muted: #97a49f;
-  --h-foreground-subtle: #7f8b86;
+  --h-foreground: #eef2f0;
+  --h-foreground-muted: #a3afaa;
+  --h-foreground-subtle: #8a9691;
 
   --h-border: rgba(255, 255, 255, 0.1);
   --h-border-strong: rgba(255, 255, 255, 0.19);
@@ -204,6 +264,12 @@
   --h-fault: #a78bfa;
   --h-fault-bg: rgba(167, 139, 250, 0.14);
 
+  /* Kept in lockstep with the media-query block above. */
+  --h-status-normal: rgba(74, 214, 136, 0.46);
+  --h-status-warning: rgba(255, 186, 66, 0.52);
+  --h-status-critical: rgba(255, 118, 106, 0.46);
+  --h-status-none: rgba(160, 175, 190, 0.06);
+
   --h-threshold: #e27066;
   --h-salinity: #34b7b0;
   --h-water-level: #5b8def;
@@ -214,11 +280,13 @@
   --h-wash-sunken: rgba(0, 0, 0, 0.22);
   --h-scrim: rgba(0, 0, 0, 0.55);
 
-  --h-grid-line: rgba(255, 255, 255, 0.038);
-  --h-grid-line-major: rgba(255, 255, 255, 0.06);
-  --h-dot-ink: rgba(255, 255, 255, 0.085);
-  --h-atmos-cool: rgba(79, 176, 212, 0.07);
-  --h-atmos-warm: rgba(255, 166, 46, 0.045);
+  --h-grid-line: rgba(255, 255, 255, 0.045);
+  --h-grid-line-major: rgba(255, 255, 255, 0.07);
+  --h-atmos-cool: rgba(79, 176, 212, 0.14);
+  --h-atmos-warm: rgba(255, 166, 46, 0.05);
+  --h-atmos-green: rgba(69, 192, 120, 0.07);
+  --h-atmos-lift: rgba(150, 172, 186, 0.26);
+  --h-atmos-vignette: rgba(10, 14, 20, 0.3);
 
   --h-selection: rgba(79, 176, 212, 0.26);
 }
@@ -284,6 +352,13 @@
   --color-fault: var(--h-fault);
   --color-fault-bg: var(--h-fault-bg);
 
+  /* Region-scale status surfaces (bg-status-normal / -warning / -critical /
+     -none). Whole-region tints, not chips — see the note in :root. */
+  --color-status-normal: var(--h-status-normal);
+  --color-status-warning: var(--h-status-warning);
+  --color-status-critical: var(--h-status-critical);
+  --color-status-none: var(--h-status-none);
+
   /* Wash — the only sanctioned interaction surfaces */
   --color-wash-hover: var(--h-wash-hover);
   --color-wash-active: var(--h-wash-active);
@@ -319,9 +394,23 @@
    * Monitoring and Report are first-class destinations, not subsections of
    * the marketing site.
    */
-  --text-title-display: clamp(2.75rem, 1.5rem + 5.4vw, 5.5rem);
-  --text-title-editorial: clamp(2.25rem, 1.45rem + 3.6vw, 4rem);
-  --text-title-observatory: clamp(2.125rem, 1.5rem + 2.9vw, 3.5rem);
+  /* Pulled back from a 6.75rem cap (108px at 1440) — a 5.5rem cap was tried
+     before that and found too small in the 88svh frame, but 108px turned out
+     to overcorrect: across Home/About/Monitoring/Report side by side, Home
+     read as a different design system rather than the same family at a
+     bigger size. 6rem lands between the two: still the largest, most
+     cinematic title on the site, but proportionate to its neighbours instead
+     of dominating by an order of magnitude. */
+  --text-title-display: clamp(2.75rem, 1.35rem + 6.4vw, 6rem);
+  /* About's tier — one step down from Home, one step up from Monitoring and
+     Report, so the four pages read as one ladder instead of "Home" and
+     "everything else". */
+  --text-title-editorial: clamp(2.25rem, 1.45rem + 3.6vw, 4.5rem);
+  /* Capped at 2.75rem, down from 3.5rem. Monitoring is an instrument, not a
+     landing page: at 56px the page title outweighed the salinity reading it
+     exists to introduce, and pushed the Bento most of a screen down. It stays
+     clearly a page title and clearly below About's editorial tier. */
+  --text-title-observatory: clamp(1.875rem, 1.35rem + 2.1vw, 2.75rem);
   --text-title-task: clamp(2rem, 1.45rem + 2.5vw, 3.125rem);
   --text-title-instrument: clamp(1.75rem, 1.35rem + 1.9vw, 2.625rem);
   --text-title-operational: clamp(1.5rem, 1.25rem + 1.1vw, 2rem);
@@ -362,6 +451,61 @@
   --space-12: 48px;
   --space-16: 64px;
   --space-24: 96px;
+
+  /* ------------------------------------------------------- SECTION RHYTHM
+   * Four tiers for VERTICAL story structure, distinct from the fixed
+   * `--space-*` steps above (which size gaps inside a component).
+   *
+   * These are the page's breathing, and they are fluid rather than
+   * breakpoint-stepped: a story transition should grow smoothly with the
+   * viewport instead of jumping at 768px. Scrolling past a `chapter` gap on
+   * a wide screen is what gives the atmosphere room to visibly drift — the
+   * parallax needs distance to be felt, and the previous fixed 96px ceiling
+   * did not provide it.
+   *
+   *   tight    — related blocks inside one idea
+   *   normal   — between ideas in the same section
+   *   large    — between sections
+   *   chapter  — between major story movements
+   */
+  --rhythm-tight: clamp(1.5rem, 1.2rem + 1.4vw, 2.5rem);
+  --rhythm-normal: clamp(2.5rem, 2rem + 2.4vw, 4rem);
+  --rhythm-large: clamp(4rem, 3rem + 4.8vw, 7rem);
+  /* Raised from clamp(6rem, …, 11rem) after the owner reported chapters
+     still reading as compressed in the browser. Only the CHAPTER tier moves:
+     the smaller tiers were not the problem, and scaling all four would just
+     make the page long without making the story structure any clearer. */
+  --rhythm-chapter: clamp(7rem, 4.5rem + 10vw, 13rem);
+
+  /* Inner padding for any bordered / tinted / framed block. One token, so a
+     framed block can never end up with its text closer to its own border
+     than the block beside it. The previous ad-hoc `p-6 md:p-7` topped out
+     at 28px, which is what made the bands read as compressed against their
+     edges. */
+  --pad-frame: clamp(1.5rem, 1.1rem + 1.5vw, 2.25rem);
+
+  /* THE BENTO CELL SYSTEM.
+   *
+   * The Monitoring grid is built from ONE square base cell; every region is
+   * an integer multiple of it (2×1, 2×2, 3×2). For that to read as a system
+   * rather than as eight cards that happen to be adjacent, the things which
+   * repeat in every cell have to be identical in every cell — so they are
+   * tokens rather than per-box utility classes.
+   *
+   * `--bento-gap` is deliberately NOT a clamp. The gap enters the base-cell
+   * arithmetic (unit = (width − 3·gap) ÷ 4), so a gap that changed with the
+   * viewport would make the aspect-ratio squares drift out of square at
+   * widths between the breakpoints. Fixed gap, fixed geometry.
+   *
+   * `--bento-pad` does scale, because it never enters that arithmetic: it is
+   * inset INSIDE a cell whose size is already decided. At 390 the base cell
+   * is ~81px, which a 20px inset would leave unusable; at 1440 a 12px inset
+   * would leave the primary numerals stranded against the border.
+   */
+  --bento-gap: 0.5rem;
+  --bento-pad: clamp(0.75rem, 0.55rem + 0.7vw, 1.25rem);
+  /* Between a cell's header row and the value block beneath it. */
+  --bento-header-gap: 0.5rem;
 }
 
 :root {
@@ -372,14 +516,27 @@
   --motion-base: 190ms;
   --motion-medium: 260ms;
   --motion-slow: 420ms;
+  /* Section reveal is deliberately slower than any interaction timing. At
+     420ms with a 10px rise the content was arriving faster than the eye
+     registers it as movement, so the page read as blocks popping in rather
+     than composing. 620ms with a longer travel is still well short of
+     decorative — it just gives the motion enough duration to be perceived as
+     motion. Interaction timings are untouched: a button that took 620ms to
+     respond would feel broken. */
+  --motion-reveal: 620ms;
   --motion-reveal: 620ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-brand: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Header geometry — single source for both states, so the shell, the
-     wordmark and the scroll-margin of anchor targets can never disagree. */
-  --header-h: 6.25rem;
-  --header-logo: 3.25rem;
+     wordmark and the scroll-margin of anchor targets can never disagree.
+     Proportions recovered from the header the project owner preferred
+     (88px resting / 64px compact): tighter and more editorial than the
+     120px band that replaced it, and — because the compact travel is now
+     24px rather than 44px — it shifts far less flow content while the
+     reader is mid-scroll. */
+  --header-h: 5rem;
+  --header-logo: 2.75rem;
 
   --z-sticky: 20;
   --z-dropdown: 40;
@@ -393,29 +550,31 @@
 @media (min-width: 640px) {
   :root {
     --gutter: 1.75rem;
-    --header-h: 7rem;
-    --header-logo: 3.75rem;
+    --header-h: 5.5rem;
+    --header-logo: 3rem;
   }
 }
 
 @media (min-width: 1024px) {
   :root {
     --gutter: 2.5rem;
-    --header-h: 7.5rem;
-    --header-logo: 4.25rem;
+    --header-h: 5.5rem;
+    --header-logo: 3.25rem;
   }
 }
 
 /* The compact state. Declared once, on the header, so every dependent
-   measure interpolates from one class change. */
+   measure interpolates from one class change. 24px of header travel and
+   8px of logo travel — deliberately small, because this height sits in
+   normal flow and every pixel of it moves the whole page. */
 .site-header.is-compact {
-  --header-h: 4.5rem;
-  --header-logo: 2.5rem;
+  --header-h: 4rem;
+  --header-logo: 2.25rem;
 }
 @media (min-width: 1024px) {
   .site-header.is-compact {
-    --header-h: 4.75rem;
-    --header-logo: 2.75rem;
+    --header-h: 4rem;
+    --header-logo: 2.5rem;
   }
 }
 
@@ -456,6 +615,59 @@
   transform: translateX(-50%);
 }
 
+/*
+ * Section rhythm utilities. Applied to a container, they space its direct
+ * children — so a page declares its own story structure once at the top
+ * rather than each section carrying an ad-hoc `space-y-28 md:space-y-36`.
+ * That is what made the four public pages drift apart: every page invented
+ * its own vertical spacing and none of them matched.
+ */
+.h-flow > * + * {
+  margin-top: var(--rhythm-normal);
+}
+.h-flow-large > * + * {
+  margin-top: var(--rhythm-large);
+}
+.h-flow-chapter > * + * {
+  margin-top: var(--rhythm-chapter);
+}
+
+/*
+ * Per-section gap overrides.
+ *
+ * A flow container sets the DEFAULT gap; an individual child may ask for a
+ * different one. Without this, every chapter break on a page was identical —
+ * which is even pacing rather than editorial pacing. The reader got no signal
+ * about which transitions are major movements and which merely continue the
+ * same thought, so the page read as a stack of equally-spaced blocks.
+ *
+ * A class selector outranks the sibling rule above, so a child carrying one
+ * of these wins regardless of source order.
+ */
+.h-flow-chapter > .h-gap-normal,
+.h-flow-large > .h-gap-normal {
+  margin-top: var(--rhythm-normal);
+}
+.h-flow-chapter > .h-gap-large,
+.h-flow-large > .h-gap-large {
+  margin-top: var(--rhythm-large);
+}
+.h-flow-chapter > .h-gap-chapter,
+.h-flow-large > .h-gap-chapter {
+  margin-top: var(--rhythm-chapter);
+}
+
+/*
+ * The standard first-screen block. Every public page opens with one, which
+ * is what makes Home / About / Monitoring / Report read as members of the
+ * same system: identical top offset, identical bottom clearance, identical
+ * relationship to the section that follows.
+ */
+.h-hero {
+  padding-top: var(--rhythm-large);
+  padding-bottom: var(--rhythm-large);
+}
+
 /* Anchor targets clear the sticky header rather than hiding beneath it. */
 [id] {
   scroll-margin-top: calc(var(--header-h) + 1.5rem);
@@ -473,6 +685,11 @@
  * per-frame. Because it is fixed, it also *is* the hero parallax — content
  * scrolls over a stationary surface, which is the cheapest correct way to
  * express spatial depth.
+ *
+ * `transform: translateZ(0)` promotes this to its own compositor layer. It
+ * is a full-viewport element carrying four gradients; without promotion the
+ * browser repaints all of it on every scroll frame, which is one of the two
+ * things that made the page shake under the header.
  */
 .horizon-atmosphere {
   position: fixed;
@@ -480,9 +697,22 @@
   z-index: -1;
   pointer-events: none;
   background-color: var(--h-canvas);
+  transform: translateZ(0);
+  will-change: transform;
 }
 
-/* Layer 1 — the graticule. 64px minor module. */
+/* Layer 1 — the graticule. 64px minor module, 256px major.
+ *
+ * PARALLAX: the graticule drifts against the scroll via `background-position`
+ * rather than `transform`. On a repeating pattern a position shift is exactly
+ * seamless — there is no layer edge to expose, so the drift can run the whole
+ * length of the page instead of being clamped to the hero. All four gradients
+ * shift at ONE rate: the minor and major modules are one drawing, and sliding
+ * them at different rates would read as a rendering fault rather than depth.
+ *
+ * The mask fades the grid toward the edges so it reads as a survey sheet laid
+ * on the page rather than wallpaper running under it.
+ */
 .horizon-atmosphere::before {
   content: "";
   position: absolute;
@@ -497,71 +727,81 @@
     64px 64px,
     256px 256px,
     256px 256px;
-  background-position: center center;
+  background-position:
+    center calc(50% + var(--parallax, 0px) * 0.16),
+    center calc(50% + var(--parallax, 0px) * 0.16),
+    center calc(50% + var(--parallax, 0px) * 0.16),
+    center calc(50% + var(--parallax, 0px) * 0.16);
+  -webkit-mask-image: radial-gradient(ellipse 96% 80% at 50% 42%, #000 42%, transparent 100%);
+  mask-image: radial-gradient(ellipse 96% 80% at 50% 42%, #000 42%, transparent 100%);
 }
 
 /* Layer 3 — two soft atmospheric pools. The warm one sits high-left where
    the wordmark lives, so the brand's orange is present in the light of the
-   page itself rather than only in the logo. */
+   page itself rather than only in the logo.
+
+   `--h-atmos-vignette` adds the graphite falloff that makes dark mode read
+   as a lit room rather than a flat black rectangle: the canvas token is
+   already the lighter *centre* value, and this darkens the outer edges
+   around it. It resolves to `transparent` in light mode, where paper should
+   stay evenly lit. */
 .horizon-atmosphere::after {
   content: "";
   position: absolute;
-  inset: 0;
+  /* Slack on every side so the layer can translate for parallax without ever
+     exposing an edge.
+     BUDGET: --parallax is clamped to 3 viewports and the factor below is
+     0.09, so peak displacement is 0.27vh. At -25% the slack was 0.25vh —
+     less than the travel, which would have dragged the layer edge into view
+     near the bottom of a long page. -32% restores the margin. Raise this
+     again if the factor ever increases. */
+  inset: -32%;
   background-image:
-    radial-gradient(ellipse 90% 60% at 72% 8%, var(--h-atmos-cool), transparent 62%),
-    radial-gradient(ellipse 70% 50% at 12% 0%, var(--h-atmos-warm), transparent 58%);
+    /* Painted top-down. Vignette first so it sits ON TOP and closes the
+       composition; the centre lift is last so everything else floats in it. */
+    radial-gradient(ellipse 120% 92% at 50% 34%, transparent 34%, var(--h-atmos-vignette) 100%),
+    radial-gradient(ellipse 90% 60% at 72% 10%, var(--h-atmos-cool), transparent 62%),
+    radial-gradient(ellipse 70% 50% at 12% 2%, var(--h-atmos-warm), transparent 58%),
+    radial-gradient(ellipse 80% 55% at 28% 88%, var(--h-atmos-green), transparent 60%),
+    radial-gradient(ellipse 110% 75% at 50% 46%, var(--h-atmos-lift), transparent 68%);
+  transform: translate3d(0, calc(var(--parallax, 0px) * -0.09), 0);
+  will-change: transform;
 }
 
 /*
  * LAYER 2: the dot field. Hero moments only — never a whole-page texture.
  * `--dot-fade` keeps it from running into the content below the hero.
  */
-.horizon-dotfield {
-  position: relative;
-  isolation: isolate;
-}
 /*
- * The texture bleeds edge-to-edge; the CONTENT does not.
+ * THE DOT FIELD IS GONE — deliberately, and this note is here so it does not
+ * come back by accident.
  *
- * Nesting a padded measure inside `.full-bleed` put hero content 8px off the
- * page grid (measured: hero h1 at x=32 while every other section started at
- * x=40) — `.full-bleed` is 100vw, which includes the scrollbar gutter, so it
- * overhangs the visible content box by half a scrollbar on each side and
- * drags its children with it.
+ * There used to be a second global texture: a 26px radial-dot field bled
+ * edge-to-edge behind every hero. Because it lived on the shared PageHero and
+ * the graticule lives on the always-present atmosphere, the two were on
+ * screen together on all four public routes — dots and squares competing over
+ * the same area, which is what made the pages read as visually busy.
  *
- * Bleeding only the pseudo-element fixes that at the source: the section
- * itself stays in normal flow on the same measure as every other section, so
- * the headline aligns with the wordmark and the footer, while the dot field
- * still runs to both edges.
+ * One primary background system, per the owner's direction: the square
+ * survey grid, over the gradient atmosphere. If a sparse dot texture is ever
+ * wanted again it belongs inside BackgroundAtmosphere, scoped to a region,
+ * and never simultaneously with the grid over that same region.
  */
-.horizon-dotfield::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline: calc(50% - 50vw);
-  z-index: -1;
-  background-image: radial-gradient(circle, var(--h-dot-ink) 1px, transparent 1px);
-  background-size: 26px 26px;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 100%);
-}
 
 /*
- * Hero parallax. The dot field scrolls at a different rate from both the
- * fixed atmosphere behind it and the content in front, which is what makes
- * depth legible within the first scroll gesture rather than after three.
+ * Hero parallax — driven by `--parallax`, a single scroll-derived offset set
+ * once per animation frame (components/ui/parallax-root.tsx).
  *
- * `background-attachment: fixed` is the entire implementation — composited,
- * so there is no scroll listener and no per-frame JavaScript. Scoped away
- * from touch (iOS does not composite fixed backgrounds cleanly) and from
- * reduced-motion, where parallax is exactly the vestibular trigger the
- * setting exists for.
+ * This replaces `background-attachment: fixed`, which a previous pass used
+ * here and described as "composited". That was wrong, and it was the main
+ * cause of the violent scroll shake: a fixed-attachment background is one of
+ * the few things a browser genuinely cannot composite, so every scroll frame
+ * forced a full repaint of a viewport-sized gradient. Translating the layer
+ * instead keeps the work on the compositor.
+ *
+ * Still scoped away from reduced-motion, where parallax is exactly the
+ * vestibular trigger the setting exists for.
  */
-@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
-  .horizon-dotfield::before {
-    background-attachment: fixed;
-  }
-}
 
 /* A hairline brand rule — the green→orange sweep of the mark, used to open
    major sections. One deliberate brand gesture, not a decoration. */
@@ -634,10 +874,13 @@
 
 /* Instrument entrance — Monitoring only. Communicates "data has arrived",
    so it plays once per mount and never loops. */
+/* Reveal travel raised from 10px/12px to 22px/26px. Below roughly 20px a
+   translate reads as a rendering artefact rather than an entrance — the
+   distance is what makes it legible as a deliberate arrival. */
 @keyframes horizon-instrument-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(22px);
   }
   to {
     opacity: 1;
@@ -645,23 +888,23 @@
   }
 }
 .instrument-in {
-  animation: horizon-instrument-in var(--motion-slow) var(--ease-brand) both;
+  animation: horizon-instrument-in var(--motion-reveal) var(--ease-brand) both;
 }
 .instrument-in-1 {
-  animation-delay: 60ms;
+  animation-delay: 90ms;
 }
 .instrument-in-2 {
-  animation-delay: 130ms;
+  animation-delay: 190ms;
 }
 .instrument-in-3 {
-  animation-delay: 200ms;
+  animation-delay: 290ms;
 }
 
 /* Marketing hero entrance — once, on first paint. */
 @keyframes horizon-entrance {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(26px);
   }
   to {
     opacity: 1;
@@ -669,7 +912,24 @@
   }
 }
 .animate-entrance {
-  animation: horizon-entrance var(--motion-slow) var(--ease-brand) both;
+  animation: horizon-entrance var(--motion-reveal) var(--ease-brand) both;
+}
+
+/*
+ * A scroll container that keeps the gesture and drops the bar.
+ *
+ * Used where a strip must stay swipeable on a narrow phone but the bar
+ * itself would read as a rendering accident rather than as a control — the
+ * observation log's metric list, which wraps from `sm` up and only scrolls
+ * below it. Not a general-purpose utility: hiding a scrollbar on anything a
+ * reader must scroll to finish reading hides the fact that there is more.
+ */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /*
@@ -698,11 +958,31 @@
 @keyframes horizon-nav-in {
   from {
     opacity: 0;
-    transform: scaleX(0.4);
   }
 }
-.nav-underline {
-  animation: horizon-nav-in var(--motion-medium) var(--ease-brand);
+
+/*
+ * The soft accent wash behind the current nav item — the treatment used by
+ * the header the project owner preferred, restored here in place of the
+ * gradient underline that replaced it. A wash reads as "you are here" at a
+ * glance in a way a 2px rule does not, and it survives the tighter tablet
+ * spacing without colliding with its neighbours.
+ *
+ * Drawn on a ::before at z-index -1 so it sits behind the label without
+ * needing an opaque background that would break the transparent header.
+ */
+.nav-link-active {
+  position: relative;
+}
+.nav-link-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: var(--h-brand-blue);
+  opacity: 0.1;
+  animation: horizon-nav-in var(--motion-fast) var(--ease-standard);
 }
 
 /*
@@ -711,6 +991,15 @@
  * device only, so it never sticks on touch.
  */
 .bento-tile {
+  padding: var(--pad-frame);
+  /* A real fill, not just a border. At rest this rule previously left the
+     card fully transparent over the atmosphere gradient — combined with a
+     diluted border it made adjacent cards in the Bento canvas read as one
+     merged shape rather than distinct tiles ("overlapping", reported against
+     a live screenshot). --h-surface is a deliberate step off the page
+     canvas (paper vs. a slightly lifted card), the same relationship used
+     everywhere else a raised surface appears in this system. */
+  background-color: var(--h-surface);
   transition:
     border-color var(--motion-base) var(--ease-standard),
     background-color var(--motion-base) var(--ease-standard),
@@ -794,6 +1083,27 @@
 }
 
 /* ===========================================================================
+ * MAP ATTRIBUTION — moved to the footer
+ *
+ * The credit itself has NOT been dropped. The site footer renders
+ * `footer.mapAttribution` ("Nền bản đồ © Esri · Dữ liệu © OpenStreetMap
+ * contributors.") on every page, which is what keeps Esri's and OSM's terms
+ * satisfied: they require the credit be displayed, not that it be displayed
+ * inside the map frame.
+ *
+ * What is gone is the second, in-map copy. Leaflet's control sat across the
+ * bottom edge of the Bento's map cell as the highest-contrast element in a
+ * region whose subject is a pale grey coastline — a duplicate credit costing
+ * the most visually expensive place on the canvas. The control is disabled
+ * at the Leaflet level (see station-network-map.tsx); this rule is a
+ * belt-and-braces guard for any instance that re-enables it.
+ * ======================================================================== */
+
+.leaflet-control-attribution {
+  display: none;
+}
+
+/* ===========================================================================
  * BASE
  * ======================================================================== */
 
@@ -837,16 +1147,52 @@ body {
    * scroll container.
    */
   overflow-x: clip;
-  background: var(--h-canvas);
   color: var(--h-foreground);
   font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * THE BASE COLOUR LIVES ON <html>, AND <body> MUST STAY TRANSPARENT.
+ *
+ * This is a paint-order constraint, not a style preference, and getting it
+ * wrong is invisible to every check that reads computed styles.
+ *
+ * `.horizon-atmosphere` is `position: fixed; z-index: -1`. In the root
+ * stacking context the painting order is:
+ *
+ *   1. background of the root element (<html>)
+ *   2. negative-z-index descendants        ← the atmosphere
+ *   3. backgrounds of in-flow block boxes  ← <body>
+ *   4. inline content, then z-index >= 0
+ *
+ * <body> is painted at step 3, AFTER the atmosphere at step 2. So while
+ * `html, body { background: var(--h-canvas) }` looked symmetric and
+ * harmless, body's opaque fill covered the atmosphere completely: the
+ * graticule, all five gradient layers, the vignette and every pixel of
+ * parallax displacement were being painted and then hidden.
+ *
+ * That — not insufficiently strong gradients — is why the page read as flat
+ * warm white in light mode and flat graphite in dark. Computed styles were
+ * correct throughout; only a screenshot could show it.
+ *
+ * <html> keeps the opaque base so there is never a white flash before the
+ * atmosphere paints, and so overscroll gutters are the canvas colour.
+ */
+html {
+  background: var(--h-canvas);
+}
+body {
+  background: transparent;
+}
+
 /* Theme transition — colour only, never transform or layout, so flipping
-   the toggle reads as the canvas changing rather than the page re-animating. */
-body,
+   the toggle reads as the canvas changing rather than the page re-animating.
+   `html` and the atmosphere carry the background half now that body is
+   transparent; transitioning body's background would animate nothing. */
+html,
+.horizon-atmosphere,
 header,
 footer,
 main {

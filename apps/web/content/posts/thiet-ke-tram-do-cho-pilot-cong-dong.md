@@ -4,7 +4,7 @@ excerpt: Ràng buộc không chỉ là kỹ thuật. Một trạm đặt trong k
 category: Phần cứng
 date: 2026-02-05
 readingTime: 6 phút đọc
-cover: /images/gallery/gallery-placeholder-04.svg
+cover: /assets/gallery/gallery-placeholder-04.svg
 status: draft
 ---
 

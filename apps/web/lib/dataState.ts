@@ -47,9 +47,23 @@ export function resolveMeasurementVisualState(
  *                    guidance range) — never derived from freshness.
  * - "demo"        — local synthetic data built for visual prototyping.
  *                    Never derived from freshness; set explicitly.
+ * - "external"    — a real, current measurement from a third party (a public
+ *                    weather API), for the region rather than for a HORIZON
+ *                    station. It is genuine data, which is why it is not
+ *                    "reference" or "demo", but it is not ours, which is why
+ *                    it is not "telemetry". Keeping it a distinct origin is
+ *                    what lets the observatory show external and HORIZON
+ *                    readings on ONE canvas without ever conflating them:
+ *                    the canvas is shared, the provenance is not.
  * - "unavailable" — no trustworthy value exists at all.
  */
-export type DataOrigin = "telemetry" | "historical" | "reference" | "demo" | "unavailable";
+export type DataOrigin =
+  | "telemetry"
+  | "historical"
+  | "reference"
+  | "demo"
+  | "external"
+  | "unavailable";
 
 export interface DataProvenance {
   origin: DataOrigin;

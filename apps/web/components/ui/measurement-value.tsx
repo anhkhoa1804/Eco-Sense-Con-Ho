@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { resolveMeasurementVisualState } from "@/lib/dataState";
 import { StatusIndicator, type FreshnessState } from "@/components/ui/status-indicator";
+import type { Dictionary } from "@/lib/i18n/vi";
 
 interface MeasurementValueProps {
   /** e.g. "Độ mặn", "Độ ẩm đất", "Tín hiệu" — the thing being measured. */
@@ -8,6 +9,7 @@ interface MeasurementValueProps {
   /** Already-formatted display value (e.g. "1.05"), or null/undefined for no reading. */
   value: string | number | null | undefined;
   unit?: string;
+  dict: Dictionary;
   freshness: FreshnessState;
   /** Relative-time or absolute caption, e.g. "Cập nhật 5 phút trước". Shown under the value when live/settled. */
   freshnessDetail?: string;
@@ -39,6 +41,7 @@ export function MeasurementValue({
   label,
   value,
   unit,
+  dict,
   freshness,
   freshnessDetail,
   emptyMessage,
@@ -79,7 +82,7 @@ export function MeasurementValue({
         {unit ? <span className="ml-1.5 text-base font-normal text-muted [font-family:inherit]">{unit}</span> : null}
       </p>
       {isStale ? (
-        <StatusIndicator status={freshness} detail={freshnessDetail} />
+        <StatusIndicator status={freshness} dict={dict} detail={freshnessDetail} />
       ) : freshnessDetail ? (
         <p className="text-sm text-muted">{freshnessDetail}</p>
       ) : null}

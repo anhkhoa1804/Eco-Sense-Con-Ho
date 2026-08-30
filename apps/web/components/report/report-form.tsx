@@ -27,17 +27,21 @@ import {
   categoryLabel,
 } from "@/lib/reports/reportCategories";
 import { REPORT_STATION_OPTIONS, resolveStationOption } from "@/lib/reports/reportStations";
+import { stationText } from "@/lib/stationProfile";
 import { cn } from "@/lib/utils";
+import { useDict } from "@/lib/i18n/client";
+import { fmt } from "@/lib/i18n";
+import type { Dictionary } from "@/lib/i18n/vi";
 import type { StationKind } from "@/lib/stationProfile";
 
 const KIND_ICON: Record<StationKind, typeof Waves> = { water: Waves, soil: Sprout, gateway: Send };
 
 const STEPS = [
-  { id: 1, label: "Địa điểm" },
-  { id: 2, label: "Quan sát" },
-  { id: 3, label: "Bằng chứng" },
-  { id: 4, label: "Xem lại" },
-] as const;
+  { id: 1, key: "step1" },
+  { id: 2, key: "step2" },
+  { id: 3, key: "step3" },
+  { id: 4, key: "step4" },
+] as const satisfies readonly { id: number; key: keyof Dictionary["report"] }[];
 
 type StepId = (typeof STEPS)[number]["id"];
 
@@ -56,12 +60,13 @@ interface SubmitResult {
   hadImage: boolean;
 }
 
-function errorMessageFor(status: number, code: string | undefined): string {
-  if (status === 429) return "Bạn đã gửi khá nhiều báo cáo trong một giờ qua. Vui lòng thử lại sau.";
-  if (code === "description_too_short") return `Mô tả cần ít nhất ${DESCRIPTION_MIN} ký tự.`;
-  if (code === "description_too_long") return `Mô tả tối đa ${DESCRIPTION_MAX} ký tự.`;
-  if (code === "invalid_category") return "Loại hiện trạng không hợp lệ. Vui lòng chọn lại.";
-  return "Không gửi được báo cáo. Vui lòng kiểm tra kết nối và thử lại.";
+function errorMessageFor(status: number, code: string | undefined, dict: Dictionary): string {
+  const f = dict.report.form;
+  if (status === 429) return f.errRateLimit;
+  if (code === "description_too_short") return fmt(f.errTooShort, { min: DESCRIPTION_MIN });
+  if (code === "description_too_long") return fmt(f.errTooLong, { max: DESCRIPTION_MAX });
+  if (code === "invalid_category") return f.errInvalidKind;
+  return f.errSendFailed;
 }
 
 function formatBytes(bytes: number): string {
@@ -83,9 +88,10 @@ function StepRail({
   onJump: (step: StepId) => void;
   record: { label: string; value: string | null }[];
 }) {
+  const dict = useDict();
   return (
     <aside className="space-y-8">
-      <ol className="flex gap-2 lg:flex-col lg:gap-0" aria-label="Tiến trình báo cáo">
+      <ol className="flex gap-2 lg:flex-col lg:gap-0" aria-label={dict.report.progressLabel}>
         {STEPS.map((step) => {
           const active = step.id === current;
           const done = step.id < furthest || (step.id < current && step.id <= furthest);
@@ -125,7 +131,7 @@ function StepRail({
                     active ? "font-semibold text-foreground" : reachable ? "text-muted" : "text-muted/50",
                   )}
                 >
-                  {step.label}
+                  {dict.report[step.key]}
                 </span>
                 {done ? <Check className="hidden h-3.5 w-3.5 shrink-0 text-accent lg:block" aria-hidden /> : null}
               </button>
@@ -137,7 +143,7 @@ function StepRail({
       {/* The accumulating field record — desktop only; on mobile the review
           step itself covers this and a duplicate would just cost scroll. */}
       <div className="hidden space-y-4 border-t border-border/60 pt-6 lg:block">
-        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">Bản ghi</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">{dict.report.record}</p>
         <dl className="space-y-3">
           {record.map((item) => (
             <div key={item.label} className="space-y-0.5">
@@ -158,28 +164,30 @@ function StepRail({
 // ---------------------------------------------------------------------------
 
 function SuccessView({ result, onAnother }: { result: SubmitResult; onAnother: () => void }) {
+  const dict = useDict();
+  const f = dict.report.form;
   return (
     <div className="animate-entrance max-w-2xl space-y-8">
       <div className="space-y-4">
         <div className="flex items-center gap-2.5">
           <Check className="h-4 w-4 text-healthy" aria-hidden />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-healthy">Đã ghi nhận hiện trường</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-healthy">{f.successEyebrow}</p>
         </div>
-        <h2 className="text-h1 font-semibold tracking-tight">Cảm ơn bạn đã ghi lại điều này.</h2>
+        <h2 className="text-h1 font-semibold tracking-tight">{f.successTitle}</h2>
         <p className="text-sm leading-relaxed text-muted">
           {result.demo
-            ? "Hệ thống chưa kết nối được tới cơ sở dữ liệu chính, nên báo cáo đang được giữ trên máy chủ này. Nội dung bạn gửi là thật, nhưng có thể không được giữ lâu dài."
-            : "Báo cáo đã được lưu vào cơ sở dữ liệu quan trắc."}
+            ? f.savedLocally
+            : f.savedToDb}
         </p>
       </div>
 
       <dl className="divide-y divide-border/50 border-y border-border/50">
         {[
-          { label: "Mã tham chiếu", value: result.id, mono: true },
-          { label: "Trạm", value: result.stationName },
-          { label: "Hiện trạng", value: result.categoryLabel },
-          { label: "Thời điểm", value: result.submittedAt },
-          ...(result.hadImage ? [{ label: "Ảnh", value: "Không được gửi kèm — chưa hỗ trợ lưu ảnh" }] : []),
+          { label: f.refCode, value: result.id, mono: true },
+          { label: f.station, value: result.stationName },
+          { label: f.condition, value: result.categoryLabel },
+          { label: f.time, value: result.submittedAt },
+          ...(result.hadImage ? [{ label: f.photo, value: f.photoNotSent }] : []),
         ].map((row) => (
           <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-3">
             <dt className="text-[11px] uppercase tracking-[0.14em] text-muted">{row.label}</dt>
@@ -190,14 +198,14 @@ function SuccessView({ result, onAnother }: { result: SubmitResult; onAnother: (
 
       {result.demo ? (
         <div className="inline-flex items-center gap-2 rounded-sm bg-watch-bg px-3 py-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-watch">Bản ghi tạm</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-watch">{f.tempRecord}</span>
         </div>
       ) : null}
 
       <div className="flex flex-wrap gap-3">
-        <Button onClick={onAnother}>Ghi nhận quan sát khác</Button>
+        <Button onClick={onAnother}>{f.another}</Button>
         <Button asChild variant="outline">
-          <Link href="/dashboard">Về đài quan trắc</Link>
+          <Link href="/dashboard">{f.toObservatory}</Link>
         </Button>
       </div>
     </div>
@@ -209,6 +217,8 @@ function SuccessView({ result, onAnother }: { result: SubmitResult; onAnother: (
 // ---------------------------------------------------------------------------
 
 export function ReportForm() {
+  const dict = useDict();
+  const f = dict.report.form;
   const searchParams = useSearchParams();
   const presetStation = resolveStationOption(searchParams.get("station"));
 
@@ -264,7 +274,7 @@ export function ReportForm() {
   async function handleLocate() {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setGpsState("error");
-      setGpsNote("Thiết bị không hỗ trợ định vị. Báo cáo sẽ dùng vị trí trạm bạn chọn.");
+      setGpsNote(f.errGeoUnsupported);
       return;
     }
 
@@ -283,7 +293,7 @@ export function ReportForm() {
       setGpsState("idle");
     } catch {
       setGpsState("error");
-      setGpsNote("Chưa lấy được vị trí. Báo cáo vẫn gửi được bằng vị trí trạm bạn chọn.");
+      setGpsNote(f.errGeoFailed);
     }
   }
 
@@ -292,11 +302,11 @@ export function ReportForm() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setImageError("Tệp này không phải ảnh. Vui lòng chọn ảnh JPG, PNG hoặc WEBP.");
+      setImageError(f.errNotAnImage);
       return;
     }
     if (file.size > IMAGE_MAX_BYTES) {
-      setImageError(`Ảnh vượt quá ${formatBytes(IMAGE_MAX_BYTES)}. Vui lòng chọn ảnh nhỏ hơn.`);
+      setImageError(fmt(f.errImageTooLarge, { max: formatBytes(IMAGE_MAX_BYTES) }));
       return;
     }
 
@@ -331,20 +341,20 @@ export function ReportForm() {
       const payload = (await res.json().catch(() => ({}))) as { ok?: boolean; id?: string; demo?: boolean; error?: string };
 
       if (!res.ok || payload.ok !== true) {
-        setError(errorMessageFor(res.status, payload.error));
+        setError(errorMessageFor(res.status, payload.error, dict));
         return;
       }
 
       setResult({
         id: payload.id ?? "—",
         demo: payload.demo === true,
-        stationName: station.name,
-        categoryLabel: categoryLabel(category),
+        stationName: stationText(station.id, dict).name,
+        categoryLabel: categoryLabel(category, dict),
         submittedAt: new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date()),
         hadImage: image !== null,
       });
     } catch {
-      setError("Không gửi được báo cáo. Vui lòng kiểm tra kết nối và thử lại.");
+      setError(f.errSendFailed);
     } finally {
       setSubmitting(false);
     }
@@ -370,17 +380,17 @@ export function ReportForm() {
   }
 
   const locationSummary = gps
-    ? `GPS thiết bị · ${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}`
+    ? `${f.gpsDevice} · ${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}`
     : station
-      ? "Theo vị trí trạm đã chọn"
+      ? f.byStation
       : null;
 
   const record = [
-    { label: "Trạm", value: station?.name ?? null },
-    { label: "Hiện trạng", value: category ? categoryLabel(category) : null },
-    { label: "Vị trí", value: locationSummary },
-    { label: "Mô tả", value: trimmed ? `${trimmed.length} ký tự` : null },
-    { label: "Ảnh", value: image ? "1 ảnh (chỉ trong phiên)" : null },
+    { label: f.station, value: station?.name ?? null },
+    { label: f.condition, value: category ? categoryLabel(category, dict) : null },
+    { label: f.location, value: locationSummary },
+    { label: f.description, value: trimmed ? fmt(f.charCount, { n: trimmed.length }) : null },
+    { label: f.photo, value: image ? f.photoSessionOnly : null },
   ];
 
   const currentStep = STEPS.find((s) => s.id === step)!;
@@ -399,7 +409,7 @@ export function ReportForm() {
           <div className="space-y-2">
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent">
               {String(currentStep.id).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")} ·{" "}
-              {currentStep.label}
+              {dict.report[currentStep.key]}
             </p>
             {/*
               Programmatically focused on every step change so assistive tech
@@ -414,10 +424,10 @@ export function ReportForm() {
               buttons) keeps its focus ring.
             */}
             <h2 ref={headingRef} tabIndex={-1} className="text-h1 font-semibold tracking-tight [&:focus]:outline-none">
-              {step === 1 ? "Bạn đang ở gần trạm nào?" : null}
-              {step === 2 ? "Bạn thấy gì?" : null}
-              {step === 3 ? "Có ảnh kèm theo không?" : null}
-              {step === 4 ? "Kiểm tra lại trước khi gửi." : null}
+              {step === 1 ? f.q1 : null}
+              {step === 2 ? f.q2 : null}
+              {step === 3 ? f.q3 : null}
+              {step === 4 ? f.q4 : null}
             </h2>
           </div>
 
@@ -425,9 +435,10 @@ export function ReportForm() {
           {step === 1 ? (
             <div className="space-y-8">
               <fieldset className="space-y-3">
-                <legend className="sr-only">Chọn trạm gần nhất</legend>
+                <legend className="sr-only">{f.legendStation}</legend>
                 {REPORT_STATION_OPTIONS.map((option) => {
                   const Icon = KIND_ICON[option.kind];
+                  const text = stationText(option.id, dict);
                   const active = stationId === option.id;
                   return (
                     <label
@@ -449,9 +460,9 @@ export function ReportForm() {
                       <Icon className={cn("h-5 w-5 shrink-0", active ? "text-accent" : "text-muted")} aria-hidden />
                       <span className="min-w-0 flex-1">
                         <span className={cn("block text-base font-semibold tracking-tight", active && "text-accent")}>
-                          {option.name}
+                          {text.name}
                         </span>
-                        <span className="block text-sm text-muted">{option.location}</span>
+                        <span className="block text-sm text-muted">{text.location}</span>
                       </span>
                       <span className="shrink-0 text-[10px] uppercase tracking-[0.12em] text-muted/70 [font-family:var(--font-data)]">
                         {option.id}
@@ -463,11 +474,11 @@ export function ReportForm() {
               </fieldset>
 
               <div className="space-y-3 border-t border-border/50 pt-6">
-                <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">Vị trí chính xác hơn</p>
+                <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">{f.moreExact}</p>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button type="button" variant="outline" onClick={handleLocate} disabled={gpsState === "locating"}>
                     <Crosshair className={cn("h-4 w-4", gpsState === "locating" && "animate-pulse")} aria-hidden />
-                    {gpsState === "locating" ? "Đang định vị…" : gps ? "Cập nhật lại vị trí" : "Dùng vị trí hiện tại"}
+                    {gpsState === "locating" ? f.locating : gps ? f.updateLocation : f.useCurrentLocation}
                   </Button>
                   {gps ? (
                     <p className="text-sm text-muted [font-family:var(--font-data)]">
@@ -477,8 +488,8 @@ export function ReportForm() {
                 </div>
                 <p className="text-sm leading-relaxed text-muted">
                   {gps
-                    ? "Báo cáo sẽ dùng vị trí GPS này."
-                    : gpsNote ?? "Không bắt buộc. Nếu bỏ qua, báo cáo được gắn theo vị trí trạm bạn chọn."}
+                    ? f.willUseGps
+                    : gpsNote ?? f.optionalGps}
                 </p>
               </div>
             </div>
@@ -489,8 +500,8 @@ export function ReportForm() {
             <div className="space-y-8">
               <fieldset>
                 <legend className="mb-3 text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
-                  Loại hiện trạng
-                </legend>
+                  {f.conditionType}
+                                </legend>
                 <div className="divide-y divide-border/50 border-y border-border/50">
                   {REPORT_CATEGORIES.map((item) => {
                     const active = category === item.value;
@@ -511,7 +522,7 @@ export function ReportForm() {
                           onChange={() => setCategory(item.value)}
                           className="sr-only"
                         />
-                        <span className={cn("text-base", active && "font-semibold")}>{item.label}</span>
+                        <span className={cn("text-base", active && "font-semibold")}>{dict.reportCategories[item.value]}</span>
                         <span
                           className={cn(
                             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-[var(--motion-base)]",
@@ -532,22 +543,22 @@ export function ReportForm() {
                   htmlFor="description"
                   className="block text-[11px] font-medium uppercase tracking-[0.16em] text-muted"
                 >
-                  Mô tả
-                </label>
+                  {f.description}
+                                </label>
                 <Textarea
                   id="description"
                   rows={6}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   maxLength={DESCRIPTION_MAX}
-                  placeholder="Bạn nhìn thấy gì, ở đâu, và khi nào?"
+                  placeholder={f.descPlaceholder}
                   className="min-h-[160px] rounded-lg bg-background text-base"
                   aria-describedby="description-hint"
                 />
                 <p id="description-hint" className="text-xs text-muted">
                   {trimmed.length < DESCRIPTION_MIN
-                    ? `Cần ít nhất ${DESCRIPTION_MIN} ký tự — hiện có ${trimmed.length}.`
-                    : `${trimmed.length} / ${DESCRIPTION_MAX} ký tự.`}
+                    ? fmt(f.charsNeeded, { min: DESCRIPTION_MIN, n: trimmed.length })
+                    : fmt(f.charsOf, { n: trimmed.length, max: DESCRIPTION_MAX })}
                 </p>
               </div>
             </div>
@@ -557,32 +568,32 @@ export function ReportForm() {
           {step === 3 ? (
             <div className="space-y-6">
               <Alert tone="info">
-                Lưu ảnh chưa được bật trong hệ thống hiện tại. Ảnh bạn chọn chỉ hiển thị trong phiên này để đối chiếu
-                khi viết mô tả, và <strong className="font-semibold">không được gửi đi cùng báo cáo</strong>.
-              </Alert>
+                {f.photoNotStoredBefore}
+                <strong className="font-semibold">{f.photoNotStoredStrong}</strong>.
+                            </Alert>
 
               {image ? (
                 <div className="animate-entrance space-y-4">
                   {/* eslint-disable-next-line @next/next/no-img-element -- local object URL, never a remote asset; next/image cannot optimize a blob: URL */}
                   <img
                     src={image.url}
-                    alt={`Xem trước ảnh đã chọn: ${image.name}`}
+                    alt={`${f.previewAlt}: ${image.name}`}
                     className="max-h-[320px] w-full rounded-lg border border-border object-contain"
                   />
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="min-w-0 text-sm text-muted">
                       <span className="block truncate font-medium text-foreground">{image.name}</span>
-                      {formatBytes(image.size)} · chỉ trong phiên này
+                      {formatBytes(image.size)} · {f.sessionOnly}
                     </p>
                     <div className="flex gap-2">
                       <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                         <Pencil className="h-3.5 w-3.5" aria-hidden />
-                        Đổi ảnh
-                      </Button>
+                        {f.changePhoto}
+                                            </Button>
                       <Button type="button" variant="ghost" size="sm" onClick={clearImage}>
                         <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                        Bỏ ảnh
-                      </Button>
+                        {f.removePhoto}
+                                            </Button>
                     </div>
                   </div>
                 </div>
@@ -600,13 +611,13 @@ export function ReportForm() {
                   }}
                 >
                   <ImagePlus className="h-6 w-6 text-muted" aria-hidden />
-                  <span className="text-sm font-medium">Chọn ảnh từ thiết bị</span>
-                  <span className="text-xs text-muted">Kéo thả hoặc chạm để chọn · JPG, PNG, WEBP · tối đa 8 MB</span>
+                  <span className="text-sm font-medium">{f.pickPhoto}</span>
+                  <span className="text-xs text-muted">{f.pickHint}</span>
                 </label>
               )}
 
               {/* One always-mounted input, referenced by the dropzone's htmlFor
-                  and by the "Đổi ảnh" button — so the ref stays valid whether
+                  and by the f.changePhoto button — so the ref stays valid whether
                   or not a preview is currently showing. */}
               <input
                 ref={fileInputRef}
@@ -620,8 +631,8 @@ export function ReportForm() {
               {imageError ? <Alert tone="critical">{imageError}</Alert> : null}
 
               <p className="text-sm leading-relaxed text-muted">
-                Không có ảnh cũng không sao — mô tả cụ thể (vị trí, hiện trạng, mức độ) là phần quan trọng nhất.
-              </p>
+                {f.noPhotoOk}
+                            </p>
             </div>
           ) : null}
 
@@ -630,13 +641,13 @@ export function ReportForm() {
             <div className="space-y-8">
               <dl className="divide-y divide-border/50 border-y border-border/50">
                 {[
-                  { label: "Trạm", value: station ? `${station.name} · ${station.location}` : "—", jump: 1 as StepId },
-                  { label: "Hiện trạng", value: category ? categoryLabel(category) : "—", jump: 2 as StepId },
-                  { label: "Vị trí", value: locationSummary ?? "—", jump: 1 as StepId },
-                  { label: "Mô tả", value: trimmed || "—", jump: 2 as StepId },
+                  { label: f.station, value: station ? `${stationText(station.id, dict).name} · ${stationText(station.id, dict).location}` : "—", jump: 1 as StepId },
+                  { label: f.condition, value: category ? categoryLabel(category, dict) : "—", jump: 2 as StepId },
+                  { label: f.location, value: locationSummary ?? "—", jump: 1 as StepId },
+                  { label: f.description, value: trimmed || "—", jump: 2 as StepId },
                   {
-                    label: "Ảnh",
-                    value: image ? `${image.name} — không gửi kèm (chưa hỗ trợ lưu ảnh)` : "Không có",
+                    label: f.photo,
+                    value: image ? `${image.name} — ${f.photoNotSent}` : f.none,
                     jump: 3 as StepId,
                   },
                 ].map((row) => (
@@ -653,16 +664,16 @@ export function ReportForm() {
                       className="shrink-0 text-muted"
                     >
                       <Pencil className="h-3.5 w-3.5" aria-hidden />
-                      <span className="sr-only">Sửa </span>
-                      Sửa
-                    </Button>
+                      <span className="sr-only">{f.edit} </span>
+                      {f.edit}
+                                        </Button>
                   </div>
                 ))}
               </dl>
 
               <p className="text-sm leading-relaxed text-muted">
-                Đây là một quan sát từ hiện trường, không phải số đo của trạm quan trắc.
-              </p>
+                {f.fieldNote}
+                            </p>
 
               {error ? <Alert tone="critical">{error}</Alert> : null}
             </div>
@@ -673,8 +684,8 @@ export function ReportForm() {
             {step > 1 ? (
               <Button type="button" variant="outline" onClick={() => goto((step - 1) as StepId)}>
                 <ArrowLeft className="h-4 w-4" aria-hidden />
-                Quay lại
-              </Button>
+                {dict.common.back}
+                            </Button>
             ) : null}
 
             {step < 4 ? (
@@ -684,19 +695,19 @@ export function ReportForm() {
                 disabled={!stepValid[step]}
                 className="min-w-[140px]"
               >
-                Tiếp tục
-                <ArrowRight className="h-4 w-4" aria-hidden />
+                {dict.common.continue}
+                              <ArrowRight className="h-4 w-4" aria-hidden />
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmit} disabled={submitting} className="min-w-[160px]">
-                {submitting ? "Đang gửi…" : "Gửi báo cáo"}
+                {submitting ? f.sending : f.submit}
                 {submitting ? null : <Send className="h-4 w-4" aria-hidden />}
               </Button>
             )}
 
             {step < 4 && !stepValid[step] ? (
               <p className="text-xs text-muted">
-                {step === 1 ? "Chọn một trạm để tiếp tục." : "Chọn loại hiện trạng và viết mô tả để tiếp tục."}
+                {step === 1 ? f.needStation : f.needCondition}
               </p>
             ) : null}
           </div>

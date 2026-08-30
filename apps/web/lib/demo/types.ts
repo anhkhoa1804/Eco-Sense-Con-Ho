@@ -1,3 +1,7 @@
+import type { Dictionary } from "@/lib/i18n/vi";
+
+type DemoKey = keyof Dictionary["demo"];
+
 /**
  * Demo/synthetic data shapes — local-only, for visual prototyping when the
  * real network has no telemetry. Every field here is scoped to a metric
@@ -14,7 +18,8 @@ export type DemoStationKind = "water" | "soil" | "gateway";
 export interface DemoStationSnapshot {
   id: string;
   kind: DemoStationKind;
-  label: string;
+  /** Dictionary key, not a string: demo mode is a reachable route and its labels are interface. */
+  labelKey: DemoKey;
   observedAt: string;
   salinity?: number | null;
   waterLevel?: number | null;
@@ -36,7 +41,7 @@ export interface DemoTrendPoint {
 }
 
 export interface DemoTrendSeries {
-  stationLabel: string;
+  stationLabelKey: DemoKey;
   points: DemoTrendPoint[];
 }
 
@@ -44,10 +49,10 @@ export type DemoAlertSeverity = "info" | "warning" | "critical";
 
 export interface DemoAlert {
   id: string;
-  stationLabel: string;
+  stationLabelKey: DemoKey;
   severity: DemoAlertSeverity;
-  title: string;
-  message: string;
+  titleKey: DemoKey;
+  messageKey: DemoKey;
   timestamp: string;
 }
 

@@ -1,7 +1,9 @@
 import { Suspense } from "react";
+import { PageHero } from "@/components/layout/page-hero";
 import { PublicShell } from "@/components/layout/public-shell";
 import { ReportForm } from "@/components/report/report-form";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getI18n } from "@/lib/i18n/server";
 
 function ReportFallback() {
   return (
@@ -15,26 +17,30 @@ function ReportFallback() {
   );
 }
 
-export default function ReportPage() {
+export default async function ReportPage() {
+  const { dict } = await getI18n();
+
   return (
     <PublicShell activePath="/report">
       {/*
-        No explanatory hero: on mobile the reporter reaches the first real
-        control within one screen. The old page opened with two competing
-        headlines and three paragraphs describing the design itself before
-        any field appeared. Progress/step context now lives in the form's own
-        rail rather than in a separate list of promises about what happens
-        next — there is no public review or tracking workflow to promise.
+        Progress/step context lives in the form's own rail rather than in a
+        separate list of promises about what happens next — there is no
+        public review or tracking workflow to promise.
       */}
-      <section className="space-y-10 py-2 md:py-6">
-        <header className="max-w-2xl space-y-3">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Ghi nhận hiện trường</p>
-          <h1 className="text-[length:var(--text-title-task)] font-semibold leading-tight tracking-tight">Ghi nhận một thay đổi trên đảo.</h1>
-          <p className="text-base leading-relaxed text-muted">
-            Chọn trạm gần bạn nhất, mô tả điều bạn thấy, rồi gửi.
-          </p>
-        </header>
+      {/* Same grammar as About and Monitoring, and no `actions`: this page's
+          call to action is the form immediately below it. A button in the
+          hero here would only scroll the reader to something already on
+          screen. The copy was also hardcoded Vietnamese and never
+          translated — it now comes from the dictionary like every other
+          hero. */}
+      <PageHero
+        scale="observatory"
+        eyebrow={dict.report.eyebrow}
+        title={dict.report.title}
+        subtitle={dict.report.lead}
+      />
 
+      <section>
         <Suspense fallback={<ReportFallback />}>
           <ReportForm />
         </Suspense>

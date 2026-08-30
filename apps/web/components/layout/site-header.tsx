@@ -6,36 +6,64 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Wordmark } from "@/components/ui/wordmark";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { isPublicNavActive, PRIMARY_NAV_LINKS } from "@/lib/publicNav";
+import { LanguageToggle } from "@/components/ui/language-toggle";
+import { useDict } from "@/lib/i18n/client";
+import { ADMIN_NAV_LINK, isPublicNavActive, PUBLIC_NAV_LINKS } from "@/lib/publicNav";
 
 /**
- * Tracks only the boundary crossing (scrolled past `threshold`), not
- * continuous scroll position — one state flip per crossing, so nothing runs
- * while the reader sits still and there is no per-frame work.
+ * Scroll-compaction state, with hysteresis.
  *
- * The single resulting class drives *every* dependent measure at once:
- * header height, wordmark height, and the backdrop. They interpolate from
- * one source (`--header-h` / `--header-logo` in globals.css), which is what
- * keeps the mark from snapping between two sizes the way a class swap did.
+ * Two thresholds, not one: the header only compacts above `enter` and only
+ * expands again below `exit`. A single threshold is what made the header
+ * shake — compacting removes 24px of flow height, which shifts the document
+ * under the reader, which can push scrollY back across that same threshold,
+ * which expands the header, which shifts it back. With a 48px dead band
+ * between the two, that feedback loop cannot close.
+ *
+ * Reads are also throttled to one per animation frame. The listener itself
+ * is passive and does nothing but schedule; all layout reads happen inside
+ * the rAF callback, so scrolling never triggers a synchronous reflow.
  */
-function useScrolledPast(threshold = 12): boolean {
-  const [scrolled, setScrolled] = useState(false);
+function useScrollCompact(enter = 72, exit = 24): boolean {
+  const [compact, setCompact] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > threshold);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [threshold]);
+    let frame = 0;
+    let scheduled = false;
 
-  return scrolled;
+    const read = () => {
+      scheduled = false;
+      const y = window.scrollY;
+      setCompact((prev) => {
+        if (!prev && y > enter) return true;
+        if (prev && y < exit) return false;
+        return prev;
+      });
+    };
+
+    const onScroll = () => {
+      if (scheduled) return;
+      scheduled = true;
+      frame = requestAnimationFrame(read);
+    };
+
+    read();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [enter, exit]);
+
+  return compact;
 }
 
 interface SiteHeaderProps {
   /**
-   * Both registers render the exact same global navigation — "register" only
-   * decides whether the admin operational strip is appended below it. Admin
-   * is a hierarchy distinction, not a different product.
+   * Both registers render the same global navigation — "register" only
+   * decides whether the admin operational strip is appended below it and
+   * which item reads as current. Admin is a hierarchy distinction, not a
+   * different product.
    */
   register?: "public" | "admin";
   activePath?: string;
@@ -43,82 +71,123 @@ interface SiteHeaderProps {
   adminActions?: React.ReactNode;
 }
 
-function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+/**
+ * Icon + label, in the pill/wash active treatment the project owner preferred
+ * in the earlier header. Labels tighten one step between `md` and `lg` so the
+ * full four-item set still fits a 768px tablet without wrapping or being
+ * hidden — the previous build only rendered this nav from `lg` up, which left
+ * 768–1023px with no navigation at all (the bottom bar is `md:hidden`).
+ */
+function NavLink({
+  href,
+  label,
+  active,
+  icon: Icon,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative inline-flex items-center px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.13em]",
+        // `whitespace-nowrap` is load-bearing, not cosmetic: without it the
+        // label wraps inside the link at tablet widths, every nav item becomes
+        // two lines tall, and the header grows from ~64px to ~89px — which is
+        // what was visibly compressing the hero on the first screen.
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 py-2 font-medium lg:gap-2 lg:px-3",
+        "text-[13px] lg:text-sm",
         "transition-colors duration-[var(--motion-base)]",
-        active ? "text-foreground" : "text-foreground-muted hover:text-foreground",
+        active
+          ? "nav-link-active text-accent"
+          : "text-foreground-muted hover:bg-wash-hover hover:text-foreground",
       )}
     >
+      <Icon className="h-4 w-4 shrink-0" aria-hidden />
       {label}
-      {/* A brand-gradient rule under the active item, not a filled chip: the
-          header is a transparent part of the page canvas, and a solid
-          background would reintroduce the separate-panel layer this pass
-          removed. The gradient is the same green→orange sweep as the mark,
-          so the active state is a brand gesture rather than a generic bar. */}
-      {active ? (
-        <span
-          aria-hidden
-          className="nav-underline absolute inset-x-3 bottom-1 h-[2px] rounded-full bg-gradient-to-r from-brand-green to-brand-orange"
-        />
-      ) : null}
+    </Link>
+  );
+}
+
+/** Admin reduced to its mark — same icon family, tooltip + accessible name kept. */
+function AdminLink({ active, label, className }: { active: boolean; label: string; className?: string }) {
+  const Icon = ADMIN_NAV_LINK.icon;
+  return (
+    <Link
+      href={ADMIN_NAV_LINK.href}
+      aria-label={label}
+      title={label}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "inline-flex h-9 w-9 items-center justify-center rounded-sm",
+        "transition-colors duration-[var(--motion-base)]",
+        active ? "text-accent" : "text-foreground-muted hover:bg-wash-hover hover:text-foreground",
+        className,
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden />
     </Link>
   );
 }
 
 export function SiteHeader({ register = "public", activePath, adminEmail, adminActions }: SiteHeaderProps) {
-  const scrolled = useScrolledPast();
+  const dict = useDict();
+  const compact = useScrollCompact();
   const inAdmin = register === "admin";
   const hasOperationalStrip = inAdmin && Boolean(adminEmail || adminActions);
-
-  /** Admin owns its own active item; the public path never highlights there. */
-  const isActive = (href: string) =>
-    href === "/admin" ? inAdmin : !inAdmin && isPublicNavActive(href, activePath);
 
   return (
     <header
       className={cn(
         "site-header sticky top-0 z-[var(--z-sticky)]",
-        scrolled && "is-compact",
-        // Transparent at rest so the drafting grid runs straight through the
-        // header. The backdrop is earned, not permanent: it appears only once
-        // content is actually sliding underneath, which is the only moment it
-        // is needed for readability.
-        "transition-[background-color,border-color,backdrop-filter] duration-[var(--motion-medium)] ease-[var(--ease-brand)]",
-        scrolled
-          ? "border-b border-border bg-canvas/75 backdrop-blur-xl supports-[backdrop-filter]:bg-canvas/60"
+        compact && "is-compact",
+        // Transparent at rest so the drafting grid runs through the header;
+        // the backdrop is earned only once content is sliding underneath.
+        "transition-[background-color,border-color,backdrop-filter] duration-[var(--motion-base)] ease-[var(--ease-standard)]",
+        // 88%, not 65%. The lower value let scrolled content stay legible
+        // through the bar rather than merely tinting it — over the Monitoring
+        // summary line, uppercase tracked text read straight through the nav
+        // labels and looked like a collision. Still frosted, still lets the
+        // page show as movement underneath; no longer readable through.
+        compact
+          ? "border-b border-border bg-canvas/95 backdrop-blur-md supports-[backdrop-filter]:bg-canvas/88"
           : "border-b border-transparent bg-transparent",
       )}
     >
       <div
         className={cn(
-          "h-wide flex items-center justify-between gap-6",
+          "h-wide flex items-center justify-between gap-4",
           // Height interpolates from --header-h, which .is-compact reassigns.
-          "h-[var(--header-h)] transition-[height] duration-[var(--motion-slow)] ease-[var(--ease-brand)]",
+          // Kept short (190ms) and small (24px of travel) so the flow shift
+          // it causes is over before it can read as movement.
+          "h-[var(--header-h)] transition-[height] duration-[var(--motion-base)] ease-[var(--ease-standard)]",
         )}
       >
         <Wordmark href={inAdmin ? "/admin" : "/"} markSize="fluid" />
 
-        <div className="flex items-center gap-2">
-          <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 lg:flex">
-            {PRIMARY_NAV_LINKS.map(({ href, label }) => (
-              <NavLink key={href} href={href} label={label} active={isActive(href)} />
+        <div className="flex items-center gap-1">
+          <nav aria-label={dict.nav.primaryLabel} className="hidden items-center gap-0.5 md:flex lg:gap-1">
+            {PUBLIC_NAV_LINKS.map(({ href, key, icon }) => (
+              <NavLink
+                key={href}
+                href={href}
+                label={dict.nav[key]}
+                icon={icon}
+                active={!inAdmin && isPublicNavActive(href, activePath)}
+              />
             ))}
           </nav>
 
-          {/*
-            Reserved slot. Phase 8's VI | EN selector lands here, beside the
-            theme toggle and inside the same flex cluster — so adding it costs
-            roughly one toggle's width and cannot push the nav into the mark.
-            Deliberately renders nothing today: a visible switcher that cannot
-            switch is worse than no switcher.
-          */}
-          <div className="hidden h-6 w-px bg-border lg:block" aria-hidden />
+          <div className="mx-1 hidden h-5 w-px bg-border md:block" aria-hidden />
+
+          {/* Admin is an icon at every width — on mobile it is the only header
+              control, since the four public items live in the bottom bar. */}
+          <AdminLink active={inAdmin} label={dict.nav.admin} />
           <ThemeToggle />
+          <LanguageToggle className="ml-0.5" />
         </div>
       </div>
 

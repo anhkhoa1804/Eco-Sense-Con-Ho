@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getI18n } from "@/lib/i18n/server";
 import { ArrowRight } from "lucide-react";
 import type { PostMeta, PostStatus } from "@/lib/content/posts";
 
@@ -10,9 +11,9 @@ import type { PostMeta, PostStatus } from "@/lib/content/posts";
  */
 
 const STATUS_LABEL: Record<PostStatus, string | null> = {
-  draft: "Bản nháp",
-  demo: "Minh họa",
-  placeholder: "Giữ chỗ",
+  draft: "draft",
+  demo: "demo",
+  placeholder: "placeholder",
   verified: null,
 };
 
@@ -23,9 +24,10 @@ function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
 }
 
-export function FieldNotesList({ posts }: { posts: PostMeta[] }) {
+export async function FieldNotesList({ posts }: { posts: PostMeta[] }) {
+  const { dict } = await getI18n();
   if (posts.length === 0) {
-    return <p className="text-sm leading-relaxed text-muted">Chưa có ghi chép nào được đăng.</p>;
+    return <p className="text-sm leading-relaxed text-muted">{dict.notes.empty}</p>;
   }
 
   return (

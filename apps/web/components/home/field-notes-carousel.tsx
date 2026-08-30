@@ -1,4 +1,5 @@
 "use client";
+import { useDict } from "@/lib/i18n/client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
@@ -6,9 +7,9 @@ import { cn } from "@/lib/utils";
 import type { PostMeta } from "@/lib/content/posts";
 
 const STATUS_LABEL: Record<PostMeta["status"], string | null> = {
-  draft: "Bản nháp",
-  demo: "Nội dung minh họa",
-  placeholder: "Nội dung giữ chỗ",
+  draft: "draft",
+  demo: "demo",
+  placeholder: "placeholder",
   // Only `verified` renders without a marker — everything else must announce
   // that it is project-development writing, not published field reporting.
   verified: null,
@@ -56,6 +57,7 @@ function PostCard({ post }: { post: PostMeta }) {
 }
 
 export function FieldNotesCarousel({ posts }: { posts: PostMeta[] }) {
+  const dict = useDict();
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
@@ -93,8 +95,8 @@ export function FieldNotesCarousel({ posts }: { posts: PostMeta[] }) {
   if (posts.length === 0) {
     return (
       <p className="text-sm leading-relaxed text-muted">
-        Chưa có ghi chép nào được đăng. Các bài viết sẽ xuất hiện ở đây khi được thêm vào.
-      </p>
+        {dict.notes.emptyLong}
+            </p>
     );
   }
 
@@ -112,8 +114,8 @@ export function FieldNotesCarousel({ posts }: { posts: PostMeta[] }) {
       <div className="flex items-center gap-2">
         {(
           [
-            { dir: -1 as const, label: "Xem ghi chép trước", Icon: ArrowLeft, disabled: atStart },
-            { dir: 1 as const, label: "Xem ghi chép tiếp theo", Icon: ArrowRight, disabled: atEnd },
+            { dir: -1 as const, label: dict.notes.prev, Icon: ArrowLeft, disabled: atStart },
+            { dir: 1 as const, label: dict.notes.next, Icon: ArrowRight, disabled: atEnd },
           ]
         ).map(({ dir, label, Icon, disabled }) => (
           <button

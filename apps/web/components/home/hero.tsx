@@ -1,56 +1,48 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHero } from "@/components/layout/page-hero";
+import { getI18n } from "@/lib/i18n/server";
 
 /**
  * Quiet, atmospheric opening. Deliberately carries no telemetry, no station
- * cards, no map — the network state has its own chapter below, and putting
- * it here was what made the previous homepage read as a dashboard landing
- * page rather than an introduction to a place.
+ * cards, no map — the network state has its own chapter below, and putting it
+ * here was what made an earlier homepage read as a dashboard landing page
+ * rather than an introduction to a place.
  *
- * The background is the CSS dot field (globals.css `.horizon-dotfield`);
- * no image is required for this to look finished, which is why
- * public/images/hero/ ships empty rather than with a stand-in photograph.
+ * Structure comes from the shared `PageHero`, so this page and the other
+ * three public routes share one hero grammar. Home takes the `display` tier:
+ * it is the only route allowed to be cinematic.
+ *
+ * Home is also the only route that justifies two actions — a reader arriving
+ * here has not chosen between "show me the data" and "tell me about this"
+ * yet. Every other page passes fewer, or none.
+ *
+ * A Server Component, so both language versions are resolved before anything
+ * reaches the browser — the hero never flashes the wrong language.
  */
-export function Hero() {
+export async function Hero() {
+  const { dict } = await getI18n();
+
   return (
-    // No `.full-bleed` here: the dot field bleeds via its own pseudo-element
-    // (globals.css), so the hero stays in normal flow and its headline lands
-    // on the same left edge as every other section.
-    <section className="horizon-dotfield">
-      {/* No measure of its own — `main` already supplies the shared gutter,
-          and nesting `.h-wide` here would double it. */}
-      <div className="pb-24 pt-16 md:pb-36 md:pt-28">
-        {/* Widens a step at 2xl so the headline grows into a 1920 viewport
-            instead of hugging the left edge of a mostly-empty band — the dot
-            field carries the rest of the width. */}
-        <div className="animate-entrance max-w-3xl space-y-7 2xl:max-w-4xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">
-            HORIZON · Cồn Hô, Vĩnh Long
-          </p>
-
-          <h1 className="text-[length:var(--text-title-display)] font-semibold leading-[1.08] tracking-tight">
-            Một cù lao giữa sông, và những thay đổi đang diễn ra mỗi ngày.
-          </h1>
-
-          <p className="max-w-xl text-lg leading-relaxed text-muted">
-            HORIZON ghi lại nước, đất và không khí quanh Cồn Hô qua ba điểm quan trắc, và trình bày đúng những gì đo
-            được.
-          </p>
-
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Button asChild size="lg" className="gap-2">
-              <Link href="/dashboard">
-                Xem mạng lưới quan trắc
-                <ArrowRight className="h-4 w-4" aria-hidden />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/about">Về dự án</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    </section>
+    <PageHero
+      scale="display"
+      eyebrow={dict.home.eyebrow}
+      title={dict.home.title}
+      subtitle={dict.home.subtitle}
+      actions={
+        <>
+          <Button asChild size="lg" className="gap-2">
+            <Link href="/dashboard">
+              {dict.home.ctaPrimary}
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg">
+            <Link href="/about">{dict.home.ctaSecondary}</Link>
+          </Button>
+        </>
+      }
+    />
   );
 }

@@ -1,0 +1,536 @@
+import { TERMINOLOGY } from "./terminology";
+import type { Dictionary } from "./vi";
+
+/**
+ * English.
+ *
+ * Typed as `Dictionary` (the shape of `vi`), so a missing or misspelled key
+ * is a compile error rather than a blank string in production. Adding a
+ * Vietnamese key without its English counterpart will not build.
+ *
+ * On register: this is written the way the HORIZON team would explain their
+ * own project to a researcher or funder who reads English — plain, specific,
+ * and willing to say what is not working. It is deliberately not marketing
+ * copy, and it does not soften the pilot's limitations: "equipment not yet
+ * installed in the field" says the same thing in both languages.
+ *
+ * Measurement labels come from lib/i18n/terminology.ts rather than being
+ * retyped here, because that is where the ECw / ECe / soil EC / salinity
+ * distinctions are documented and enforced.
+ */
+export const en: Dictionary = {
+  meta: {
+    siteName: "HORIZON",
+    titleDefault: "HORIZON - Frogsleap Vietnam",
+    description:
+      "A small-scale environmental monitoring pilot at Cồn Hô, Vĩnh Long — water level, salinity and soil condition, published openly and honestly.",
+  },
+
+  nav: {
+    home: "Home",
+    about: "About",
+    monitoring: "Monitoring",
+    report: "Report",
+    admin: "Admin",
+    primaryLabel: "Main navigation",
+    mobileLabel: "Mobile navigation",
+    footerLabel: "Footer navigation",
+  },
+
+  controls: {
+    toDark: "Switch to dark theme",
+    toLight: "Switch to light theme",
+    languageLabel: "Language",
+    switchToVietnamese: "Switch to Vietnamese",
+    switchToEnglish: "Switch to English",
+  },
+
+  footer: {
+    place: "Cồn Hô · Vĩnh Long",
+    mapAttribution: "Basemap © Esri · Data © OpenStreetMap contributors.",
+    copyright: "© Magnus",
+  },
+
+  common: {
+    noData: "No data yet",
+    noMeasurement: "No measurement yet",
+    notMeasured: "Not measured",
+    loading: "Loading…",
+    viewStation: "View station",
+    viewDetail: "Details",
+    stationPage: "Station page",
+    back: "Back",
+    continue: "Continue",
+    updated: "Updated",
+    source: "Source",
+    translationPending:
+      "The long-form content on this page is currently Vietnamese only. An English edition is being written — this project does not machine-translate technical writing.",
+  },
+
+  freshness: {
+    live: "Reporting",
+    recent: "Recent",
+    stale: "Stale",
+    offline: "Offline",
+    neverConnected: "Never connected",
+    unavailable: "No data yet",
+  },
+
+  reportCategories: {
+    erosion: "Riverbank erosion",
+    flooding: "Flooding / tidal",
+    pollution: "Pollution",
+    infrastructure: "Infrastructure damage",
+    sensor: "Monitoring station fault",
+    other: "Other",
+  },
+
+  alerts: {
+    critical: "Critical",
+    warning: "Warning",
+    info: "Information",
+    normal: "Normal",
+    highSalinity: "Salinity alert",
+    sensorFault: "Sensor fault",
+    lowBattery: "Low battery",
+    offline: "Weak signal",
+    noDetail: "No further detail",
+    salinityDetail: "Salinity {value}‰ (threshold {threshold}‰)",
+    batteryDetail: "Battery {value} V",
+    signalDetail: "Signal {value} dBm",
+  },
+
+  quality: {
+    valid: "Measured directly",
+    estimated: "Estimated value",
+    error: "Sensor fault",
+  },
+
+  provenance: {
+    telemetry: "Direct measurement",
+    historical: "Earlier measurement",
+    reference: "Reference source",
+    demo: "Demo data",
+    unavailable: "No data yet",
+    external: "Outside the HORIZON network",
+    lastObserved: "Last observed",
+    unverifiedSource: "No verified reference source yet.",
+    lastChecked: "Last checked",
+  },
+
+  monitoring: {
+    eyebrow: "Live monitoring",
+    title: "Observatory",
+    subtitle: "Every reading in the network on one canvas — each marked with where it came from.",
+    sendReport: "Submit a field report",
+    aboutProject: "About the project",
+
+    demoBannerTitle: "DEMO DATA",
+    demoBannerBody:
+      "the station figures on this page are synthetic, shown to demonstrate the interface — they are not real observations from Cồn Hô. Values marked * are real data from an external source.",
+    demoBannerLink: "View real data →",
+
+    networkEyebrow: "Network",
+    stationsCounted: "monitoring stations",
+    sendingData: "reporting",
+    noneSending: "no station is reporting yet",
+    lastObservation: "Last observation",
+    neverObserved: "The system has not received any observation from the network.",
+    noDataCount: "with no data",
+    offlineCount: "offline",
+    allOperational: "Whole network operational",
+    needsAttention: "Need attention",
+
+    groupWater: "Water",
+    groupSoil: "Soil",
+    groupAir: "Air",
+    groupInfrastructure: "Infrastructure",
+    groupContext: "Regional context",
+
+    markerExternalLegend: "From outside the HORIZON network — regional figures, not a measurement at a station.",
+    markerDemoLegend: "Demo data, not a real observation.",
+    originHorizon: "HORIZON",
+    originExternal: "External",
+
+    signalsEyebrow: "Environmental signals",
+    signalsTitle: "What the network measures",
+    primarySignals: "Primary signals",
+    secondarySignals: "Supporting signals",
+
+    notInFirmware: "Not measured by current firmware",
+    capabilityOnly: "The system can measure this; no reading yet",
+
+    alertsEyebrow: "Events",
+    alertsActive: "active",
+    noAlerts: "No alerts",
+    noAlertsDetail: "the network has not recorded any event needing attention",
+
+    spaceEyebrow: "Space",
+    spaceTitle: "Station locations",
+
+    referenceEyebrow: "Reference",
+    referenceTitle: "Basis for interpreting these figures",
+    standingExternal: "International source",
+    standingInternal: "Project configuration",
+    standingUnverified: "Unverified",
+  },
+
+  external: {
+    eyebrow: "Environmental context · external source",
+    title: "Regional weather",
+    temperature: "Temperature",
+    humidity: "Humidity",
+    wind: "Wind",
+    precipitation: "Precipitation",
+    disclaimerBefore: "Regional grid forecast from",
+    disclaimerAfter: ", not a measurement from HORIZON equipment at Cồn Hô.",
+    modelTime: "Model time",
+    unavailable:
+      "Could not reach the external weather source. This section will return when the connection succeeds — no substitute value is filled in here.",
+  },
+
+  chart: {
+    eyebrow: "Observation log",
+    boxLabel: "Log",
+    metricControl: "Metric",
+    rangeControl: "Time range",
+    title: "Change over time",
+    range24h: "24 hours",
+    range7d: "7 days",
+    range30d: "30 days",
+    axisShows: "Axis shows",
+    observations: "observations",
+    thisRange: "this range",
+    noObservationsIn: "No observations in the last {range}",
+    noObservationsBody:
+      "When a station reports within this period the chart will appear here. No line is drawn in its place.",
+    metrics: {
+      salinity: "Salinity",
+      waterLevel: "Water level",
+      soilMoisture: "Soil moisture",
+      soilEc: "Soil EC",
+      soilPh: "pH",
+      soilTemp: "Soil temperature",
+      airTemp: "Air temperature",
+      airHumidity: "Air humidity",
+    },
+  },
+
+  home: {
+    eyebrow: "HORIZON · Cồn Hô, Vĩnh Long",
+    /* Not a literal rendering of the Vietnamese — "and the water is turning
+       salt" is not English. Same thesis, same visual weight, idiomatic. */
+    title: "An islet in the river, where the water is turning salty.",
+    subtitle:
+      "Three points measuring water, soil and air at Cồn Hô — and a public page that says where every figure came from.",
+    ctaPrimary: "View the monitoring network",
+    ctaSecondary: "About the project",
+    pilotNote: "Pilot stage · equipment not yet installed in the field.",
+  },
+
+  about: {
+    eyebrow: "About",
+    title: "HORIZON, and how it was built.",
+    subtitle: "What the project does, how the system works, and what is still unfinished.",
+  },
+
+  station: {
+    operationalStatus: "Operational status",
+    primaryMetric: "Primary reading",
+    otherStations: "Other stations",
+    networkEyebrow: "Network",
+    locationEyebrow: "Location",
+    locationTitle: "Geographic context",
+    backToMonitoring: "Back to the observatory",
+    reportNearby: "Report near this station",
+
+    outsideNetwork: "Outside the network",
+    measurementQuality: "Measurement quality",
+    noMeasurementToAssess: "No measurement to assess yet",
+    contextTitle: "Context",
+    evalLive: "Assessment",
+    evalStatic: "Static reference",
+    roleEyebrow: "Role",
+    gatewayTitle: "Infrastructure node",
+    gatewayBody:
+      "The gateway does not measure the environment — it collects data from Station 1 and Station 2 and relays it to the system. The signal above is the gateway's own link, not an environmental reading.",
+    chartWaterOnly: "Trend charts are currently only available for the water station — {station} has no time-series source yet.",
+
+    mSoilMoisture: "Soil moisture",
+    mSoilEc: "Soil EC",
+    mSoilPh: "Soil pH",
+    mSoilTemp: "Soil temperature",
+    mAirTemp: "Air temperature",
+    mAirHumidity: "Air humidity",
+    mBattery: "Station battery",
+    mGatewaySignal: "Gateway signal",
+    mSalinity: "Salinity",
+    mWaterLevel: "Water level",
+    mStationSignal: "Station signal",
+    mEcProbe: "EC / salinity probe",
+
+    thresholdNotConfigured:
+      "No alert threshold has been configured for this station. The basis for interpreting salinity — international guidance and internal notes — is set out under Reference on the Monitoring page.",
+    soilInterpretationPending:
+      "Turning soil moisture, EC and pH into farming advice depends on the crop, the soil and the season. The project has not established a sourced reference threshold for Cồn Hô, so it publishes no figure.",
+    salinityNoData: "No recent salinity reading is available to assess against the configured threshold.",
+    salinityHigh: "Salinity is high; avoid drawing water directly for salt-sensitive crops.",
+    salinityRising: "Salinity is rising; watch it before irrigating or drawing water.",
+    salinitySafe: "Readings are currently within the safe range configured for the system.",
+  },
+
+  report: {
+    eyebrow: "Field record",
+    title: "Record a change on the island.",
+    lead: "Pick the station nearest you, describe what you saw, then send it.",
+    step1: "Location",
+    step2: "Observation",
+    step3: "Evidence",
+    step4: "Review",
+    progressLabel: "Report progress",
+    record: "Record",
+
+    form: {
+      q1: "Which station are you near?",
+      q2: "What did you see?",
+      q3: "Any photo to attach?",
+      q4: "Check it over before sending.",
+
+      station: "Station",
+      condition: "Condition",
+      location: "Location",
+      description: "Description",
+      photo: "Photo",
+      time: "Time",
+      refCode: "Reference code",
+      none: "None",
+
+      descPlaceholder: "What did you see, where, and when?",
+      locating: "Finding you…",
+      updateLocation: "Update location",
+      useCurrentLocation: "Use my current location",
+      willUseGps: "The report will use this GPS position.",
+      optionalGps: "Optional. If you skip it, the report is placed at the station you picked.",
+      gpsDevice: "Device GPS",
+      byStation: "From the station you picked",
+      changePhoto: "Change photo",
+      previewAlt: "Preview of the selected photo",
+      sending: "Sending…",
+      submit: "Send report",
+
+      photoNotSent: "Not attached — photo storage is not supported yet",
+      photoSessionOnly: "1 photo (this session only)",
+
+      savedToDb: "Your report has been saved to the monitoring database.",
+      savedLocally:
+        "The system could not reach the main database, so your report is being held on this server. What you sent is real, but it may not be kept permanently.",
+
+      errRateLimit: "You have sent a lot of reports in the past hour. Please try again later.",
+      errTooShort: "The description needs at least {min} characters.",
+      errTooLong: "The description can be at most {max} characters.",
+      errInvalidKind: "That condition type is not valid. Please choose again.",
+      errSendFailed: "Could not send the report. Check your connection and try again.",
+      errGeoUnsupported: "This device cannot report its location. The report will use the station you picked.",
+      errGeoFailed: "Could not get your location. You can still send the report using the station you picked.",
+      errNotAnImage: "That file is not an image. Please choose a JPG, PNG or WEBP.",
+      errImageTooLarge: "That image is over {max}. Please choose a smaller one.",
+
+      charsNeeded: "At least {min} characters needed — {n} so far.",
+      charsOf: "{n} / {max} characters.",
+      charCount: "{n} characters",
+      successEyebrow: "Field record received",
+      successTitle: "Thank you for recording this.",
+      tempRecord: "Held temporarily",
+      another: "Record another observation",
+      toObservatory: "Back to the observatory",
+      legendStation: "Choose the nearest station",
+      moreExact: "A more exact position",
+      conditionType: "Condition type",
+      photoNotStoredBefore:
+        "Photo storage is not enabled in the current system. The image you pick is shown only in this session, to help you write the description, and is ",
+      photoNotStoredStrong: "not sent with the report",
+      sessionOnly: "this session only",
+      removePhoto: "Remove photo",
+      pickPhoto: "Choose a photo from your device",
+      pickHint: "Drag and drop or tap to choose · JPG, PNG, WEBP · 8 MB max",
+      noPhotoOk:
+        "No photo is fine — a specific description (where, what, how severe) is the part that matters most.",
+      edit: "Edit",
+      fieldNote: "This is an observation from the field, not a measurement from a monitoring station.",
+      needStation: "Choose a station to continue.",
+      needCondition: "Choose a condition type and write a description to continue.",
+    },
+  },
+
+  pwa: {
+    installTitle: "Install the HORIZON app",
+    installBody: "Add the observatory to your home screen for faster access.",
+    install: "Install",
+    later: "Not now",
+  },
+
+  map: {
+    eyebrow: "Station map",
+    noCoordsTitle: "No station coordinates to show yet",
+    noCoordsBody:
+      "The map will show real stations once it can reach location data from the system. No placeholder position is displayed.",
+    basemapOnlyLabel: "Map of Cồn Hô, Vĩnh Long — station locations not shown",
+    ariaLabel: "Map showing the location of {count} monitoring stations",
+  },
+
+  auth: {
+    title: "Administrator sign-in",
+    description: "Enter an authorised email and the project's internal password. No email link is sent.",
+    email: "Email address",
+    password: "Administrator password",
+    passwordPlaceholder: "Enter password",
+    signIn: "Sign in",
+  },
+
+  posts: {
+    notFound: "Post not found",
+    eyebrow: "Field notes",
+    otherNotes: "Other notes",
+    draft: "Draft — a working note written during development, not a published document.",
+    demo: "Illustrative content, used to demonstrate the interface.",
+    placeholder: "Placeholder content.",
+  },
+
+  errors: {
+    notFoundTitle: "This page was not found",
+    notFoundBody:
+      "The address does not exist, or a station's code has changed. Go back to the observatory to see the current list of stations.",
+    dashboardTitle: "The observatory could not be loaded",
+    dashboardBody: "Something went wrong while loading the data. Please try again shortly.",
+    retry: "Reload",
+    genericTitle: "Something went wrong",
+    genericBody: "This page could not be loaded. Please try again — if it keeps failing, come back in a few minutes.",
+    offlineTitle: "You are offline",
+    offlineBody: "Pages you already loaded can still be read. Reconnect to receive new data.",
+    signOut: "Sign out",
+    noRecentData: "No recent data yet.",
+    loginNotAllowed: "This email is not on the administrator allowlist.",
+    loginBadPassword: "That administrator password is not correct.",
+    loginRateLimited: "Too many failed attempts. Please wait a few minutes and try again.",
+    loginNotConfigured:
+      "Administrator login is not configured on this server. ADMIN_PASSWORD and ADMIN_SESSION_SECRET must be set before it can be used.",
+  },
+
+  gallery: {
+    empty: "There are no images in the gallery yet.",
+    prev: "Previous image",
+    next: "Next image",
+    placeholder: "Illustration · placeholder",
+    illustrative: "Illustration",
+  },
+
+  notes: {
+    empty: "No field notes have been published yet.",
+    emptyLong: "No field notes have been published yet. Posts will appear here as they are added.",
+    prev: "Previous note",
+    next: "Next note",
+    draft: "Draft",
+    demo: "Illustrative content",
+    placeholder: "Placeholder content",
+  },
+
+  stationProfiles: {
+    STATION_01: {
+      name: "Station 1 — Riverside",
+      location: "Riverbank area, Cồn Hô",
+      intro:
+        "Tracks water level, salinity and signs of tidal surge so residents can see changes in the river sooner.",
+      chartTitle: "Water over 24 hours",
+      chartNote: "Water level against salinity at the riverside site.",
+    },
+    STATION_02: {
+      name: "Station 2 — Soil data",
+      location: "Cultivated area, mid-island",
+      intro:
+        "Measures soil EC and relative moisture to help growers judge when to irrigate, tend and plant.",
+      chartTitle: "Soil over 24 hours",
+      chartNote: "Soil EC alongside estimated moisture in the growing area.",
+    },
+    STATION_03: {
+      name: "Station 3 — Gateway",
+      location: "Data relay point, far end of the island",
+      intro:
+        "Collects data from the stations and relays it back to residents through the channels they already use.",
+      chartTitle: "Delivery status over 24 hours",
+      chartNote: "Delivery rate and connection signal for the gateway.",
+    },
+    seriesDeliveryRate: "Delivery rate",
+    seriesSignal: "Signal",
+    statusActive: "Active",
+    statusMaintenance: "Maintenance",
+    statusOffline: "Offline",
+  },
+
+  reference: {
+    faoTitle: "Irrigation-water salinity — international guidance",
+    faoNoRestriction: "No restriction on use",
+    faoSlight: "Slight to moderate restriction",
+    faoSevere: "Severe restriction",
+    faoDetail:
+      "FAO's thresholds are expressed as the electrical conductivity of irrigation water (dS/m). HORIZON reports salinity in ‰ — converting between the two depends on the ionic composition of each water source, so this table is reference context, not a threshold applied directly to the station's readings.",
+    configuredTitle: "Alert threshold in use",
+    configuredWatch: "Needs attention",
+    configuredRisk: "High risk",
+    configuredDetail:
+      "A value the project configured to raise alerts. This is HORIZON's own operational choice; it has not been checked against an independent scientific source.",
+    configuredSource: "HORIZON system configuration",
+    unconfiguredTitle: "Salinity alert threshold",
+    unconfiguredDetail:
+      "No alert threshold has been configured in the system. Figures that once appeared in internal engineering notes are not well-founded enough to publish as a recommendation, so none is given here.",
+    soilTitle: "Soil and nutrients",
+    soilDetail:
+      "HORIZON can measure soil moisture, EC, pH and temperature. Turning those values into farming advice depends on the crop, the soil and the season — the project has not established a sourced reference threshold for Cồn Hô, so it publishes no figure.",
+    gatewayCapability:
+      "The gateway collects data from the two measuring stations and relays it to the system. Its own condition — battery, signal, uptime — is not measured by the current firmware, so there is no figure to show.",
+  },
+
+  demo: {
+    waterStation: "Water station (demo)",
+    soilStation: "Soil station (demo)",
+    gatewayStation: "Gateway (demo)",
+    unplacedLocation: "Demo station — not tied to a real location",
+    alertSalinityTitle: "Salinity approaching the attention threshold",
+    alertSalinityMessage: "Demo value rising quickly during the tidal window.",
+    alertSignalTitle: "Temporarily weak signal",
+    alertSignalMessage: "Demo value — signal below -85 dBm for one reporting cycle.",
+  },
+
+  admin: {
+    title: "Control panel",
+    description: "Network status, field reports and device configuration.",
+  },
+
+
+  metricLabels: {
+    salinity: "Salinity",
+    waterLevel: "Water level",
+    moisture: "Moisture",
+    ec: "EC",
+    ph: "pH",
+    temperature: "Temperature",
+    humidity: "Humidity",
+    signal: "Signal",
+    battery: "Battery",
+    wind: "Wind",
+    precipitation: "Rainfall",
+  },
+
+  terms: {
+    salinity: TERMINOLOGY.salinity.en,
+    waterLevel: TERMINOLOGY.waterLevel.en,
+    soilEc: TERMINOLOGY.soilEc.en,
+    soilMoisture: TERMINOLOGY.soilMoisture.en,
+    soilPh: TERMINOLOGY.soilPh.en,
+    soilTemp: TERMINOLOGY.soilTemp.en,
+    airTemp: TERMINOLOGY.airTemp.en,
+    airHumidity: TERMINOLOGY.airHumidity.en,
+    battery: TERMINOLOGY.battery.en,
+    signal: TERMINOLOGY.signal.en,
+    gateway: TERMINOLOGY.gateway.en,
+  },
+};

@@ -24,7 +24,7 @@ export const DEMO_STATION_SNAPSHOTS: DemoStationSnapshot[] = [
   {
     id: "DEMO_WATER",
     kind: "water",
-    label: "Trạm nước (minh họa)",
+    labelKey: "waterStation",
     observedAt: hoursAgo(0.2),
     salinity: 1.24,
     waterLevel: 47.6,
@@ -34,7 +34,7 @@ export const DEMO_STATION_SNAPSHOTS: DemoStationSnapshot[] = [
   {
     id: "DEMO_SOIL",
     kind: "soil",
-    label: "Trạm đất (minh họa)",
+    labelKey: "soilStation",
     observedAt: hoursAgo(0.5),
     soilMoisturePct: 58.3,
     soilTempC: 29.1,
@@ -48,7 +48,7 @@ export const DEMO_STATION_SNAPSHOTS: DemoStationSnapshot[] = [
   {
     id: "DEMO_GATEWAY",
     kind: "gateway",
-    label: "Gateway (minh họa)",
+    labelKey: "gatewayStation",
     observedAt: hoursAgo(0.1),
     signalStrengthDbm: -74,
     batteryVoltage: 4.01,
@@ -56,7 +56,7 @@ export const DEMO_STATION_SNAPSHOTS: DemoStationSnapshot[] = [
 ];
 
 export const DEMO_WATER_TREND: DemoTrendSeries = {
-  stationLabel: "Trạm nước (minh họa)",
+  stationLabelKey: "waterStation",
   points: Array.from({ length: 24 }, (_, i) => {
     const hour = 23 - i;
     // Gentle tide-like oscillation — illustrative shape only, not a real curve.
@@ -124,21 +124,21 @@ export const DEMO_SOIL_TREND: {
 export const DEMO_ALERTS: DemoAlert[] = [
   {
     id: "demo-alert-1",
-    stationLabel: "Trạm nước (minh họa)",
+    stationLabelKey: "waterStation",
     severity: "warning",
-    title: "Độ mặn tiến gần ngưỡng cần chú ý",
+    titleKey: "alertSalinityTitle",
     // Deliberately cites no threshold number: the project publishes no
     // verified salinity threshold, so even an illustrative alert should not
     // imply one exists.
-    message: "Giá trị minh họa tăng nhanh trong khung giờ triều cường.",
+    messageKey: "alertSalinityMessage",
     timestamp: hoursAgo(3),
   },
   {
     id: "demo-alert-2",
-    stationLabel: "Gateway (minh họa)",
+    stationLabelKey: "gatewayStation",
     severity: "info",
-    title: "Tín hiệu yếu tạm thời",
-    message: "Giá trị minh họa — tín hiệu dưới -85 dBm trong một chu kỳ gửi.",
+    titleKey: "alertSignalTitle",
+    messageKey: "alertSignalMessage",
     timestamp: hoursAgo(9),
   },
 ];

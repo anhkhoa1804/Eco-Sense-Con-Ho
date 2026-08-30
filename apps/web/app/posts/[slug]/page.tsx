@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getI18n } from "@/lib/i18n/server";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft, ArrowRight } from "lucide-react";
@@ -16,14 +17,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const post = getPost(slug);
   // No " — HORIZON" suffix here: the root layout's title template already
   // appends it. Spelling it out again produced "… — HORIZON — HORIZON".
-  if (!post) return { title: "Không tìm thấy bài viết" };
+  if (!post) return { title: (await getI18n()).dict.posts.notFound };
   return { title: post.title, description: post.excerpt };
 }
 
 const STATUS_NOTE: Record<PostStatus, string | null> = {
-  draft: "Bản nháp — ghi chép trong quá trình phát triển dự án, chưa phải tài liệu công bố.",
-  demo: "Nội dung minh họa, dùng để trình bày giao diện.",
-  placeholder: "Nội dung giữ chỗ.",
+  draft: "draft",
+  demo: "demo",
+  placeholder: "placeholder",
   verified: null,
 };
 
@@ -35,6 +36,7 @@ function formatDate(iso: string): string {
 }
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { dict } = await getI18n();
   const { slug } = await params;
   const post = getPost(slug);
   if (!post) notFound();
@@ -51,7 +53,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             className="inline-flex items-center gap-2 text-sm font-medium text-muted transition-colors duration-[var(--motion-base)] hover:text-accent"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
-            Ghi chép
+            {dict.posts.eyebrow}
           </Link>
 
           <header className="mt-8 space-y-4">
@@ -89,7 +91,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
         {related.length > 0 ? (
           <aside className="mx-auto mt-24 max-w-[var(--width-content)] border-t border-border pt-10">
-            <h2 className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Ghi chép khác</h2>
+            <h2 className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">{dict.posts.otherNotes}</h2>
             <div className="mt-6 divide-y divide-border/60 border-y border-border/60">
               {related.map((item) => (
                 <Link

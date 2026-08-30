@@ -1,3 +1,4 @@
+import type { Dictionary } from "@/lib/i18n/vi";
 /**
  * The six report categories the API accepts (see the CATEGORIES const in
  * app/api/public/reports/route.ts — these values must stay in sync with it;
@@ -14,20 +15,25 @@
 export interface ReportCategory {
   /** Wire value sent to the API. Must match the route's CATEGORIES list. */
   value: "erosion" | "flooding" | "pollution" | "infrastructure" | "sensor" | "other";
-  label: string;
 }
 
 export const REPORT_CATEGORIES: readonly ReportCategory[] = [
-  { value: "erosion", label: "Xói lở bờ sông" },
-  { value: "flooding", label: "Ngập lụt / thủy triều" },
-  { value: "pollution", label: "Ô nhiễm" },
-  { value: "infrastructure", label: "Hư hại hạ tầng" },
-  { value: "sensor", label: "Lỗi trạm quan trắc" },
-  { value: "other", label: "Khác" },
+  { value: "erosion" },
+  { value: "flooding" },
+  { value: "pollution" },
+  { value: "infrastructure" },
+  { value: "sensor" },
+  { value: "other" },
 ] as const;
 
-export function categoryLabel(value: string): string {
-  return REPORT_CATEGORIES.find((c) => c.value === value)?.label ?? value;
+/**
+ * The wire value doubles as the dictionary key, so a category can never be
+ * sent to the API under one name and shown to the reader under a label that
+ * drifted away from it.
+ */
+export function categoryLabel(value: string, dict: Dictionary): string {
+  const key = value as ReportCategory["value"];
+  return dict.reportCategories[key] ?? value;
 }
 
 /** Mirrors the route's own MIN/MAX so the UI can validate before a round-trip. */
