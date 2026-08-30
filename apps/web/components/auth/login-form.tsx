@@ -1,15 +1,17 @@
 import { redirect } from "next/navigation";
 import { isAdminEmailAllowed, normalizeEmail } from "@/lib/auth/adminAllowlist";
 import { clearLoginRateLimit, isLoginRateLimited, recordFailedLoginAttempt } from "@/lib/auth/loginRateLimit";
-import { createLocalAdminSession, isLocalAdminPasswordValid } from "@/lib/auth/localAdminSession";
+import { safeRedirect } from "@/lib/auth/safeRedirect";
+import {
+  createLocalAdminSession,
+  isAdminAuthConfigured,
+  isLocalAdminPasswordValid,
+} from "@/lib/auth/localAdminSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-function safeRedirect(value: string): string {
-  return value.startsWith("/") && !value.startsWith("//") ? value : "/admin";
-}
+import { getI18n } from "@/lib/i18n/server";
 
 async function loginAdmin(formData: FormData) {
   "use server";
@@ -18,6 +20,14 @@ async function loginAdmin(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const redirectTo = safeRedirect(String(formData.get("redirectTo") ?? "/admin"));
   const emailQuery = email ? `&email=${encodeURIComponent(email)}` : "";
+
+  // Checked before anything else so a deployment missing its admin secrets
+  // says so, instead of failing further down as "wrong password" (which
+  // would send an operator hunting for a credential problem that isn't
+  // there) or as an unhandled 500.
+  if (!isAdminAuthConfigured()) {
+    redirect(`/admin/login?error=not-configured${emailQuery}`);
+  }
 
   if (!email || !(await isAdminEmailAllowed(email))) {
     redirect(`/admin/login?error=unauthorized${emailQuery}`);
@@ -37,17 +47,19 @@ async function loginAdmin(formData: FormData) {
   redirect(redirectTo);
 }
 
-export function LoginForm({
+export async function LoginForm({
   redirectTo,
   defaultEmail = "",
 }: {
   redirectTo: string;
   defaultEmail?: string;
 }) {
+  const { dict } = await getI18n();
+
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
-        <CardTitle>Đăng nhập quản trị</CardTitle>
+        <CardTitle>{dict.auth.title}</CardTitle>
         <CardDescription>
           Nhập email được cấp quyền và mật khẩu nội bộ của dự án. Không cần gửi liên kết email.
         </CardDescription>
@@ -56,7 +68,7 @@ export function LoginForm({
         <form action={loginAdmin} className="space-y-4">
           <input type="hidden" name="redirectTo" value={redirectTo} />
           <div className="space-y-2">
-            <Label htmlFor="email">Địa chỉ email</Label>
+            <Label htmlFor="email">{dict.auth.email}</Label>
             <Input
               id="email"
               name="email"
@@ -68,14 +80,14 @@ export function LoginForm({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Mật khẩu quản trị</Label>
+            <Label htmlFor="password">{dict.auth.password}</Label>
             <Input
               id="password"
               name="password"
               type="password"
               autoComplete="current-password"
               required
-              placeholder="Nhập mật khẩu"
+              placeholder={dict.auth.passwordPlaceholder}
             />
           </div>
           <Button type="submit" className="w-full">
