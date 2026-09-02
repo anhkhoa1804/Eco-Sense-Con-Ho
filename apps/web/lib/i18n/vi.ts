@@ -220,6 +220,10 @@ export const vi = {
       soilTemp: "Nhiệt độ đất",
       airTemp: "Nhiệt độ không khí",
       airHumidity: "Độ ẩm không khí",
+      weatherTemp: "Nhiệt độ Open-Meteo",
+      weatherHumidity: "Độ ẩm Open-Meteo",
+      weatherWind: "Gió Open-Meteo",
+      weatherPrecipitation: "Mưa Open-Meteo",
     },
   },
 

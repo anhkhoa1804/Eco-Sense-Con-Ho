@@ -7,6 +7,7 @@ import {
   populatedCount,
   rowSpanFor,
 } from "@/lib/monitoring/signals";
+import { mergeWeather24hSeries, weatherHistoryToObservationSeries } from "@/lib/monitoring/weatherSeries";
 import { getObservatoryViewModel } from "@/lib/monitoring/buildObservatory";
 import { vi } from "@/lib/i18n/vi";
 
@@ -655,5 +656,75 @@ describe("hero tier visual differentiation", () => {
       .map((c) => c.metric.labelKey)
       .sort();
     assert.deepEqual(heroKeys, ["moisture", "salinity", "waterLevel"]);
+  });
+});
+
+describe("weather history chart series", () => {
+  it("maps 24h Open-Meteo history into chart metrics", () => {
+    const series = weatherHistoryToObservationSeries({
+      source: "Open-Meteo",
+      sourceUrl: "https://open-meteo.com/",
+      area: "Cồn Hô",
+      points: [
+        {
+          time: "2026-09-03T01:00",
+          temperatureC: 26.4,
+          humidityPct: 83,
+          windKph: 10.5,
+          precipitationMm: 0,
+        },
+      ],
+    });
+
+    assert.ok(series);
+    assert.deepEqual(series.availableMetrics, [
+      "weatherTemp",
+      "weatherHumidity",
+      "weatherWind",
+      "weatherPrecipitation",
+    ]);
+    assert.equal(series.points[0].weatherTemp, 26.4);
+    assert.equal(series.points[0].weatherHumidity, 83);
+    assert.equal(series.points[0].weatherWind, 10.5);
+    assert.equal(series.points[0].weatherPrecipitation, 0);
+    assert.equal(series.provenance.origin, "external");
+  });
+
+  it("replaces an existing weather history when the client refreshes", async () => {
+    const model = await getObservatoryViewModel("real", vi);
+    const first = weatherHistoryToObservationSeries({
+      source: "Open-Meteo",
+      sourceUrl: "https://open-meteo.com/",
+      area: "Cồn Hô",
+      points: [
+        {
+          time: "2026-09-03T00:00",
+          temperatureC: 26.6,
+          humidityPct: 81,
+          windKph: 11,
+          precipitationMm: 0,
+        },
+      ],
+    });
+    const refreshed = weatherHistoryToObservationSeries({
+      source: "Open-Meteo",
+      sourceUrl: "https://open-meteo.com/",
+      area: "Cồn Hô",
+      points: [
+        {
+          time: "2026-09-03T01:00",
+          temperatureC: 26.4,
+          humidityPct: 83,
+          windKph: 10.5,
+          precipitationMm: 0,
+        },
+      ],
+    });
+
+    const once = mergeWeather24hSeries(model.series["24h"], first);
+    const twice = mergeWeather24hSeries(once, refreshed);
+
+    assert.equal(twice.points.filter((point) => point.weatherTemp !== null).length, 1);
+    assert.equal(twice.points.find((point) => point.weatherTemp !== null)?.weatherTemp, 26.4);
   });
 });

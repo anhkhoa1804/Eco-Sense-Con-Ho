@@ -133,7 +133,11 @@ export type TrendMetric =
   | "soilPh"
   | "soilTemp"
   | "airTemp"
-  | "airHumidity";
+  | "airHumidity"
+  | "weatherTemp"
+  | "weatherHumidity"
+  | "weatherWind"
+  | "weatherPrecipitation";
 
 export interface ObservationPoint {
   /** Pre-formatted x-axis label — hour for 24h, date for 7d/30d. */
@@ -146,6 +150,10 @@ export interface ObservationPoint {
   soilTemp: number | null;
   airTemp: number | null;
   airHumidity: number | null;
+  weatherTemp: number | null;
+  weatherHumidity: number | null;
+  weatherWind: number | null;
+  weatherPrecipitation: number | null;
 }
 
 export interface ObservationSeries {
