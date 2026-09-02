@@ -36,8 +36,9 @@ static const char *GATEWAY_ID = "GATEWAY_01";
 static const char *FIRMWARE_VERSION = "gateway-4g-spiffs-0.3.1";
 
 // Replace with your endpoint. It should accept JSON POST bodies.
-static const char *WEB_SERVER_URL = "https://nokia-mixer-neil-reflects.trycloudflare.com/api/public/gateway";
-static const char *CONFIG_URL = "https://nokia-mixer-neil-reflects.trycloudflare.com/api/public/gateway/configs";
+static const char *WEB_SERVER_URL = "https://horizon-frogsleap.vercel.app/api/public/gateway";
+static const char *CONFIG_URL = "https://horizon-frogsleap.vercel.app/api/public/gateway/configs";
+static const char *GATEWAY_INGEST_TOKEN = "";
 static const char *SIM_APN = "internet";
 static const char *SIM_USER = "";
 static const char *SIM_PASS = "";
@@ -484,6 +485,17 @@ bool configureHttpUrl(const char *url) {
   return sendAt(urlCommand);
 }
 
+bool configureGatewayIngestHeaders() {
+  if (strlen(GATEWAY_INGEST_TOKEN) == 0) {
+    return true;
+  }
+
+  String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
+  headerCommand += GATEWAY_INGEST_TOKEN;
+  headerCommand += "\"";
+  return sendAt(headerCommand);
+}
+
 bool beginHttpSessionForUrl(const char *url) {
   if (strncmp(url, "https://", 8) == 0) {
     sendAt("AT+CSSLCFG=\"sslversion\",0,3", "OK", 3000);
@@ -710,6 +722,11 @@ bool httpPostJson(const String &payload) {
   endHttpSession();
   if (!beginHttpSessionForUrl(WEB_SERVER_URL)) return false;
   if (!configureHttpUrl(WEB_SERVER_URL)) {
+    endHttpSession();
+    return false;
+  }
+
+  if (!configureGatewayIngestHeaders()) {
     endHttpSession();
     return false;
   }
