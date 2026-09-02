@@ -206,7 +206,7 @@ function externalMetrics(weather: ExternalWeather, omitTemperature = false): Obs
   const fields: Array<[MetricLabelKey, number | null, string, number]> = [
     ["temperature", omitTemperature ? null : weather.temperatureC, "°C", 1],
     ["humidity", weather.humidityPct, "%", 0],
-    ["wind", weather.windKph, "km/h", 0],
+    ["wind", weather.windKph, "km/h", 1],
     ["precipitation", weather.precipitationMm, "mm", 1],
   ];
 

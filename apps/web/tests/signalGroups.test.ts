@@ -247,6 +247,16 @@ describe("unified canvas — external context", () => {
     assert.equal(rain.value, "0.0");
   });
 
+  it("keeps wind speed at one decimal place instead of rounding to a whole number", async () => {
+    const group = buildSignalGroups(await getObservatoryViewModel("demo", vi), WEATHER).find(
+      (g) => g.origin === "external",
+    );
+    const wind = group?.secondary.find((m) => m.labelKey === "wind");
+
+    assert.ok(wind);
+    assert.equal(wind.value, "15.6");
+  });
+
   it("drops only the fields the provider could not supply", async () => {
     const partial = { ...WEATHER, windKph: null, precipitationMm: null };
     const group = buildSignalGroups(await getObservatoryViewModel("demo", vi), partial).find(
