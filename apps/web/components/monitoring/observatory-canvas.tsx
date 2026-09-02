@@ -105,6 +105,8 @@ const STATUS_LABEL: Record<MetricStatus["level"], keyof Dictionary["alerts"]> = 
   critical: "critical",
 };
 
+const WEATHER_REFRESH_MS = 15 * 60 * 1000;
+
 /** A box's surface: its own status tint, or plain white.
  *
  * The untinted boxes used to be a near-transparent grey wash so the page's
@@ -553,7 +555,7 @@ function ReferencePanel({ reference, dict }: { reference: ObservatoryReferenceIt
 
 export function ObservatoryCanvas({
   model,
-  weather = null,
+  weather: initialWeather = null,
 }: {
   model: ObservatoryViewModel;
   /** External regional context. Shares the canvas, never the provenance. */
@@ -561,6 +563,7 @@ export function ObservatoryCanvas({
 }) {
   const dict = useDict();
   const [localGatewayReading, setLocalGatewayReading] = useState<LocalGatewayReading | null>(null);
+  const [weather, setWeather] = useState<ExternalWeather | null>(initialWeather);
 
   useEffect(() => {
     let active = true;
@@ -578,6 +581,31 @@ export function ObservatoryCanvas({
 
     refreshLocalGatewayReading();
     const id = window.setInterval(refreshLocalGatewayReading, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshWeather() {
+      try {
+        const response = await fetch("/api/public/weather", { cache: "no-store" });
+        if (!response.ok) {
+          if (active) setWeather(null);
+          return;
+        }
+
+        const payload = await response.json();
+        if (active) setWeather(payload.latest ?? null);
+      } catch {
+        if (active) setWeather(null);
+      }
+    }
+
+    const id = window.setInterval(refreshWeather, WEATHER_REFRESH_MS);
     return () => {
       active = false;
       window.clearInterval(id);

@@ -50,7 +50,7 @@ describe("external weather adapter", () => {
     assert.equal(result.observedAt, "2026-08-22T09:45");
     assert.equal(result.source, "Open-Meteo");
     // Regional, never a station — this is what keeps it out of telemetry.
-    assert.equal(result.area, "Vĩnh Long");
+    assert.equal(result.area, "Cồn Hô");
   });
 
   it("keeps a genuine zero rather than treating it as missing", async () => {

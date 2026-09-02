@@ -275,6 +275,66 @@ describe("unified canvas — external context", () => {
       without.map((g) => g.domain),
     );
   });
+
+  it("uses the gateway temperature while it is fresh and keeps Open-Meteo as backup", async () => {
+    const gatewayReading = {
+      gateway_id: "GATEWAY_01",
+      station_id: "STATION_01",
+      message_id: "temp-123",
+      air_temp_c: 31.81,
+      receivedAt: new Date().toISOString(),
+    };
+    const group = buildSignalGroups(await getObservatoryViewModel("real", vi), WEATHER, gatewayReading).find(
+      (g) => g.domain === "context",
+    );
+
+    assert.ok(group);
+    const temperature = group.secondary.filter((m) => m.labelKey === "temperature");
+    assert.equal(temperature.length, 1, "temperature should not be duplicated");
+    assert.equal(temperature[0].value, "31.81");
+    assert.equal(temperature[0].provenance.origin, "telemetry");
+    assert.deepEqual(
+      group.secondary.map((m) => m.labelKey),
+      ["temperature", "humidity", "wind", "precipitation"],
+    );
+  });
+
+  it("falls back to Open-Meteo temperature when the gateway temperature is stale", async () => {
+    const staleGatewayReading = {
+      gateway_id: "GATEWAY_01",
+      station_id: "STATION_01",
+      message_id: "temp-old",
+      air_temp_c: 31.81,
+      receivedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+    };
+    const group = buildSignalGroups(await getObservatoryViewModel("real", vi), WEATHER, staleGatewayReading).find(
+      (g) => g.domain === "context",
+    );
+    const temperature = group?.secondary.find((m) => m.labelKey === "temperature");
+
+    assert.ok(temperature);
+    assert.equal(temperature.value, "30.4");
+    assert.equal(temperature.provenance.origin, "external");
+    assert.equal(temperature.provenance.source, "Open-Meteo");
+  });
+
+  it("falls back to Open-Meteo temperature when the gateway value is outside the valid sensor range", async () => {
+    const badGatewayReading = {
+      gateway_id: "GATEWAY_01",
+      station_id: "STATION_01",
+      message_id: "temp-bad",
+      air_temp_c: 85,
+      receivedAt: new Date().toISOString(),
+    };
+    const group = buildSignalGroups(await getObservatoryViewModel("real", vi), WEATHER, badGatewayReading).find(
+      (g) => g.domain === "context",
+    );
+    const temperature = group?.secondary.find((m) => m.labelKey === "temperature");
+
+    assert.ok(temperature);
+    assert.equal(temperature.value, "30.4");
+    assert.equal(temperature.provenance.origin, "external");
+  });
 });
 
 /**

@@ -16,8 +16,8 @@ import { CON_HO } from "@/lib/geo";
  *  2. It reports a `time` for the observation, so the value can carry an
  *     honest timestamp rather than being presented as "now".
  *  3. It is a *model* product covering a grid cell, not a station reading —
- *     which is exactly what this is used as here: regional context, never a
- *     substitute for a HORIZON sensor.
+ *     which is exactly what this is used as here: regional context first, and
+ *     a temperature backup only when the gateway reading is unusable.
  *
  * WHAT THIS IS NOT
  * This is not telemetry. It does not come from Cồn Hô, it is not measured by
@@ -28,7 +28,8 @@ import { CON_HO } from "@/lib/geo";
  * canvas with HORIZON telemetry while keeping `origin: "external"`.
  * Mixing a model forecast into the observatory's own measurements would
  * misrepresent the system as more instrumented than it is — the exact failure
- * this project's data-honesty rules exist to prevent.
+ * this project's data-honesty rules exist to prevent. Temperature backup is
+ * the one explicit exception, and it keeps `origin: "external"`.
  *
  * FAILURE BEHAVIOUR
  * Returns `null` on any failure — network error, non-200, malformed body, or
@@ -107,7 +108,7 @@ export async function getExternalWeather(): Promise<ExternalWeather | null> {
       observedAt: typeof current.time === "string" ? current.time : null,
       source: "Open-Meteo",
       sourceUrl: "https://open-meteo.com/",
-      area: "Vĩnh Long",
+      area: "Cồn Hô",
     };
   } catch {
     // Includes AbortSignal.timeout firing. Deliberately silent to the caller:

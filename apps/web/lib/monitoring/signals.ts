@@ -73,6 +73,10 @@ export interface SignalGroup {
   capabilityNote: string | null;
 }
 
+const GATEWAY_TEMPERATURE_MAX_AGE_MS = 10 * 60 * 1000;
+const GATEWAY_TEMPERATURE_MIN_C = -20;
+const GATEWAY_TEMPERATURE_MAX_C = 60;
+
 /**
  * How many of a group's readings currently carry a value. Drives cell
  * geometry so a group with six live readings is not given the same width as
@@ -219,6 +223,19 @@ function externalMetrics(weather: ExternalWeather, omitTemperature = false): Obs
 
 function localGatewayTemperatureMetric(reading?: LocalGatewayReading | null): ObservatoryMetric | null {
   if (reading?.air_temp_c == null) return null;
+  if (!Number.isFinite(reading.air_temp_c)) return null;
+  if (
+    reading.air_temp_c < GATEWAY_TEMPERATURE_MIN_C ||
+    reading.air_temp_c > GATEWAY_TEMPERATURE_MAX_C
+  ) {
+    return null;
+  }
+
+  if (reading.receivedAt) {
+    const observedMs = Date.parse(reading.receivedAt);
+    if (!Number.isFinite(observedMs)) return null;
+    if (Date.now() - observedMs > GATEWAY_TEMPERATURE_MAX_AGE_MS) return null;
+  }
 
   return {
     label: "temperature",
