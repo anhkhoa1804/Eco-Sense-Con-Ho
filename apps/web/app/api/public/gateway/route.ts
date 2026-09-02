@@ -14,6 +14,7 @@ function resolveLocalStoragePath() {
 }
 
 const localStoragePath = resolveLocalStoragePath();
+const isProduction = process.env.NODE_ENV === "production";
 
 async function ensureLocalStore() {
   try {
@@ -116,6 +117,17 @@ export async function GET() {
     });
   }
 
+  if (isProduction) {
+    return NextResponse.json({
+      ok: true,
+      route: "/api/public/gateway",
+      methods: ["POST"],
+      message: "Gateway ingest endpoint.",
+      storage: "supabase",
+      latest: null,
+    });
+  }
+
   const store = await readLocalStore();
 
   return NextResponse.json({
@@ -147,6 +159,13 @@ export async function POST(request: Request) {
     const storedInSupabase = await writeGatewayObservation(candidate, receivedAt);
 
     if (!storedInSupabase) {
+      if (isProduction) {
+        return NextResponse.json(
+          { ok: false, error: "gateway_observation_store_unavailable" },
+          { status: 503 },
+        );
+      }
+
       await writeLocalStore({
         ...candidate,
         receivedAt,

@@ -4,7 +4,7 @@ import { ArrowRight, ClipboardList, Info, LayoutDashboard, Send, Sprout, Waves }
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { FieldNotesCarousel } from "@/components/home/field-notes-carousel";
 import { Hero } from "@/components/home/hero";
-import { LocalGatewayCard } from "@/components/home/local-gateway-card";
+import { LocalGatewayCard, type LocalGatewayReading } from "@/components/home/local-gateway-card";
 import { Reveal } from "@/components/ui/reveal";
 import { PublicShell } from "@/components/layout/public-shell";
 import { TranslationNotice } from "@/components/layout/translation-notice";
@@ -219,24 +219,6 @@ const EXPLORE = [
   { href: "/report", icon: ClipboardList, label: "Báo cáo", text: "Gửi một quan sát từ hiện trường." },
 ] as const;
 
-async function getLatestLocalGatewayReading() {
-  try {
-    const response = await fetch("http://localhost:4173/api/public/gateway", {
-      cache: "no-store",
-      next: { revalidate: 0 },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const payload = await response.json();
-    return payload.latest ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function ExploreChapter() {
   return (
     <div className="border-t border-border">
@@ -289,7 +271,7 @@ function ChapterHeading({
 export default async function HomePage() {
   const posts = getRecentPosts(5);
   const { dict } = await getI18n();
-  const localGatewayReading = await getLatestLocalGatewayReading();
+  const localGatewayReading = null as LocalGatewayReading | null;
 
   return (
     <PublicShell activePath="/">

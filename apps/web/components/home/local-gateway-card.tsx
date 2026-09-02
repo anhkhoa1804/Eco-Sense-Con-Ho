@@ -42,7 +42,7 @@ export function LocalGatewayCard({ initialReading }: { initialReading: LocalGate
     async function refresh() {
       try {
         const latest = await fetchLatestLocalGatewayReading();
-        if (active && latest) setReading(latest);
+        if (active) setReading(latest);
       } catch {
         // Keep the last good reading visible during transient local tunnel errors.
       }
