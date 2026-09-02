@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { CloudRain, Droplets, Send, Thermometer, Waves, Wind } from "lucide-react";
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { ObservationLog } from "@/components/monitoring/observation-log";
@@ -10,6 +11,7 @@ import { buildSignalGroups, type SignalGroup } from "@/lib/monitoring/signals";
 import { statusFor, worstStatus, STATUS_SURFACE, type MetricStatus } from "@/lib/monitoring/status";
 import { cn } from "@/lib/utils";
 import type {
+  LocalGatewayReading,
   ObservatoryMetric,
   ObservatoryReferenceItem,
   ObservatoryViewModel,
@@ -558,12 +560,35 @@ export function ObservatoryCanvas({
   weather?: ExternalWeather | null;
 }) {
   const dict = useDict();
+  const [localGatewayReading, setLocalGatewayReading] = useState<LocalGatewayReading | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshLocalGatewayReading() {
+      try {
+        const response = await fetch("/api/public/gateway", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (active) setLocalGatewayReading(payload.latest ?? null);
+      } catch {
+        // Keep the observatory on its existing data source if the local endpoint is unavailable.
+      }
+    }
+
+    refreshLocalGatewayReading();
+    const id = window.setInterval(refreshLocalGatewayReading, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, []);
 
   // Domain-grouped, not station-grouped — see lib/monitoring/signals.ts for
   // why this is the information architecture rather than a layout choice.
   // Weather joins the SAME canvas here rather than being rendered as its own
   // block below it; buildSignalGroups keeps its provenance distinct.
-  const signalGroups = buildSignalGroups(model, weather);
+  const signalGroups = buildSignalGroups(model, weather, localGatewayReading);
   // Status colour is only permitted where a threshold genuinely exists. The
   // model carries the configured salinity levels; every other environmental
   // metric has no basis in this system and renders neutral by design.

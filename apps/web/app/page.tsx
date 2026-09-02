@@ -4,6 +4,7 @@ import { ArrowRight, ClipboardList, Info, LayoutDashboard, Send, Sprout, Waves }
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { FieldNotesCarousel } from "@/components/home/field-notes-carousel";
 import { Hero } from "@/components/home/hero";
+import { LocalGatewayCard } from "@/components/home/local-gateway-card";
 import { Reveal } from "@/components/ui/reveal";
 import { PublicShell } from "@/components/layout/public-shell";
 import { TranslationNotice } from "@/components/layout/translation-notice";
@@ -218,6 +219,24 @@ const EXPLORE = [
   { href: "/report", icon: ClipboardList, label: "Báo cáo", text: "Gửi một quan sát từ hiện trường." },
 ] as const;
 
+async function getLatestLocalGatewayReading() {
+  try {
+    const response = await fetch("http://localhost:4173/api/public/gateway", {
+      cache: "no-store",
+      next: { revalidate: 0 },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    return payload.latest ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function ExploreChapter() {
   return (
     <div className="border-t border-border">
@@ -270,6 +289,7 @@ function ChapterHeading({
 export default async function HomePage() {
   const posts = getRecentPosts(5);
   const { dict } = await getI18n();
+  const localGatewayReading = await getLatestLocalGatewayReading();
 
   return (
     <PublicShell activePath="/">
@@ -288,6 +308,26 @@ export default async function HomePage() {
         </p>
 
         <TranslationNotice />
+
+        <LocalGatewayCard initialReading={localGatewayReading} />
+
+        <div className="hidden">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">Local gateway</p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-4xl font-semibold tracking-tight text-foreground">
+                {localGatewayReading?.air_temp_c != null ? `${localGatewayReading.air_temp_c}°C` : "--°C"}
+              </div>
+              <p className="mt-1 text-sm text-muted">
+                {localGatewayReading?.station_id ?? "Chưa có dữ liệu"}
+              </p>
+            </div>
+            <div className="text-right text-xs text-muted">
+              <div>Gateway</div>
+              <div className="font-medium text-foreground">{localGatewayReading?.gateway_id ?? "--"}</div>
+            </div>
+          </div>
+        </div>
 
         {/* Moved here from Monitoring, where it opened the page as a full
             card above the title. Home is where a first-time visitor lands,

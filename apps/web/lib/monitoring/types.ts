@@ -51,6 +51,17 @@ export interface ObservatoryMetric {
   provenance: DataProvenance;
 }
 
+export interface LocalGatewayReading {
+  gateway_id?: string | null;
+  station_id?: string | null;
+  message_id?: string | null;
+  timestamp?: number | null;
+  air_temp_c?: number | null;
+  soil_temp_c?: number | null;
+  air_humidity_pct?: number | null;
+  receivedAt?: string | null;
+}
+
 /**
  * Which physical domain a group of readings belongs to.
  *
