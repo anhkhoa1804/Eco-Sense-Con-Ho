@@ -4,7 +4,7 @@ excerpt: Trong nhiều chỉ số môi trường có thể đo, độ mặn là 
 category: Thiết kế hệ thống
 date: 2026-03-18
 readingTime: 5 phút đọc
-cover: /assets/gallery/gallery-placeholder-01.svg
+cover: /assets/field/con-ho-river-sunset.jpg
 status: draft
 ---
 

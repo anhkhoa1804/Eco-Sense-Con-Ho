@@ -57,11 +57,15 @@ interface PageHeroProps {
   /** Only when it materially contributes — e.g. Monitoring's demo-mode flag. */
   aside?: ReactNode;
   /**
-   * Reserved slot for a future phase's per-route background illustration
-   * (`public/assets/backgrounds/{home,about,monitoring,report}`). It renders
-   * behind the text at z-0 with the copy at z-10, so that phase can supply
-   * an image without touching this component's layout or any page's markup.
-   * Nothing ships in that folder yet, by design.
+   * Per-route background imagery. Renders behind the text at z-0 with the
+   * copy at z-10, so a route can supply an image without touching this
+   * component's layout.
+   *
+   * Home is the only route that passes one today — see
+   * components/home/hero-backdrop.tsx. The other three stay on the gradient
+   * atmosphere deliberately: a photographic hero on every page would make the
+   * set read as a template, and Monitoring in particular needs its first
+   * screen for readings rather than for scenery.
    */
   backdrop?: ReactNode;
 }

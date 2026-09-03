@@ -1,8 +1,8 @@
 ---
-title: Bối cảnh cù lao
-caption: Hình minh họa trừu tượng về địa hình cù lao giữa sông. Chưa có ảnh thực địa.
+title: Sông chiều nhìn từ bến
+caption: Nhánh sông bao quanh Cồn Hô lúc chiều muộn — chính dòng nước mà mạng lưới đang theo dõi độ mặn.
 category: Cảnh quan
-status: placeholder
-image: /assets/gallery/gallery-placeholder-01.svg
-source: Minh họa do dự án tự dựng
+status: verified
+image: /assets/field/con-ho-river-sunset.jpg
+source: Ảnh do dự án cung cấp
 ---

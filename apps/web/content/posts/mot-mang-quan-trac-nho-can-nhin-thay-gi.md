@@ -4,7 +4,7 @@ excerpt: Ba điểm đo không thể mô tả toàn bộ một vùng đất. Nh�
 category: Phương pháp
 date: 2026-03-04
 readingTime: 6 phút đọc
-cover: /assets/gallery/gallery-placeholder-02.svg
+cover: /assets/field/con-ho-entrance-gate.jpg
 status: draft
 ---
 

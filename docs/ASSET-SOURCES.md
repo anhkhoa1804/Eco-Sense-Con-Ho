@@ -6,23 +6,41 @@ removed rather than left in place.
 
 ## Imagery
 
-No third-party imagery ships in this repository.
-
-`apps/web/public/assets/` currently contains only material the project made
-itself:
+`apps/web/public/assets/` contains project-made material plus a small number
+of owner-supplied photographs:
 
 | Path | What it is |
 | --- | --- |
 | `brand/horizon-logo.png` | Owner-supplied logo. Not redrawn, not regenerated. |
 | `brand/horizon-icon.png` | Owner-supplied favicon source. |
 | `brand/icon-192.png`, `icon-512.png`, `icon-maskable-512.png` | PWA icons derived from the supplied icon. |
+| `hero/hero.png` | Owner-supplied illustration of the islet, used as the Home hero backdrop. An illustration, not a photograph — it is never captioned as one. |
+| `field/con-ho-entrance-gate.jpg` | Owner-supplied photograph: the entrance to Cồn Hô. |
+| `field/con-ho-river-sunset.jpg` | Owner-supplied photograph: the river branch around the islet at dusk. |
 | `illustrations/con-ho-station-map.png` | Project-drawn station map. Labelled in the UI as an illustration, never as satellite imagery. |
 | `illustrations/*-placeholder.svg` | Project-drawn technical diagrams. Labelled as diagrams, never as photographs of hardware. |
-| `gallery/gallery-placeholder-*.svg` | Project-drawn placeholders. The gallery says in text that it contains no field photography yet. |
+| `gallery/gallery-placeholder-*.svg` | Project-drawn placeholders, still used as covers for three field notes. |
 
-**No field photography exists yet.** The Home gallery states this explicitly.
-Nothing in the product is presented as a photograph of the installed system,
-because the system is not installed.
+The two `field/` photographs show the PLACE — the islet and its river. They
+are not photographs of installed hardware, and nothing in the product
+presents them as such. No deployment photography exists, because no
+deployment has happened.
+
+### Supplied but NOT shipped
+
+These files were supplied by the owner, are present in the working tree, and
+are deliberately **not committed or published**:
+
+| File | Why it is held back |
+| --- | --- |
+| `1-3727.avif`, `35-6637.avif`, `1080.avif` | Visibly watermarked "Tiền Phong" — press photographs. No reuse licence has been established. |
+| `1911.du-lich-con-ho1.jpg`, `1911.du-lich-con-ho2.jpg` | Visibly watermarked "Fonline" — press photographs. Same reason. |
+| `technical stuffs/*` | Owner's own photographs of the sensor hardware, and genuinely useful — but they are extension-less HEIC files stored as tiled grids, which the toolchain here cannot reassemble into a correct full-resolution image. They need re-exporting as JPEG/WebP from a phone or Photos app before they can be used. |
+| `sequence-…webp`, `Thiết kế chưa có tên.png`, `brand/frogsleap-logo-*.png`, `brand/logo.svg`, `qr-dashboard.svg` | Unreferenced by any page. Held pending a decision on where, or whether, they belong. |
+
+Publishing a watermarked press photograph on the project's own domain is a
+licensing problem regardless of intent, so the rule below applies to them
+exactly as it applies to anything found on the web.
 
 ### If field imagery is added later
 

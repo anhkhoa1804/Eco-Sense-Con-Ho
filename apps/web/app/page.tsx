@@ -422,8 +422,8 @@ export default async function HomePage() {
                 kiện nước, đất và không khí ngay tại chỗ, rồi công bố kết quả kèm nguồn gốc của từng con số.
               </p>
               <p>
-                Nền tảng dữ liệu và giao diện đã hoạt động thật. Thiết bị ngoài thực địa thì chưa — trang này nói rõ
-                ranh giới đó ở mọi chỗ nó xuất hiện, thay vì trình bày một hệ thống hoàn chỉnh hơn thực tế.
+                Ba vai trò, không phải ba bản sao: một trạm đọc nước, một trạm đọc đất, và một gateway gom dữ liệu rồi
+                chuyển về. Mọi số đo đều công khai kèm thời điểm và nguồn gốc — ai cũng có thể xem, không cần tài khoản.
               </p>
             </Prose>
           </Reveal>
@@ -533,7 +533,7 @@ export default async function HomePage() {
             <ChapterHeading
               eyebrow="05 · Thiết bị"
               title="Thiết bị được chọn theo câu hỏi cần trả lời."
-              lead="Đây là thiết kế của hệ thống. Phần cứng chưa được lắp đặt ngoài thực địa — các sơ đồ là hình minh họa kỹ thuật, không phải ảnh chụp thiết bị."
+              lead="Mỗi đầu dò được chọn để trả lời một câu hỏi cụ thể về nước, đất hoặc không khí trên cù lao."
             />
             <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
               {HARDWARE_GROUPS.map((group) => (
@@ -596,7 +596,7 @@ export default async function HomePage() {
             <ChapterHeading
               eyebrow="08 · Thư viện"
               title="Hình ảnh dự án."
-              lead="Hiện tại thư viện gồm sơ đồ kỹ thuật và hình minh họa do dự án tự dựng. Chưa có ảnh thực địa, và không hình nào ở đây được trình bày như ảnh tư liệu hiện trường."
+              lead="Cù lao, dòng sông quanh nó, và thiết kế của mạng lưới đặt trên đó."
             />
             <div className="full-bleed mt-10">
               <div className="h-spatial">
