@@ -7,6 +7,7 @@ import {
   populatedCount,
   rowSpanFor,
 } from "@/lib/monitoring/signals";
+import { mergeWeather24hSeries, weatherHistoryToObservationSeries } from "@/lib/monitoring/weatherSeries";
 import { getObservatoryViewModel } from "@/lib/monitoring/buildObservatory";
 import { vi } from "@/lib/i18n/vi";
 
@@ -247,6 +248,16 @@ describe("unified canvas — external context", () => {
     assert.equal(rain.value, "0.0");
   });
 
+  it("keeps wind speed at one decimal place instead of rounding to a whole number", async () => {
+    const group = buildSignalGroups(await getObservatoryViewModel("demo", vi), WEATHER).find(
+      (g) => g.origin === "external",
+    );
+    const wind = group?.secondary.find((m) => m.labelKey === "wind");
+
+    assert.ok(wind);
+    assert.equal(wind.value, "15.6");
+  });
+
   it("drops only the fields the provider could not supply", async () => {
     const partial = { ...WEATHER, windKph: null, precipitationMm: null };
     const group = buildSignalGroups(await getObservatoryViewModel("demo", vi), partial).find(
@@ -274,6 +285,66 @@ describe("unified canvas — external context", () => {
       with_.map((g) => g.domain),
       without.map((g) => g.domain),
     );
+  });
+
+  it("uses the gateway temperature while it is fresh and keeps Open-Meteo as backup", async () => {
+    const gatewayReading = {
+      gateway_id: "GATEWAY_01",
+      station_id: "STATION_01",
+      message_id: "temp-123",
+      air_temp_c: 31.81,
+      receivedAt: new Date().toISOString(),
+    };
+    const group = buildSignalGroups(await getObservatoryViewModel("real", vi), WEATHER, gatewayReading).find(
+      (g) => g.domain === "context",
+    );
+
+    assert.ok(group);
+    const temperature = group.secondary.filter((m) => m.labelKey === "temperature");
+    assert.equal(temperature.length, 1, "temperature should not be duplicated");
+    assert.equal(temperature[0].value, "31.81");
+    assert.equal(temperature[0].provenance.origin, "telemetry");
+    assert.deepEqual(
+      group.secondary.map((m) => m.labelKey),
+      ["temperature", "humidity", "wind", "precipitation"],
+    );
+  });
+
+  it("falls back to Open-Meteo temperature when the gateway temperature is stale", async () => {
+    const staleGatewayReading = {
+      gateway_id: "GATEWAY_01",
+      station_id: "STATION_01",
+      message_id: "temp-old",
+      air_temp_c: 31.81,
+      receivedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+    };
+    const group = buildSignalGroups(await getObservatoryViewModel("real", vi), WEATHER, staleGatewayReading).find(
+      (g) => g.domain === "context",
+    );
+    const temperature = group?.secondary.find((m) => m.labelKey === "temperature");
+
+    assert.ok(temperature);
+    assert.equal(temperature.value, "30.4");
+    assert.equal(temperature.provenance.origin, "external");
+    assert.equal(temperature.provenance.source, "Open-Meteo");
+  });
+
+  it("falls back to Open-Meteo temperature when the gateway value is outside the valid sensor range", async () => {
+    const badGatewayReading = {
+      gateway_id: "GATEWAY_01",
+      station_id: "STATION_01",
+      message_id: "temp-bad",
+      air_temp_c: 85,
+      receivedAt: new Date().toISOString(),
+    };
+    const group = buildSignalGroups(await getObservatoryViewModel("real", vi), WEATHER, badGatewayReading).find(
+      (g) => g.domain === "context",
+    );
+    const temperature = group?.secondary.find((m) => m.labelKey === "temperature");
+
+    assert.ok(temperature);
+    assert.equal(temperature.value, "30.4");
+    assert.equal(temperature.provenance.origin, "external");
   });
 });
 
@@ -585,5 +656,75 @@ describe("hero tier visual differentiation", () => {
       .map((c) => c.metric.labelKey)
       .sort();
     assert.deepEqual(heroKeys, ["moisture", "salinity", "waterLevel"]);
+  });
+});
+
+describe("weather history chart series", () => {
+  it("maps 24h Open-Meteo history into chart metrics", () => {
+    const series = weatherHistoryToObservationSeries({
+      source: "Open-Meteo",
+      sourceUrl: "https://open-meteo.com/",
+      area: "Cồn Hô",
+      points: [
+        {
+          time: "2026-09-03T01:00",
+          temperatureC: 26.4,
+          humidityPct: 83,
+          windKph: 10.5,
+          precipitationMm: 0,
+        },
+      ],
+    });
+
+    assert.ok(series);
+    assert.deepEqual(series.availableMetrics, [
+      "weatherTemp",
+      "weatherHumidity",
+      "weatherWind",
+      "weatherPrecipitation",
+    ]);
+    assert.equal(series.points[0].weatherTemp, 26.4);
+    assert.equal(series.points[0].weatherHumidity, 83);
+    assert.equal(series.points[0].weatherWind, 10.5);
+    assert.equal(series.points[0].weatherPrecipitation, 0);
+    assert.equal(series.provenance.origin, "external");
+  });
+
+  it("replaces an existing weather history when the client refreshes", async () => {
+    const model = await getObservatoryViewModel("real", vi);
+    const first = weatherHistoryToObservationSeries({
+      source: "Open-Meteo",
+      sourceUrl: "https://open-meteo.com/",
+      area: "Cồn Hô",
+      points: [
+        {
+          time: "2026-09-03T00:00",
+          temperatureC: 26.6,
+          humidityPct: 81,
+          windKph: 11,
+          precipitationMm: 0,
+        },
+      ],
+    });
+    const refreshed = weatherHistoryToObservationSeries({
+      source: "Open-Meteo",
+      sourceUrl: "https://open-meteo.com/",
+      area: "Cồn Hô",
+      points: [
+        {
+          time: "2026-09-03T01:00",
+          temperatureC: 26.4,
+          humidityPct: 83,
+          windKph: 10.5,
+          precipitationMm: 0,
+        },
+      ],
+    });
+
+    const once = mergeWeather24hSeries(model.series["24h"], first);
+    const twice = mergeWeather24hSeries(once, refreshed);
+
+    assert.equal(twice.points.filter((point) => point.weatherTemp !== null).length, 1);
+    assert.equal(twice.points.find((point) => point.weatherTemp !== null)?.weatherTemp, 26.4);
   });
 });

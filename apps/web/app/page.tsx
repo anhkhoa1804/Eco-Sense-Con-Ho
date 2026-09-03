@@ -410,6 +410,21 @@ export default async function HomePage() {
               </p>
             </Prose>
           </Reveal>
+          {/* MERGE NOTE (upstream 9d189a8): a `<LocalGatewayCard>` and an
+              `<InstallPrompt>` were added here on origin/main. Neither is
+              wired into production Home:
+                - LocalGatewayCard is bench-test scaffolding for the gateway's
+                  local ingest tunnel — hardcoded English/unaccented-Vietnamese
+                  strings, no useDict(), no HORIZON chapter grammar — reading
+                  from apps/web/.local-gateway-data.json, a fixture file, not
+                  Supabase. Shipping it as visible Home chrome would regress
+                  every i18n/visual-consistency guarantee this rebuild made.
+                - InstallPrompt is the PWA install banner explicitly removed
+                  from Home this same pass (no replacement banner wanted).
+              The component and its API route are kept in the tree — this is
+              someone else's in-progress bench-testing tool, not mine to
+              delete — just not rendered on the production landing page. */}
+
 
           {/* 02 — Where, and why here */}
           <Reveal stagger as="section" className="mx-auto max-w-[var(--width-reading)]">

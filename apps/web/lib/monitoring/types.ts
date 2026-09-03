@@ -51,6 +51,17 @@ export interface ObservatoryMetric {
   provenance: DataProvenance;
 }
 
+export interface LocalGatewayReading {
+  gateway_id?: string | null;
+  station_id?: string | null;
+  message_id?: string | null;
+  timestamp?: number | null;
+  air_temp_c?: number | null;
+  soil_temp_c?: number | null;
+  air_humidity_pct?: number | null;
+  receivedAt?: string | null;
+}
+
 /**
  * Which physical domain a group of readings belongs to.
  *
@@ -122,7 +133,11 @@ export type TrendMetric =
   | "soilPh"
   | "soilTemp"
   | "airTemp"
-  | "airHumidity";
+  | "airHumidity"
+  | "weatherTemp"
+  | "weatherHumidity"
+  | "weatherWind"
+  | "weatherPrecipitation";
 
 export interface ObservationPoint {
   /** Pre-formatted x-axis label — hour for 24h, date for 7d/30d. */
@@ -135,6 +150,10 @@ export interface ObservationPoint {
   soilTemp: number | null;
   airTemp: number | null;
   airHumidity: number | null;
+  weatherTemp: number | null;
+  weatherHumidity: number | null;
+  weatherWind: number | null;
+  weatherPrecipitation: number | null;
 }
 
 export interface ObservationSeries {

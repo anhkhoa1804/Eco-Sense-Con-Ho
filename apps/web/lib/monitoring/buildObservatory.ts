@@ -10,6 +10,7 @@ import {
   DEMO_STATION_SNAPSHOTS,
   DEMO_WATER_TREND,
 } from "@/lib/demo/observatoryDemoData";
+import { getExternalWeatherHistory24h } from "@/lib/external/weather";
 import type { DemoStationSnapshot } from "@/lib/demo/types";
 import { getPublicRepositories } from "@/lib/publicRead";
 import {
@@ -43,6 +44,7 @@ import type {
   TrendMetric,
   TrendRange,  MetricLabelKey,
 } from "./types";
+import { mergeWeather24hSeries, weatherHistoryToObservationSeries } from "./weatherSeries";
 
 const TELEMETRY: DataProvenance = { origin: "telemetry", source: "Quan trắc trực tiếp" };
 const HISTORICAL: DataProvenance = { origin: "historical" };
@@ -86,6 +88,10 @@ const ALL_METRICS: TrendMetric[] = [
   "soilTemp",
   "airTemp",
   "airHumidity",
+  "weatherTemp",
+  "weatherHumidity",
+  "weatherWind",
+  "weatherPrecipitation",
 ];
 
 /** Metrics with at least one real value — drives which chart toggles appear. */
@@ -105,6 +111,10 @@ function blankPoint(label: string): ObservationPoint {
     soilTemp: null,
     airTemp: null,
     airHumidity: null,
+    weatherTemp: null,
+    weatherHumidity: null,
+    weatherWind: null,
+    weatherPrecipitation: null,
   };
 }
 
@@ -149,11 +159,12 @@ async function buildRealObservatory(dict: Dictionary): Promise<ObservatoryViewMo
     // getDailyComparison already accepts a day count, so 30 days is one
     // query and the 7-day view is its tail — no second round-trip.
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [trend24h, soil24h, daily30, dailySoil30] = await Promise.all([
+    const [trend24h, soil24h, daily30, dailySoil30, weather24h] = await Promise.all([
       repos.readings.getTrend24h("STATION_01", scope),
       repos.readings.getSoilTrend("STATION_02", scope, { sinceIso: since24h }),
       repos.readings.getDailyComparison(scope, 30),
       repos.readings.getDailySoilTrend("STATION_02", scope, 30),
+      getExternalWeatherHistory24h(),
     ]);
 
     const snapshots = filterSnapshotsToPilotStations(allSnapshots);
@@ -170,7 +181,10 @@ async function buildRealObservatory(dict: Dictionary): Promise<ObservatoryViewMo
       network: buildNetworkState(stations, alerts, TELEMETRY),
       stations,
       series: {
-        "24h": seriesFromTrend(trend24h, soil24h),
+        "24h": mergeWeather24hSeries(
+          seriesFromTrend(trend24h, soil24h),
+          weatherHistoryToObservationSeries(weather24h),
+        ),
         "7d": seriesFromDaily(daily30.slice(-7), dailySoil30.slice(-7)),
         "30d": seriesFromDaily(daily30, dailySoil30),
       },

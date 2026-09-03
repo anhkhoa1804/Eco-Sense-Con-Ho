@@ -16,8 +16,8 @@ import { CON_HO } from "@/lib/geo";
  *  2. It reports a `time` for the observation, so the value can carry an
  *     honest timestamp rather than being presented as "now".
  *  3. It is a *model* product covering a grid cell, not a station reading —
- *     which is exactly what this is used as here: regional context, never a
- *     substitute for a HORIZON sensor.
+ *     which is exactly what this is used as here: regional context first, and
+ *     a temperature backup only when the gateway reading is unusable.
  *
  * WHAT THIS IS NOT
  * This is not telemetry. It does not come from Cồn Hô, it is not measured by
@@ -28,7 +28,8 @@ import { CON_HO } from "@/lib/geo";
  * canvas with HORIZON telemetry while keeping `origin: "external"`.
  * Mixing a model forecast into the observatory's own measurements would
  * misrepresent the system as more instrumented than it is — the exact failure
- * this project's data-honesty rules exist to prevent.
+ * this project's data-honesty rules exist to prevent. Temperature backup is
+ * the one explicit exception, and it keeps `origin: "external"`.
  *
  * FAILURE BEHAVIOUR
  * Returns `null` on any failure — network error, non-200, malformed body, or
@@ -57,9 +58,28 @@ export interface ExternalWeather {
   area: string;
 }
 
+export interface ExternalWeatherHistoryPoint {
+  time: string;
+  temperatureC: number | null;
+  humidityPct: number | null;
+  windKph: number | null;
+  precipitationMm: number | null;
+}
+
+export interface ExternalWeatherHistory {
+  points: ExternalWeatherHistoryPoint[];
+  source: string;
+  sourceUrl: string;
+  area: string;
+}
+
 /** Narrow an unknown JSON field to a finite number, or null. Never coerces. */
 function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function numAt(values: unknown, index: number): number | null {
+  return Array.isArray(values) ? num(values[index]) : null;
 }
 
 export async function getExternalWeather(): Promise<ExternalWeather | null> {
@@ -107,12 +127,68 @@ export async function getExternalWeather(): Promise<ExternalWeather | null> {
       observedAt: typeof current.time === "string" ? current.time : null,
       source: "Open-Meteo",
       sourceUrl: "https://open-meteo.com/",
-      area: "Vĩnh Long",
+      area: "Cồn Hô",
     };
   } catch {
     // Includes AbortSignal.timeout firing. Deliberately silent to the caller:
     // external context is supplementary, and its absence must never break or
     // delay the observatory's own data.
+    return null;
+  }
+}
+
+export async function getExternalWeatherHistory24h(): Promise<ExternalWeatherHistory | null> {
+  const url =
+    `${ENDPOINT}?latitude=${CON_HO_LAT}&longitude=${CON_HO_LNG}` +
+    "&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation" +
+    "&wind_speed_unit=kmh&timezone=Asia%2FHo_Chi_Minh&past_hours=23&forecast_hours=1";
+
+  try {
+    const response = await fetch(url, {
+      next: { revalidate: 900 },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    if (!response.ok) return null;
+
+    const body = (await response.json()) as { hourly?: Record<string, unknown> };
+    const hourly = body.hourly;
+    if (!hourly || !Array.isArray(hourly.time)) return null;
+
+    const points = hourly.time
+      .map((time, index): ExternalWeatherHistoryPoint | null => {
+        if (typeof time !== "string") return null;
+        const point = {
+          time,
+          temperatureC: numAt(hourly.temperature_2m, index),
+          humidityPct: numAt(hourly.relative_humidity_2m, index),
+          windKph: numAt(hourly.wind_speed_10m, index),
+          precipitationMm: numAt(hourly.precipitation, index),
+        };
+
+        if (
+          point.temperatureC === null &&
+          point.humidityPct === null &&
+          point.windKph === null &&
+          point.precipitationMm === null
+        ) {
+          return null;
+        }
+
+        return point;
+      })
+      .filter((point): point is ExternalWeatherHistoryPoint => point !== null)
+      .slice(-24);
+
+    if (points.length === 0) return null;
+
+    return {
+      points,
+      source: "Open-Meteo",
+      sourceUrl: "https://open-meteo.com/",
+      area: "Cồn Hô",
+    };
+  } catch {
     return null;
   }
 }

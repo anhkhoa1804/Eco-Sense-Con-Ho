@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { CON_HO } from "@/lib/geo";
-import { getExternalWeather } from "@/lib/external/weather";
+import { getExternalWeather, getExternalWeatherHistory24h } from "@/lib/external/weather";
 
 /**
  * The adapter's contract is that it NEVER invents a value: every failure mode
@@ -28,6 +28,63 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
+describe("external weather 24h history adapter", () => {
+  it("parses hourly Open-Meteo history for the chart", async () => {
+    stubFetch(async () =>
+      jsonResponse({
+        hourly: {
+          time: ["2026-09-02T22:00", "2026-09-02T23:00"],
+          temperature_2m: [27.5, 27.1],
+          relative_humidity_2m: [77, 79],
+          wind_speed_10m: [10.5, 11.0],
+          precipitation: [0, 0.2],
+        },
+      }),
+    );
+
+    const result = await getExternalWeatherHistory24h();
+    assert.ok(result);
+    assert.equal(result.points.length, 2);
+    assert.deepEqual(result.points[1], {
+      time: "2026-09-02T23:00",
+      temperatureC: 27.1,
+      humidityPct: 79,
+      windKph: 11.0,
+      precipitationMm: 0.2,
+    });
+  });
+
+  it("requests 23 past hours plus the current forecast hour", async () => {
+    let requested = "";
+    stubFetch(async (input) => {
+      requested = String(input);
+      return jsonResponse({ hourly: { time: ["2026-09-03T01:00"], temperature_2m: [26.4] } });
+    });
+
+    await getExternalWeatherHistory24h();
+    assert.match(requested, /hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation/);
+    assert.match(requested, /past_hours=23/);
+    assert.match(requested, /forecast_hours=1/);
+    assert.match(requested, /wind_speed_unit=kmh/);
+  });
+
+  it("returns null when all hourly fields are missing", async () => {
+    stubFetch(async () =>
+      jsonResponse({
+        hourly: {
+          time: ["2026-09-02T22:00"],
+          temperature_2m: [null],
+          relative_humidity_2m: ["n/a"],
+          wind_speed_10m: [undefined],
+          precipitation: [NaN],
+        },
+      }),
+    );
+
+    assert.equal(await getExternalWeatherHistory24h(), null);
+  });
+});
+
 describe("external weather adapter", () => {
   it("parses a well-formed upstream response", async () => {
     stubFetch(async () =>
@@ -51,7 +108,7 @@ describe("external weather adapter", () => {
     assert.equal(result.observedAt, "2026-08-22T09:45");
     assert.equal(result.source, "Open-Meteo");
     // Regional, never a station — this is what keeps it out of telemetry.
-    assert.equal(result.area, "Vĩnh Long");
+    assert.equal(result.area, "Cồn Hô");
   });
 
   it("keeps a genuine zero rather than treating it as missing", async () => {

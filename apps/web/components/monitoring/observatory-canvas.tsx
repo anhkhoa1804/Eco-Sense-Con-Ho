@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, CloudRain, Droplets, Send, Thermometer, Waves, Wind } from "lucide-react";
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { ObservationLog } from "@/components/monitoring/observation-log";
@@ -8,9 +9,12 @@ import { useDict } from "@/lib/i18n/client";
 import type { Dictionary } from "@/lib/i18n/vi";
 import { buildSignalGroups, type SignalGroup } from "@/lib/monitoring/signals";
 import { contextLine, deviceContext, type ContextMetricKey } from "@/lib/monitoring/context";
+import { mergeWeather24hSeries, weatherHistoryToObservationSeries } from "@/lib/monitoring/weatherSeries";
 import { statusFor, worstStatus, STATUS_SURFACE, type MetricStatus } from "@/lib/monitoring/status";
 import { cn } from "@/lib/utils";
 import type {
+  LocalGatewayReading,
+  ObservationSeries,
   ObservatoryMetric,
   ObservatoryReferenceItem,
   ObservatoryViewModel,
@@ -111,6 +115,8 @@ const STATUS_LABEL: Record<MetricStatus["level"], keyof Dictionary["alerts"]> = 
   warn: "warning",
   critical: "critical",
 };
+
+const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 
 /** A box's surface: its own status tint, or plain white.
  *
@@ -625,19 +631,101 @@ function ReferencePanel({ reference, dict }: { reference: ObservatoryReferenceIt
 
 export function ObservatoryCanvas({
   model,
-  weather = null,
+  weather: initialWeather = null,
 }: {
   model: ObservatoryViewModel;
   /** External regional context. Shares the canvas, never the provenance. */
   weather?: ExternalWeather | null;
 }) {
   const dict = useDict();
+  const [localGatewayReading, setLocalGatewayReading] = useState<LocalGatewayReading | null>(null);
+  const [weather, setWeather] = useState<ExternalWeather | null>(initialWeather);
+  const [weatherSeries24h, setWeatherSeries24h] = useState<ObservationSeries | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshLocalGatewayReading() {
+      try {
+        const response = await fetch("/api/public/gateway", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (active) setLocalGatewayReading(payload.latest ?? null);
+      } catch {
+        // Keep the observatory on its existing data source if the local endpoint is unavailable.
+      }
+    }
+
+    refreshLocalGatewayReading();
+    const id = window.setInterval(refreshLocalGatewayReading, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshWeatherHistory() {
+      try {
+        const response = await fetch("/api/public/weather/history", { cache: "no-store" });
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        const series = weatherHistoryToObservationSeries(payload.latest ?? null);
+        if (active) setWeatherSeries24h(series);
+      } catch {
+        // Keep the last server-rendered chart series if external history is unavailable.
+      }
+    }
+
+    const id = window.setInterval(refreshWeatherHistory, WEATHER_REFRESH_MS);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const series = useMemo(() => {
+    if (!weatherSeries24h) return model.series;
+
+    return {
+      ...model.series,
+      "24h": mergeWeather24hSeries(model.series["24h"], weatherSeries24h),
+    };
+  }, [model.series, weatherSeries24h]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshWeather() {
+      try {
+        const response = await fetch("/api/public/weather", { cache: "no-store" });
+        if (!response.ok) {
+          if (active) setWeather(null);
+          return;
+        }
+
+        const payload = await response.json();
+        if (active) setWeather(payload.latest ?? null);
+      } catch {
+        if (active) setWeather(null);
+      }
+    }
+
+    const id = window.setInterval(refreshWeather, WEATHER_REFRESH_MS);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, []);
 
   // Domain-grouped, not station-grouped — see lib/monitoring/signals.ts for
   // why this is the information architecture rather than a layout choice.
   // Weather joins the SAME canvas here rather than being rendered as its own
   // block below it; buildSignalGroups keeps its provenance distinct.
-  const signalGroups = buildSignalGroups(model, weather);
+  const signalGroups = buildSignalGroups(model, weather, localGatewayReading);
   // Status colour is only permitted where a threshold genuinely exists. The
   // model carries the configured salinity levels; every other environmental
   // metric has no basis in this system and renders neutral by design.
@@ -676,7 +764,7 @@ export function ObservatoryCanvas({
           dict={dict}
           isDemo={model.mode === "demo"}
           salinityThreshold={salinityThreshold}
-          series={model.series}
+          series={series}
           mapStations={mapStations}
           network={model.network}
         />

@@ -1,6 +1,7 @@
 import type { DataProvenance } from "@/lib/dataState";
 import type { ExternalWeather } from "@/lib/external/weather";
 import type {
+  LocalGatewayReading,
   MetricDomain,
   MetricLabelKey,
   ObservatoryMetric,
@@ -72,6 +73,10 @@ export interface SignalGroup {
   capabilityNote: string | null;
 }
 
+const GATEWAY_TEMPERATURE_MAX_AGE_MS = 10 * 60 * 1000;
+const GATEWAY_TEMPERATURE_MIN_C = -20;
+const GATEWAY_TEMPERATURE_MAX_C = 60;
+
 /**
  * How many of a group's readings currently carry a value. Drives cell
  * geometry so a group with six live readings is not given the same width as
@@ -85,6 +90,7 @@ export function populatedCount(group: SignalGroup): number {
 export function buildSignalGroups(
   model: ObservatoryViewModel,
   weather?: ExternalWeather | null,
+  localGatewayReading?: LocalGatewayReading | null,
 ): SignalGroup[] {
   const groups: SignalGroup[] = [];
 
@@ -156,16 +162,18 @@ export function buildSignalGroups(
   // competing with them. Omitted entirely when the adapter returned null:
   // an empty external group would imply HORIZON measures something it does
   // not, which is the opposite of what an empty HORIZON group means.
-  if (weather) {
-    const external = externalMetrics(weather);
-    if (external.length > 0) {
+  const localTemperature = localGatewayTemperatureMetric(localGatewayReading);
+  if (weather || localTemperature) {
+    const external = weather ? externalMetrics(weather, !!localTemperature) : [];
+    const contextMetrics = localTemperature ? [localTemperature, ...external] : external;
+    if (contextMetrics.length > 0) {
       groups.push({
         domain: "context",
         origin: "external",
         station: null,
-        attribution: `${weather.area} · ${weather.source}`,
+        attribution: localTemperature ? "Local gateway" : `${weather!.area} · ${weather!.source}`,
         primary: null,
-        secondary: external,
+        secondary: contextMetrics,
         capabilityNote: null,
       });
     }
@@ -187,7 +195,7 @@ export function buildSignalGroups(
  * external field means the provider did not supply it, which is not the same
  * claim as HORIZON's "chưa có dữ liệu" (our instrument has not reported).
  */
-function externalMetrics(weather: ExternalWeather): ObservatoryMetric[] {
+function externalMetrics(weather: ExternalWeather, omitTemperature = false): ObservatoryMetric[] {
   const provenance: DataProvenance = {
     origin: "external",
     source: weather.source,
@@ -196,9 +204,9 @@ function externalMetrics(weather: ExternalWeather): ObservatoryMetric[] {
   };
 
   const fields: Array<[MetricLabelKey, number | null, string, number]> = [
-    ["temperature", weather.temperatureC, "°C", 1],
+    ["temperature", omitTemperature ? null : weather.temperatureC, "°C", 1],
     ["humidity", weather.humidityPct, "%", 0],
-    ["wind", weather.windKph, "km/h", 0],
+    ["wind", weather.windKph, "km/h", 1],
     ["precipitation", weather.precipitationMm, "mm", 1],
   ];
 
@@ -211,6 +219,35 @@ function externalMetrics(weather: ExternalWeather): ObservatoryMetric[] {
       unit,
       provenance,
     }));
+}
+
+function localGatewayTemperatureMetric(reading?: LocalGatewayReading | null): ObservatoryMetric | null {
+  if (reading?.air_temp_c == null) return null;
+  if (!Number.isFinite(reading.air_temp_c)) return null;
+  if (
+    reading.air_temp_c < GATEWAY_TEMPERATURE_MIN_C ||
+    reading.air_temp_c > GATEWAY_TEMPERATURE_MAX_C
+  ) {
+    return null;
+  }
+
+  if (reading.receivedAt) {
+    const observedMs = Date.parse(reading.receivedAt);
+    if (!Number.isFinite(observedMs)) return null;
+    if (Date.now() - observedMs > GATEWAY_TEMPERATURE_MAX_AGE_MS) return null;
+  }
+
+  return {
+    label: "temperature",
+    labelKey: "temperature",
+    value: reading.air_temp_c.toFixed(2),
+    unit: "\u00b0C",
+    provenance: {
+      origin: "telemetry",
+      source: "Local gateway",
+      observedAt: reading.receivedAt ?? undefined,
+    },
+  };
 }
 
 function metricsForDomain(station: ObservatoryStation, domain: MetricDomain): ObservatoryMetric[] {

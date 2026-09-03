@@ -28,6 +28,10 @@ const METRICS: Record<TrendMetric, { unit: string; color: string; decimals: numb
   soilTemp: { unit: "°C", color: "var(--color-watch)", decimals: 1 },
   airTemp: { unit: "°C", color: "var(--color-accent)", decimals: 1 },
   airHumidity: { unit: "%", color: "var(--color-water-level)", decimals: 1 },
+  weatherTemp: { unit: "\u00b0C", color: "var(--color-accent)", decimals: 1 },
+  weatherHumidity: { unit: "%", color: "var(--color-water-level)", decimals: 0 },
+  weatherWind: { unit: "km/h", color: "var(--color-healthy)", decimals: 1 },
+  weatherPrecipitation: { unit: "mm", color: "var(--color-watch)", decimals: 1 },
 };
 
 /**

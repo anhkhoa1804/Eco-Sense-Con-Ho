@@ -213,6 +213,10 @@ export const en: Dictionary = {
       soilTemp: "Soil temperature",
       airTemp: "Air temperature",
       airHumidity: "Air humidity",
+      weatherTemp: "Open-Meteo temperature",
+      weatherHumidity: "Open-Meteo humidity",
+      weatherWind: "Open-Meteo wind",
+      weatherPrecipitation: "Open-Meteo rainfall",
     },
   },
 
