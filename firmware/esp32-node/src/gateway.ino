@@ -1,9 +1,9 @@
 #include <Arduino.h>
-#include <SPIFFS.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
+#include <driver/gpio.h>
 #include <esp_sleep.h>
 #include <esp_task_wdt.h>
+#include <WiFi.h>
+#include <WebServer.h>
 
 /*
   HORIZON - Gateway node
@@ -11,7 +11,6 @@
   Role:
   - Receive raw JSON readings from Station 1 and Station 2 through SX1278 LoRa UART.
   - Add gateway metadata.
-  - Store every packet on SPIFFS flash for backup.
   - Send packets to the webserver through a 4G SIM module using AT commands.
   - Drive 3 status lamps and 1 buzzer through MOSFET outputs.
 
@@ -32,8 +31,16 @@
   - Confirm LoRa UART baud rate / transparent mode.
 */
 
-static const char *GATEWAY_ID = "GATEWAY_01";
-static const char *FIRMWARE_VERSION = "gateway-4g-spiffs-0.3.1";
+static const char *GATEWAY_ID = "GATEWAY";
+static const char *FIRMWARE_VERSION = "gateway-lora-wifi-0.7.0-dashboard";
+
+// Local Wi-Fi dashboard.
+static const char *WIFI_AP_SSID = "HORIZON";
+static const char *WIFI_AP_PASSWORD = "12345678";
+static const IPAddress WIFI_AP_IP(192, 168, 4, 1);
+static const IPAddress WIFI_AP_GATEWAY(192, 168, 4, 1);
+static const IPAddress WIFI_AP_SUBNET(255, 255, 255, 0);
+static const uint32_t DASHBOARD_ONLINE_WINDOW_MS = 60000;
 
 // Replace with your endpoint. It should accept JSON POST bodies.
 static const char *WEB_SERVER_URL = "https://horizon-frogsleap.vercel.app/api/public/gateway";
@@ -42,18 +49,24 @@ static const char *GATEWAY_INGEST_TOKEN = "";
 static const char *SIM_APN = "internet";
 static const char *SIM_USER = "";
 static const char *SIM_PASS = "";
+static const bool MODEM_ENABLED = true;
 
 static const uint32_t DEBUG_BAUD = 115200;
 static const uint32_t LORA_UART_BAUD = 9600;
+// RX hardening: larger UART buffer + pull-up + fast frame completion.
+static const size_t LORA_RX_BUFFER_BYTES = 4096;
+static const uint32_t SIMPLE_FRAME_IDLE_TIMEOUT_MS = 600;
+static const uint8_t SIMPLE_ACK_REPEAT_COUNT = 3;
+static const uint32_t SIMPLE_ACK_START_DELAY_MS = 80;
+static const uint32_t SIMPLE_ACK_REPEAT_GAP_MS = 120;
 static const uint32_t MODEM_BAUD = 115200;
 
-// TODO: update these pins after wiring is finalized.
-static const int LORA_UART_RX_PIN = 32;
-static const int LORA_UART_TX_PIN = 33;
+static const int LORA_UART_RX_PIN = 16;
+static const int LORA_UART_TX_PIN = 15;
 
-static const int MODEM_RX_PIN = 16;   // ESP32 RX <- SIM TX. Matches the working hardware test sketch.
 static const int MODEM_TX_PIN = 17;   // ESP32 TX -> SIM RX.
-static const int MODEM_PEN_PIN = 25;   // Optional SIM 4G power-enable pin. Use a valid ESP32 output; GPIO 39 is input-only.
+static const int MODEM_RX_PIN = 18;   // ESP32 RX <- SIM TX.
+static const int MODEM_PEN_PIN = 39;  // SIM 4G PEN / enable pin. Set to -1 if not used.
 
 // MOSFET outputs for the gateway tower light / buzzer. Active HIGH by default.
 static const int STATUS_GREEN_PIN = 45;
@@ -65,30 +78,73 @@ static const bool MOSFET_ACTIVE_LEVEL = HIGH;
 
 static const uint32_t MODEM_TIMEOUT_MS = 12000;
 static const uint32_t HTTP_TIMEOUT_MS = 30000;
-static const uint32_t RETRY_INTERVAL_MS = 20000;
 static const uint32_t DEFAULT_CONFIG_POLL_INTERVAL_MS = 60000;
 static const uint32_t WATCHDOG_TIMEOUT_MS = 20000;
-static const size_t MAX_LOG_FILE_BYTES = 1024UL * 1024UL;
 static const size_t LORA_LINE_MAX_CHARS = 1400;
 static const uint32_t BUTTON_DEBOUNCE_MS = 80;
+static const uint32_t LORA_WAIT_LOG_INTERVAL_MS = 15000;
+static const bool DEBUG_LORA_RAW_UART = false;
+
+// Gateway is the LoRa master: it polls exactly one station at a time.
+static const uint32_t LORA_POLL_RESPONSE_TIMEOUT_MS = 28000;
+static const uint32_t LORA_POLL_GUARD_MS = 5000;
+
+// Reliability layer for noisy / lossy LoRa transparent links.
+// The station repeats one payload several times; gateway ACKs every clean copy.
+static const uint8_t LORA_ACK_REPEAT_COUNT = 3;
+static const uint32_t LORA_ACK_START_DELAY_MS = 600;
+static const uint32_t LORA_ACK_REPEAT_GAP_MS = 300;
+static const uint32_t LORA_DUPLICATE_ACK_WINDOW_MS = 12000;
+static const uint32_t LORA_PARTIAL_FRAME_TIMEOUT_MS = 5000;
+static const char *POLL_STATIONS[] = {"STATION_01", "STATION_02"};
+static const uint8_t POLL_STATION_COUNT = 2;
 
 HardwareSerial loraSerial(1);
 HardwareSerial modemSerial(2);
+WebServer dashboardServer(80);
 
-static const int DS18B20_ONEWIRE_PIN = 4;
-static const uint32_t DS18B20_SAMPLE_INTERVAL_MS = 2000;
+struct Station1DashboardSnapshot {
+  bool valid = false;
+  uint32_t sequence = 0;
+  uint32_t savedAtMs = 0;
+  uint32_t lastSeenMs = 0;
+  String summaryMinutes;
+  String distanceCm;
+  String waterLevelCm;
+  String ecMsCm;
+  String temperatureC;
+  String tdsPpm;
+  String salinityPpt;
+  String batteryVoltageV;
+  String batteryPercent;
+};
 
-OneWire oneWire(DS18B20_ONEWIRE_PIN);
-DallasTemperature ds18b20Sensors(&oneWire);
+struct Station2DashboardSnapshot {
+  bool valid = false;
+  uint32_t sequence = 0;
+  uint32_t savedAtMs = 0;
+  uint32_t lastSeenMs = 0;
+  String summaryMinutes;
+  String airTempC;
+  String airHumidityPct;
+  String soilTempC;
+  String soilMoisturePct;
+  String soilEcMsCm;
+  String soilSalinity;
+  String soilTds;
+  String soilPh;
+  String batteryVoltageV;
+  String batteryPercent;
+};
 
-static bool spiffsReady = false;
+static Station1DashboardSnapshot dashboardStation1;
+static Station2DashboardSnapshot dashboardStation2;
+
 static bool modemReady = false;
 static String loraLine;
-static uint32_t lastDs18b20ReadMs = 0;
-static uint32_t ds18b20Sequence = 0;
 static uint32_t packetSequence = 0;
-static uint32_t lastRetryMs = 0;
 static uint32_t lastConfigPollMs = 0;
+static uint32_t lastLoraWaitLogMs = 0;
 static uint32_t configPollIntervalMs = DEFAULT_CONFIG_POLL_INTERVAL_MS;
 static uint32_t gatewaySleepIntervalMs = 0;
 static bool tideHighAlert = false;
@@ -98,6 +154,30 @@ static bool forcedBuzzerAlert = false;
 static bool buzzerMuted = false;
 static bool lastMuteButtonPressed = false;
 static uint32_t lastMuteButtonChangeMs = 0;
+static uint32_t ignoredLoraLineCount = 0;
+static uint32_t recoveredLoraJsonCount = 0;
+
+// Robust JSON framing state for the UART stream.
+static String loraJsonBuffer;
+static bool loraJsonInString = false;
+static bool loraJsonEscape = false;
+
+// Poll scheduler state.
+static bool waitingForPollResponse = false;
+static String activePollStation;
+static uint8_t nextPollStationIndex = 0;
+static uint32_t pollStartedMs = 0;
+static uint32_t nextPollAtMs = 0;
+
+// Used to ACK retries without forwarding the same measurement twice.
+static String lastAcceptedMessageIdStation1;
+static String lastAcceptedMessageIdStation2;
+static uint32_t lastAcceptedAtStation1 = 0;
+static uint32_t lastAcceptedAtStation2 = 0;
+static uint32_t lastLoraByteMs = 0;
+
+void serviceWatchdog();
+void watchdogDelay(uint32_t ms);
 
 void writeMosfet(int pin, bool on) {
   digitalWrite(pin, on ? MOSFET_ACTIVE_LEVEL : !MOSFET_ACTIVE_LEVEL);
@@ -145,12 +225,6 @@ void watchdogDelay(uint32_t ms) {
   }
 }
 
-void flushModemInput() {
-  while (modemSerial.available() > 0) {
-    modemSerial.read();
-  }
-}
-
 void updateMuteButton() {
   const uint32_t now = millis();
   const bool pressed = digitalRead(BUZZER_MUTE_BUTTON_PIN) == LOW;
@@ -159,8 +233,7 @@ void updateMuteButton() {
     lastMuteButtonChangeMs = now;
     if (pressed) {
       buzzerMuted = true;
-      appendLine("/gateway_buzzer_mute.log", "{\"event\":\"buzzer_muted_by_button\"}");
-      Serial.println("[STATUS] Buzzer muted by button");
+      Serial.println("[STATUS] Da tat coi bang nut nhan");
     }
   }
 
@@ -188,39 +261,21 @@ String modemReadUntil(uint32_t timeoutMs) {
   const uint32_t startedAt = millis();
 
   while (millis() - startedAt < timeoutMs) {
+    serviceWatchdog();
+
     while (modemSerial.available() > 0) {
       response += static_cast<char>(modemSerial.read());
     }
     if (response.indexOf("\r\nOK\r\n") >= 0 || response.indexOf("\r\nERROR\r\n") >= 0) {
       break;
     }
-    serviceWatchdog();
-    delay(10);
-  }
-
-  return response;
-}
-
-String modemReadUntilToken(const char *token, uint32_t timeoutMs) {
-  String response;
-  const uint32_t startedAt = millis();
-
-  while (millis() - startedAt < timeoutMs) {
-    while (modemSerial.available() > 0) {
-      response += static_cast<char>(modemSerial.read());
-    }
-    if (response.indexOf(token) >= 0 || response.indexOf("\r\nERROR\r\n") >= 0) {
-      break;
-    }
-    serviceWatchdog();
-    delay(10);
+    watchdogDelay(10);
   }
 
   return response;
 }
 
 bool sendAt(const String &command, const char *expected = "OK", uint32_t timeoutMs = MODEM_TIMEOUT_MS) {
-  flushModemInput();
   Serial.print("[MODEM] ");
   Serial.println(command);
   modemSerial.println(command);
@@ -230,23 +285,6 @@ bool sendAt(const String &command, const char *expected = "OK", uint32_t timeout
 }
 
 void setupWatchdog() {
-  esp_task_wdt_config_t wdtConfig = {};
-  wdtConfig.timeout_ms = WATCHDOG_TIMEOUT_MS;
-  wdtConfig.idle_core_mask = (1 << portNUM_PROCESSORS) - 1;
-  wdtConfig.trigger_panic = true;
-
-  const esp_err_t initResult = esp_task_wdt_init(&wdtConfig);
-  if (initResult == ESP_ERR_INVALID_STATE) {
-    Serial.println("[WATCHDOG] TWDT da duoc khoi tao san");
-    const esp_err_t reconfigureResult = esp_task_wdt_reconfigure(&wdtConfig);
-    if (reconfigureResult != ESP_OK) {
-      Serial.printf("[WATCHDOG] Loi cau hinh lai TWDT: %d\n", static_cast<int>(reconfigureResult));
-    }
-  } else if (initResult != ESP_OK) {
-    Serial.printf("[WATCHDOG] Loi khoi tao TWDT: %d\n", static_cast<int>(initResult));
-    return;
-  }
-
   if (esp_task_wdt_status(NULL) != ESP_OK) {
     const esp_err_t addResult = esp_task_wdt_add(NULL);
     if (addResult != ESP_OK && addResult != ESP_ERR_INVALID_STATE) {
@@ -255,123 +293,8 @@ void setupWatchdog() {
   }
 }
 
-void initializeDs18b20Sensor() {
-  pinMode(DS18B20_ONEWIRE_PIN, INPUT_PULLUP);
-  ds18b20Sensors.begin();
-}
-
-void readTemperatureSensor() {
-  ds18b20Sensors.requestTemperatures();
-  const float tempC = ds18b20Sensors.getTempCByIndex(0);
-
-  if (tempC != DEVICE_DISCONNECTED_C) {
-    Serial.print("[TEMP] Nhiet do hien tai: ");
-    Serial.print(tempC);
-    Serial.println(" °C");
-  } else {
-    Serial.println("[TEMP] Loi: Khong doc duoc du lieu tu cam bien DS18B20.");
-  }
-}
-
-String buildDs18b20Payload() {
-  ds18b20Sensors.requestTemperatures();
-  const float tempC = ds18b20Sensors.getTempCByIndex(0);
-  const uint32_t timestampSec = static_cast<uint32_t>(millis() / 1000UL);
-  ds18b20Sequence += 1;
-
-  String payload;
-  payload.reserve(220);
-  payload += "{\"gateway_id\":\"";
-  payload += GATEWAY_ID;
-  payload += "\",\"station_id\":\"STATION_01\",\"message_id\":\"temp-";
-  payload += String(ds18b20Sequence);
-  payload += "\",\"timestamp\":";
-  payload += String(timestampSec);
-  payload += ",\"air_temp_c\":";
-  payload += String(tempC, 2);
-  payload += ",\"soil_temp_c\":";
-  payload += String(tempC, 2);
-  payload += ",\"air_humidity_pct\":66}";
-  return payload;
-}
-
-bool postDs18b20Sample() {
-  const String payload = buildDs18b20Payload();
-  Serial.print("[TEMP->HTTP] ");
-  Serial.println(payload);
-
-  if (httpPostJson(payload)) {
-    Serial.println("[HTTP] Da gui du lieu nhiet do DS18B20 len route local");
-    return true;
-  }
-
-  Serial.println("[HTTP] Gui du lieu nhiet do DS18B20 that bai");
-  return false;
-}
-
-void checkSim4GStatus() {
-  Serial.println("\n--- DANG KIEM TRA MODULE SIM 4G ---");
-
-  Serial.print("Kiem tra giao tiep (AT): ");
-  modemSerial.println("AT");
-  String resAT = modemReadUntil(1000);
-  Serial.println(resAT);
-  if (resAT.indexOf("OK") != -1) {
-    Serial.println("OK");
-  } else {
-    Serial.println("Loi! Khong thay module SIM phan hoi.");
-  }
-
-  Serial.print("Kiem tra the SIM (AT+CPIN?): ");
-  modemSerial.println("AT+CPIN?");
-  String resCPIN = modemReadUntil(1000);
-  Serial.println(resCPIN);
-  if (resCPIN.indexOf("READY") != -1) {
-    Serial.println("SIM OK (READY)");
-  } else {
-    Serial.println("Loi the SIM! (Chua gan SIM hoac SIM bi hong/khoa PIN)");
-  }
-
-  Serial.print("Kiem tra song (AT+CSQ): ");
-  modemSerial.println("AT+CSQ");
-  String resCSQ = modemReadUntil(1000);
-  resCSQ.trim();
-  Serial.println("\n  -> Ket qua: " + resCSQ);
-
-  Serial.print("Kiem tra mang 4G (AT+CPSI?): ");
-  modemSerial.println("AT+CPSI?");
-  String resCPSI = modemReadUntil(1000);
-  resCPSI.trim();
-  Serial.println("\n  -> Ket qua: " + resCPSI);
-
-  Serial.println("-----------------------------------\n");
-}
-
-void rotateLogIfNeeded(const char *path, const char *oldPath, size_t maxBytes) {
-  if (!spiffsReady || !SPIFFS.exists(path)) {
-    return;
-  }
-
-  File file = SPIFFS.open(path, "r");
-  if (!file) {
-    return;
-  }
-  const size_t size = file.size();
-  file.close();
-
-  if (size < maxBytes) {
-    return;
-  }
-
-  if (SPIFFS.exists(oldPath)) {
-    SPIFFS.remove(oldPath);
-  }
-  SPIFFS.rename(path, oldPath);
-}
-
 void powerOnModem() {
   if (MODEM_PEN_PIN < 0) {
-    Serial.println("[MODEM] No modem power-enable pin configured; assuming the modem is already powered.");
     return;
   }
 
@@ -381,6 +304,11 @@ void powerOnModem() {
 }
 
 bool initModem() {
+  if (!MODEM_ENABLED) {
+    Serial.println("[MODEM] Dang tat de gateway uu tien nhan LoRa");
+    return false;
+  }
+
   modemSerial.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
   watchdogDelay(500);
 
@@ -430,87 +358,11 @@ String wrapGatewayPayload(const String &stationPayload) {
   return payload;
 }
 
-void appendLine(const char *path, const String &line) {
-  if (!spiffsReady) {
-    return;
-  }
-
-  String oldPath = String(path);
-  oldPath.replace(".log", ".old");
-  rotateLogIfNeeded(path, oldPath.c_str(), MAX_LOG_FILE_BYTES);
-
-  File file = SPIFFS.open(path, "a");
-  if (!file) {
-    Serial.print("[SPIFFS] Khong mo duoc ");
-    Serial.println(path);
-    return;
-  }
-
-  file.println(line);
-  file.close();
-}
-
-bool setupSpiffs() {
-  Serial.println("[SPIFFS] Dang mount...");
-
-  if (SPIFFS.begin(false)) {
-    Serial.printf("[SPIFFS] Da mount total=%lu used=%lu\n",
-                  static_cast<unsigned long>(SPIFFS.totalBytes()),
-                  static_cast<unsigned long>(SPIFFS.usedBytes()));
-    return true;
-  }
-
-  Serial.println("[SPIFFS] Mount loi, thu format...");
-
-  if (SPIFFS.begin(true)) {
-    Serial.printf("[SPIFFS] Da mount sau format total=%lu used=%lu\n",
-                  static_cast<unsigned long>(SPIFFS.totalBytes()),
-                  static_cast<unsigned long>(SPIFFS.usedBytes()));
-    return true;
-  }
-
-  Serial.println("[SPIFFS] Khong kha dung - kiem tra partition scheme");
-  return false;
-}
-
-bool configureHttpUrl(const char *url) {
-  if (strncmp(url, "https://", 8) == 0 && !sendAt("AT+HTTPPARA=\"SSLCFG\",0", "OK", 3000)) {
-    Serial.println("[HTTP] Khong cau hinh duoc SSL context cho HTTPS");
-    return false;
-  }
-
-  String urlCommand = "AT+HTTPPARA=\"URL\",\"";
-  urlCommand += url;
-  urlCommand += "\"";
-  return sendAt(urlCommand);
-}
-
-bool configureGatewayIngestHeaders() {
-  if (strlen(GATEWAY_INGEST_TOKEN) == 0) {
-    return true;
-  }
-
-  String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
-  headerCommand += GATEWAY_INGEST_TOKEN;
-  headerCommand += "\"";
-  return sendAt(headerCommand);
-}
-
-bool beginHttpSessionForUrl(const char *url) {
-  if (strncmp(url, "https://", 8) == 0) {
-    sendAt("AT+CSSLCFG=\"sslversion\",0,3", "OK", 3000);
-    sendAt("AT+CSSLCFG=\"enableSNI\",0,1", "OK", 3000);
-    sendAt("AT+CSSLCFG=\"authmode\",0,0", "OK", 3000);
-  }
-
-  return sendAt("AT+HTTPINIT");
-}
-
-void endHttpSession() {
-  sendAt("AT+HTTPTERM", "OK", 3000);
-}
-
 String httpGet(const char *url) {
+  if (!MODEM_ENABLED) {
+    return "";
+  }
+
   if (!modemReady) {
     modemReady = initModem();
     if (!modemReady) {
@@ -518,24 +370,41 @@ String httpGet(const char *url) {
     }
   }
 
-  endHttpSession();
-  if (!beginHttpSessionForUrl(url)) return "";
-  if (!configureHttpUrl(url)) {
-    endHttpSession();
+  sendAt("AT+HTTPTERM", "OK", 3000);
+
+  if (strncmp(url, "https://", 8) == 0) {
+    sendAt("AT+CSSLCFG=\"sslversion\",0,3", "OK", 3000);
+    sendAt("AT+CSSLCFG=\"enableSNI\",0,1", "OK", 3000);
+    sendAt("AT+CSSLCFG=\"authmode\",0,0", "OK", 3000);
+  }
+
+  if (!sendAt("AT+HTTPINIT")) return "";
+
+  if (strncmp(url, "https://", 8) == 0 && !sendAt("AT+HTTPPARA=\"SSLCFG\",0", "OK", 3000)) {
+    Serial.println("[HTTP] Khong cau hinh duoc SSL context cho HTTPS");
+    sendAt("AT+HTTPTERM", "OK", 3000);
+    return "";
+  }
+
+  String urlCommand = "AT+HTTPPARA=\"URL\",\"";
+  urlCommand += url;
+  urlCommand += "\"";
+  if (!sendAt(urlCommand)) {
+    sendAt("AT+HTTPTERM", "OK", 3000);
     return "";
   }
 
   modemSerial.println("AT+HTTPACTION=0");
-  const String actionResponse = modemReadUntilToken("+HTTPACTION: 0,", HTTP_TIMEOUT_MS);
+  const String actionResponse = modemReadUntil(HTTP_TIMEOUT_MS);
   Serial.println(actionResponse);
   if (actionResponse.indexOf("+HTTPACTION: 0,200") < 0) {
-    endHttpSession();
+    sendAt("AT+HTTPTERM", "OK", 3000);
     return "";
   }
 
   modemSerial.println("AT+HTTPREAD");
   const String readResponse = modemReadUntil(HTTP_TIMEOUT_MS);
-  endHttpSession();
+  sendAt("AT+HTTPTERM", "OK", 3000);
 
   const int headerEnd = readResponse.indexOf("\r\n");
   const int okStart = readResponse.lastIndexOf("\r\nOK");
@@ -591,7 +460,6 @@ void sendConfigToStation(const char *stationId, int sampleSeconds, int sleepSeco
   command += "}";
 
   loraSerial.println(command);
-  appendLine("/gateway_config_sent.log", command);
   Serial.print("[CONFIG->LORA] ");
   Serial.println(command);
 }
@@ -685,6 +553,10 @@ void parseAndForwardConfigs(const String &body) {
 }
 
 void pollRuntimeConfigs() {
+  if (!MODEM_ENABLED) {
+    return;
+  }
+
   if (millis() - lastConfigPollMs < configPollIntervalMs) {
     return;
   }
@@ -692,11 +564,10 @@ void pollRuntimeConfigs() {
 
   const String body = httpGet(CONFIG_URL);
   if (body.length() == 0) {
-    Serial.println("[CONFIG] No config response");
+    Serial.println("[CONFIG] Khong co phan hoi cau hinh");
     return;
   }
 
-  appendLine("/gateway_config_poll.log", body);
   parseAndForwardConfigs(body);
 }
 
@@ -705,13 +576,17 @@ void maybeEnterGatewaySleep() {
     return;
   }
 
-  Serial.printf("[POWER] Gateway deep sleep %lu seconds\n", gatewaySleepIntervalMs / 1000UL);
+  Serial.printf("[POWER] Gateway ngu sau %lu giay\n", gatewaySleepIntervalMs / 1000UL);
   Serial.flush();
   esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(gatewaySleepIntervalMs) * 1000ULL);
   esp_deep_sleep_start();
 }
 
 bool httpPostJson(const String &payload) {
+  if (!MODEM_ENABLED) {
+    return false;
+  }
+
   if (!modemReady) {
     modemReady = initModem();
     if (!modemReady) {
@@ -719,20 +594,39 @@ bool httpPostJson(const String &payload) {
     }
   }
 
-  endHttpSession();
-  if (!beginHttpSessionForUrl(WEB_SERVER_URL)) return false;
-  if (!configureHttpUrl(WEB_SERVER_URL)) {
-    endHttpSession();
+  sendAt("AT+HTTPTERM", "OK", 3000);
+
+  if (strncmp(WEB_SERVER_URL, "https://", 8) == 0) {
+    sendAt("AT+CSSLCFG=\"sslversion\",0,3", "OK", 3000);
+    sendAt("AT+CSSLCFG=\"enableSNI\",0,1", "OK", 3000);
+    sendAt("AT+CSSLCFG=\"authmode\",0,0", "OK", 3000);
+  }
+
+  if (!sendAt("AT+HTTPINIT")) return false;
+
+  if (strncmp(WEB_SERVER_URL, "https://", 8) == 0 && !sendAt("AT+HTTPPARA=\"SSLCFG\",0", "OK", 3000)) {
+    Serial.println("[HTTP] Khong cau hinh duoc SSL context cho HTTPS");
+    sendAt("AT+HTTPTERM", "OK", 3000);
     return false;
   }
 
-  if (!configureGatewayIngestHeaders()) {
-    endHttpSession();
+  String urlCommand = "AT+HTTPPARA=\"URL\",\"";
+  urlCommand += WEB_SERVER_URL;
+  urlCommand += "\"";
+  if (!sendAt(urlCommand)) {
+    sendAt("AT+HTTPTERM", "OK", 3000);
     return false;
+  }
+
+  if (strlen(GATEWAY_INGEST_TOKEN) > 0) {
+    String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
+    headerCommand += GATEWAY_INGEST_TOKEN;
+    headerCommand += "\"";
+    sendAt(headerCommand);
   }
 
   if (!sendAt("AT+HTTPPARA=\"CONTENT\",\"application/json\"")) {
-    endHttpSession();
+    sendAt("AT+HTTPTERM", "OK", 3000);
     return false;
   }
 
@@ -740,23 +634,21 @@ bool httpPostJson(const String &payload) {
   dataCommand += String(payload.length());
   dataCommand += ",10000";
   modemSerial.println(dataCommand);
-  String prompt = modemReadUntilToken("DOWNLOAD", 5000);
+  String prompt = modemReadUntil(5000);
   if (prompt.indexOf("DOWNLOAD") < 0) {
-    Serial.println("[HTTP] No DOWNLOAD prompt");
-    endHttpSession();
+    Serial.println("[HTTP] Khong nhan duoc prompt DOWNLOAD");
     return false;
   }
 
   modemSerial.print(payload);
   String dataResponse = modemReadUntil(12000);
   if (dataResponse.indexOf("OK") < 0) {
-    Serial.println("[HTTP] Data upload failed");
-    endHttpSession();
+    Serial.println("[HTTP] Nap du lieu len modem that bai");
     return false;
   }
 
   modemSerial.println("AT+HTTPACTION=1");
-  const String actionResponse = modemReadUntilToken("+HTTPACTION: 1,", HTTP_TIMEOUT_MS);
+  const String actionResponse = modemReadUntil(HTTP_TIMEOUT_MS);
   Serial.println(actionResponse);
 
   // SIMCom response format: +HTTPACTION: 1,<status>,<length>
@@ -765,12 +657,12 @@ bool httpPostJson(const String &payload) {
     actionResponse.indexOf("+HTTPACTION: 1,201") >= 0 ||
     actionResponse.indexOf("+HTTPACTION: 1,202") >= 0;
 
-  endHttpSession();
+  sendAt("AT+HTTPTERM", "OK", 3000);
   return success;
 }
 
-bool isLikelyJson(const String &line) {
-  return line.length() > 2 && line[0] == '{' && line[line.length() - 1] == '}';
+bool isLikelyJson(const String &json) {
+  return json.length() > 2 && json[0] == '{' && json[json.length() - 1] == '}';
 }
 
 String extractJsonStringField(const String &json, const char *field) {
@@ -791,12 +683,49 @@ String extractJsonStringField(const String &json, const char *field) {
   return json.substring(valueStart, valueEnd);
 }
 
+uint8_t countJsonFieldOccurrences(const String &json, const char *field) {
+  String key = "\"";
+  key += field;
+  key += "\":";
+
+  uint8_t count = 0;
+  int from = 0;
+  while (from < static_cast<int>(json.length())) {
+    const int pos = json.indexOf(key, from);
+    if (pos < 0) {
+      break;
+    }
+    count += 1;
+    from = pos + key.length();
+  }
+  return count;
+}
+
 bool isKnownStationId(const String &stationId) {
   return stationId == "STATION_01" || stationId == "STATION_02";
 }
 
-void sendStationAck(const String &stationPayload) {
-  const String messageId = extractJsonStringField(stationPayload, "message_id");
+String expectedMessagePrefix(const String &stationId) {
+  String prefix = stationId;
+  prefix += "-";
+  return prefix;
+}
+
+String &lastAcceptedMessageIdFor(const String &stationId) {
+  if (stationId == "STATION_01") {
+    return lastAcceptedMessageIdStation1;
+  }
+  return lastAcceptedMessageIdStation2;
+}
+
+uint32_t &lastAcceptedAtFor(const String &stationId) {
+  if (stationId == "STATION_01") {
+    return lastAcceptedAtStation1;
+  }
+  return lastAcceptedAtStation2;
+}
+
+void sendStationAck(const String &messageId) {
   if (messageId.length() == 0) {
     return;
   }
@@ -807,87 +736,915 @@ void sendStationAck(const String &stationPayload) {
   ack += messageId;
   ack += "\"}";
 
-  loraSerial.println(ack);
-  appendLine("/gateway_ack_sent.log", ack);
-  Serial.print("[ACK->LORA] Da gui ACK: ");
-  Serial.println(ack);
+  // Cho module tram chuyen TX -> RX sau khi vua phat mot goi dai.
+  watchdogDelay(LORA_ACK_START_DELAY_MS);
+
+  for (uint8_t copy = 1; copy <= LORA_ACK_REPEAT_COUNT; copy += 1) {
+    loraSerial.println(ack);
+    loraSerial.flush();
+
+    Serial.printf("[ACK->LORA] %u/%u %s\n",
+                  copy,
+                  LORA_ACK_REPEAT_COUNT,
+                  ack.c_str());
+
+    if (copy < LORA_ACK_REPEAT_COUNT) {
+      watchdogDelay(LORA_ACK_REPEAT_GAP_MS);
+    }
+  }
+}
+
+void finishCurrentPoll(const char *reason) {
+  if (waitingForPollResponse) {
+    Serial.printf("[POLL] Ket thuc %s: %s\n", activePollStation.c_str(), reason);
+  }
+
+  waitingForPollResponse = false;
+  activePollStation = "";
+  nextPollAtMs = millis() + LORA_POLL_GUARD_MS;
+}
+
+void sendPollToStation(const char *stationId) {
+  String poll;
+  poll.reserve(64);
+  poll += "{\"type\":\"poll\",\"station_id\":\"";
+  poll += stationId;
+  poll += "\"}";
+
+  // Drop stale bytes/fragment left by the previous transaction.
+  loraJsonBuffer = "";
+  loraJsonInString = false;
+  loraJsonEscape = false;
+  while (loraSerial.available() > 0) {
+    (void)loraSerial.read();
+  }
+
+  activePollStation = stationId;
+  waitingForPollResponse = true;
+  pollStartedMs = millis();
+
+  loraSerial.println(poll);
+  loraSerial.flush();
+
+  Serial.print("[POLL->LORA] ");
+  Serial.println(poll);
+}
+
+void serviceStationPolling() {
+  const uint32_t now = millis();
+
+  if (waitingForPollResponse) {
+    if (now - pollStartedMs >= LORA_POLL_RESPONSE_TIMEOUT_MS) {
+      Serial.printf("[POLL] Het thoi gian cho %s\n", activePollStation.c_str());
+      finishCurrentPoll("timeout");
+    }
+    return;
+  }
+
+  if (static_cast<int32_t>(now - nextPollAtMs) < 0) {
+    return;
+  }
+
+  const char *stationId = POLL_STATIONS[nextPollStationIndex];
+  nextPollStationIndex = (nextPollStationIndex + 1) % POLL_STATION_COUNT;
+  sendPollToStation(stationId);
+}
+
+bool validateStationDataPacket(
+  const String &json,
+  String &stationId,
+  String &payloadType,
+  String &messageId
+) {
+  if (!isLikelyJson(json)) {
+    Serial.println("[LORA] BO GOI: khung JSON khong hop le");
+    return false;
+  }
+
+  // Identity fields must appear exactly once.
+  if (countJsonFieldOccurrences(json, "type") != 1 ||
+      countJsonFieldOccurrences(json, "station_id") != 1) {
+    Serial.println("[LORA] BO GOI: trung/lac field type hoac station_id - nghi collision");
+    return false;
+  }
+
+  stationId = extractJsonStringField(json, "station_id");
+  payloadType = extractJsonStringField(json, "type");
+
+  if (!isKnownStationId(stationId)) {
+    Serial.print("[LORA] BO GOI: station_id khong hop le: ");
+    Serial.println(stationId);
+    return false;
+  }
+
+  // no_data/status is only accepted for the station currently being polled.
+  if (payloadType == "station_status") {
+    if (!waitingForPollResponse || stationId != activePollStation) {
+      return false;
+    }
+    return true;
+  }
+
+  if (payloadType != "station_summary" && payloadType != "ping") {
+    Serial.print("[LORA] BO GOI: type khong duoc chap nhan: ");
+    Serial.println(payloadType);
+    return false;
+  }
+
+  if (countJsonFieldOccurrences(json, "message_id") != 1) {
+    Serial.println("[LORA] BO GOI: message_id thieu/trung - nghi collision");
+    return false;
+  }
+
+  messageId = extractJsonStringField(json, "message_id");
+  const String prefix = expectedMessagePrefix(stationId);
+  if (!messageId.startsWith(prefix)) {
+    Serial.printf("[LORA] BO GOI: station=%s nhung message_id=%s\n",
+                  stationId.c_str(),
+                  messageId.c_str());
+    return false;
+  }
+
+  // If a station missed our ACK, it repeats the same message_id.
+  // Keep accepting/ACKing that retry briefly, but it will not be forwarded twice.
+  String &lastAccepted = lastAcceptedMessageIdFor(stationId);
+  uint32_t &lastAcceptedAt = lastAcceptedAtFor(stationId);
+  const bool recentDuplicate =
+    lastAccepted == messageId &&
+    millis() - lastAcceptedAt <= LORA_DUPLICATE_ACK_WINDOW_MS;
+
+  if (recentDuplicate) {
+    return true;
+  }
+
+  if (!waitingForPollResponse || stationId != activePollStation) {
+    Serial.printf("[LORA] BO GOI: nhan %s khi dang cho %s\n",
+                  stationId.c_str(),
+                  waitingForPollResponse ? activePollStation.c_str() : "khong_tram_nao");
+    return false;
+  }
+
+  return true;
 }
 
 void handleStationPayload(const String &stationPayload) {
-  if (!isLikelyJson(stationPayload)) {
-    Serial.print("[LORA] Bo qua du lieu khong phai JSON: ");
-    Serial.println(stationPayload);
+  String stationId;
+  String payloadType;
+  String messageId;
+
+  if (!validateStationDataPacket(stationPayload, stationId, payloadType, messageId)) {
+    ignoredLoraLineCount += 1;
     return;
   }
 
-  const String stationId = extractJsonStringField(stationPayload, "station_id");
-  const String payloadType = extractJsonStringField(stationPayload, "type");
-
-  if (!isKnownStationId(stationId)) {
-    Serial.print("[LORA] Bo qua goi khong thuoc STATION_01/STATION_02: ");
-    Serial.println(stationPayload);
+  if (payloadType == "station_status") {
+    const String status = extractJsonStringField(stationPayload, "status");
+    Serial.printf("[LORA] %s phan hoi trang_thai=%s (%u ky tu)\n",
+                  stationId.c_str(),
+                  status.length() > 0 ? status.c_str() : "khong_ro",
+                  static_cast<unsigned int>(stationPayload.length()));
+    finishCurrentPoll("station_status");
     return;
   }
 
-  Serial.printf("[LORA] Nhan goi %s tu %s, %u ky tu\n",
-                payloadType.length() > 0 ? payloadType.c_str() : "khong_ro_loai",
+  Serial.println("============================================================");
+  Serial.printf("[DATA][%s] type=%s message_id=%s bytes=%u\n",
                 stationId.c_str(),
+                payloadType.c_str(),
+                messageId.c_str(),
                 static_cast<unsigned int>(stationPayload.length()));
+  Serial.printf("[DATA][%s] payload=", stationId.c_str());
+  Serial.println(stationPayload);
 
-  sendStationAck(stationPayload);
+  // ACK immediately so the station can close its transaction.
+  sendStationAck(messageId);
+
+  String &lastAccepted = lastAcceptedMessageIdFor(stationId);
+  if (lastAccepted == messageId) {
+    lastAcceptedAtFor(stationId) = millis();
+    Serial.printf("[LORA] Goi lap %s - ACK lai, KHONG gui web lan 2\n", messageId.c_str());
+    finishCurrentPoll("duplicate_acked");
+    return;
+  }
+
+  lastAccepted = messageId;
+  lastAcceptedAtFor(stationId) = millis();
 
   const String gatewayPayload = wrapGatewayPayload(stationPayload);
   Serial.print("[GATEWAY] Du lieu dong goi: ");
   Serial.println(gatewayPayload);
 
-  appendLine("/gateway_received.log", gatewayPayload);
-
-  if (httpPostJson(gatewayPayload)) {
-    appendLine("/gateway_sent.log", gatewayPayload);
+  if (MODEM_ENABLED && httpPostJson(gatewayPayload)) {
     Serial.println("[HTTP] Da gui len webserver");
   } else {
-    appendLine("/gateway_pending.log", gatewayPayload);
-    Serial.println("[HTTP] Gui that bai, da dua vao hang doi tren SPIFFS");
+    if (MODEM_ENABLED) {
+      Serial.println("[HTTP] Gui that bai");
+    } else {
+      Serial.println("[HTTP] Modem dang tat, chi nhan LoRa va gui ACK");
+    }
+  }
+
+  finishCurrentPoll("data_ok");
+}
+
+void resetLoraFrameParser() {
+  loraJsonBuffer = "";
+  loraJsonInString = false;
+  loraJsonEscape = false;
+}
+
+void consumeLoraByte(char c) {
+  lastLoraByteMs = millis();
+
+  if (DEBUG_LORA_RAW_UART) {
+    Serial.write(c);
+  }
+
+  // Ignore everything until a JSON object starts.
+  if (loraJsonBuffer.length() == 0) {
+    if (c == '{') {
+      loraJsonBuffer = "{";
+      loraJsonInString = false;
+      loraJsonEscape = false;
+    }
+    return;
+  }
+
+  // All station/gateway protocol packets are flat JSON objects. If a second
+  // unquoted '{' appears, the stream was likely joined/corrupted. Restart at
+  // the newest object instead of ACKing a mixed frame.
+  if (!loraJsonInString && c == '{') {
+    Serial.println("[LORA] Phat hien '{' moi khi goi cu chua xong - bo goi cu/restart");
+    recoveredLoraJsonCount += 1;
+    loraJsonBuffer = "{";
+    loraJsonEscape = false;
+    return;
+  }
+
+  loraJsonBuffer += c;
+
+  if (loraJsonBuffer.length() > LORA_LINE_MAX_CHARS) {
+    ignoredLoraLineCount += 1;
+    Serial.println("[LORA] BO GOI: qua dai");
+    resetLoraFrameParser();
+    return;
+  }
+
+  if (loraJsonInString) {
+    if (loraJsonEscape) {
+      loraJsonEscape = false;
+    } else if (c == '\\') {
+      loraJsonEscape = true;
+    } else if (c == '"') {
+      loraJsonInString = false;
+    }
+    return;
+  }
+
+  if (c == '"') {
+    loraJsonInString = true;
+    return;
+  }
+
+  if (c == '}') {
+    const String completePacket = loraJsonBuffer;
+    resetLoraFrameParser();
+    handleStationPayload(completePacket);
   }
 }
 
 void readLoRaUart() {
+  bool gotByte = false;
+
+  if (loraJsonBuffer.length() > 0 &&
+      millis() - lastLoraByteMs > LORA_PARTIAL_FRAME_TIMEOUT_MS) {
+    Serial.println("[LORA] Bo fragment cu do qua thoi gian cho");
+    resetLoraFrameParser();
+  }
+
   while (loraSerial.available() > 0) {
-    const char c = static_cast<char>(loraSerial.read());
-    if (c == '\n') {
-      loraLine.trim();
-      if (loraLine.length() > 0) {
-        handleStationPayload(loraLine);
-      }
-      loraLine = "";
-    } else if (c != '\r') {
-      loraLine += c;
-      if (loraLine.length() > LORA_LINE_MAX_CHARS) {
-        loraLine = "";
-        Serial.println("[LORA] Dong du lieu qua dai, da bo qua");
-      }
+    serviceWatchdog();
+    gotByte = true;
+    consumeLoraByte(static_cast<char>(loraSerial.read()));
+  }
+
+  if (!gotByte && millis() - lastLoraWaitLogMs >= LORA_WAIT_LOG_INTERVAL_MS) {
+    lastLoraWaitLogMs = millis();
+    Serial.printf("[LORA] Cho theo poll, hien_tai=%s\n",
+                  waitingForPollResponse ? activePollStation.c_str() : "chuan_bi_poll");
+  }
+}
+
+
+// ============================================================
+// SIMPLE LORA QoS1 RECEIVER
+// ============================================================
+// Receives only short newline-terminated packets, validates CRC16,
+// ACKs immediately, and de-duplicates by station + sequence.
+
+static String simpleRxLine;
+static uint32_t lastSimpleSeq1 = 0xFFFFFFFFUL;
+static uint32_t lastSimpleSeq2 = 0xFFFFFFFFUL;
+
+uint16_t simpleCrc16(const String &text) {
+  uint16_t crc = 0xFFFF;
+  for (size_t i = 0; i < text.length(); ++i) {
+    crc ^= static_cast<uint16_t>(static_cast<uint8_t>(text[i])) << 8;
+    for (uint8_t bit = 0; bit < 8; ++bit) {
+      crc = (crc & 0x8000) ? static_cast<uint16_t>((crc << 1) ^ 0x1021) : static_cast<uint16_t>(crc << 1);
+    }
+  }
+  return crc;
+}
+
+String simpleField(const String &line, uint8_t index) {
+  int start = 0;
+  uint8_t current = 0;
+  while (true) {
+    const int end = line.indexOf('|', start);
+    if (current == index) {
+      return end < 0 ? line.substring(start) : line.substring(start, end);
+    }
+    if (end < 0) return "";
+    start = end + 1;
+    current += 1;
+  }
+}
+
+String jsonNumberOrNullFromWire(const String &v) {
+  if (v.length() == 0 || v == "x" || v == "X") return "null";
+  return v;
+}
+
+
+String dashboardWireText(const String &value) {
+  if (value.length() == 0 || value == "x" || value == "X") return "-";
+  return value;
+}
+
+String dashboardJsonString(const String &value) {
+  String out;
+  out.reserve(value.length() + 8);
+  for (size_t i = 0; i < value.length(); ++i) {
+    const char c = value[i];
+    if (c == '\\' || c == '"') {
+      out += '\\';
+      out += c;
+    } else if (c == '\n') {
+      out += "\\n";
+    } else if (c == '\r') {
+      out += "\\r";
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
+void updateDashboardSnapshot(const String &line, bool station1, uint32_t seq) {
+  const uint32_t now = millis();
+
+  if (station1) {
+    dashboardStation1.valid = true;
+    dashboardStation1.sequence = seq;
+    dashboardStation1.savedAtMs = now;
+    dashboardStation1.lastSeenMs = now;
+    dashboardStation1.summaryMinutes = dashboardWireText(simpleField(line, 2));
+    dashboardStation1.distanceCm = dashboardWireText(simpleField(line, 3));
+    dashboardStation1.waterLevelCm = dashboardWireText(simpleField(line, 4));
+    dashboardStation1.ecMsCm = dashboardWireText(simpleField(line, 5));
+    dashboardStation1.temperatureC = dashboardWireText(simpleField(line, 6));
+    dashboardStation1.tdsPpm = dashboardWireText(simpleField(line, 7));
+    dashboardStation1.salinityPpt = dashboardWireText(simpleField(line, 8));
+    dashboardStation1.batteryVoltageV = dashboardWireText(simpleField(line, 9));
+    dashboardStation1.batteryPercent = dashboardWireText(simpleField(line, 10));
+  } else {
+    dashboardStation2.valid = true;
+    dashboardStation2.sequence = seq;
+    dashboardStation2.savedAtMs = now;
+    dashboardStation2.lastSeenMs = now;
+    dashboardStation2.summaryMinutes = dashboardWireText(simpleField(line, 2));
+    dashboardStation2.airTempC = dashboardWireText(simpleField(line, 3));
+    dashboardStation2.airHumidityPct = dashboardWireText(simpleField(line, 4));
+    dashboardStation2.soilTempC = dashboardWireText(simpleField(line, 5));
+    dashboardStation2.soilMoisturePct = dashboardWireText(simpleField(line, 6));
+    dashboardStation2.soilEcMsCm = dashboardWireText(simpleField(line, 7));
+    dashboardStation2.soilSalinity = dashboardWireText(simpleField(line, 8));
+    dashboardStation2.soilTds = dashboardWireText(simpleField(line, 9));
+    dashboardStation2.soilPh = dashboardWireText(simpleField(line, 10));
+    dashboardStation2.batteryVoltageV = dashboardWireText(simpleField(line, 11));
+    dashboardStation2.batteryPercent = dashboardWireText(simpleField(line, 12));
+  }
+}
+
+void markDashboardStationSeen(bool station1) {
+  if (station1) dashboardStation1.lastSeenMs = millis();
+  else dashboardStation2.lastSeenMs = millis();
+}
+
+const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>HORIZON Gateway</title>
+  <style>
+    :root{--bg:#071611;--panel:#0d2119;--panel2:#102b20;--line:#204a38;--text:#eef8f2;--muted:#90ad9f;--green:#5ee28f;--yellow:#ffd166;--blue:#6ecbff}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at top,#123325 0,#071611 45%);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+    .wrap{max-width:1120px;margin:auto;padding:28px 18px 48px}.top{display:flex;gap:16px;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap}
+    h1{font-size:34px;margin:0 0 6px;letter-spacing:-.7px}.sub{color:var(--muted);font-size:14px}.brand{display:flex;align-items:center;gap:12px}.dot{width:13px;height:13px;border-radius:50%;background:var(--green);box-shadow:0 0 22px var(--green)}
+    .gateway{display:flex;gap:10px;flex-wrap:wrap}.pill{border:1px solid var(--line);background:rgba(13,33,25,.75);padding:9px 12px;border-radius:999px;font-size:13px;color:#cde5d7}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{background:linear-gradient(180deg,rgba(16,43,32,.95),rgba(9,27,20,.97));border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+    .cardhead{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:17px}.station{font-size:21px;font-weight:800}.desc{font-size:13px;color:var(--muted);margin-top:3px}.state{font-size:12px;padding:7px 10px;border-radius:999px;font-weight:750}.online{color:#b7ffd0;background:rgba(94,226,143,.13);border:1px solid rgba(94,226,143,.4)}.offline{color:#ffd7a3;background:rgba(255,209,102,.10);border:1px solid rgba(255,209,102,.35)}
+    .metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{padding:13px;border-radius:15px;background:rgba(4,18,13,.55);border:1px solid rgba(32,74,56,.68);min-height:76px}.label{font-size:12px;color:var(--muted);margin-bottom:7px}.value{font-size:20px;font-weight:800;word-break:break-word}.unit{font-size:11px;color:#91b5a3;margin-left:4px;font-weight:600}
+    .foot{margin-top:14px;padding-top:13px;border-top:1px solid rgba(32,74,56,.65);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12px}.empty{padding:42px 12px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:16px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}h1{font-size:28px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:430px){.metrics{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><div class="brand"><span class="dot"></span><h1>HORIZON Gateway</h1></div><div class="sub">Mạng lưới giám sát khí hậu do thanh niên dẫn dắt · dữ liệu LoRa gần nhất</div></div>
+    <div class="gateway"><div class="pill">Wi‑Fi: <b>HORIZON</b></div><div class="pill">IP: <b>192.168.4.1</b></div><div class="pill" id="gw">Gateway</div></div>
+  </div>
+  <div class="grid">
+    <section class="card"><div class="cardhead"><div><div class="station">STATION 01</div><div class="desc">Mực nước & chất lượng nước</div></div><div id="s1state" class="state offline">CHƯA CÓ DỮ LIỆU</div></div><div id="s1body" class="empty">Đang chờ gói hợp lệ từ trạm 1…</div><div id="s1foot" class="foot"></div></section>
+    <section class="card"><div class="cardhead"><div><div class="station">STATION 02</div><div class="desc">Khí hậu & đất vùng bưởi</div></div><div id="s2state" class="state offline">CHƯA CÓ DỮ LIỆU</div></div><div id="s2body" class="empty">Đang chờ gói hợp lệ từ trạm 2…</div><div id="s2foot" class="foot"></div></section>
+  </div>
+</div>
+<script>
+const metric=(l,v,u='')=>`<div class="metric"><div class="label">${l}</div><div class="value">${v??'-'}${u?`<span class="unit">${u}</span>`:''}</div></div>`;
+const age=t=>t===null?'chưa có':t<2?'vừa xong':t<60?`${t} giây trước`:`${Math.floor(t/60)} phút trước`;
+function state(id,on){const e=document.getElementById(id);e.textContent=on?'ONLINE':'CHỜ DỮ LIỆU';e.className='state '+(on?'online':'offline')}
+async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});const d=await r.json();document.getElementById('gw').innerHTML=`Uptime: <b>${d.uptime_s}s</b> · Client: <b>${d.clients}</b>`;
+ const a=d.station1; state('s1state',a.online); if(a.valid){document.getElementById('s1body').className='metrics';document.getElementById('s1body').innerHTML=metric('Khoảng cách',a.distance_cm,'cm')+metric('Mực nước',a.water_level_cm,'cm')+metric('EC',a.ec_ms_cm,'mS/cm')+metric('Nhiệt độ nước',a.temperature_c,'°C')+metric('TDS',a.tds_ppm,'ppm')+metric('Độ mặn',a.salinity_ppt,'ppt')+metric('Điện áp pin',a.battery_voltage_v,'V')+metric('Pin',a.battery_percent,'%');document.getElementById('s1foot').innerHTML=`<span>Sequence <b>${a.sequence}</b></span><span>Nhận ${age(a.age_s)}</span>`}
+ const b=d.station2; state('s2state',b.online); if(b.valid){document.getElementById('s2body').className='metrics';document.getElementById('s2body').innerHTML=metric('Nhiệt độ không khí',b.air_temp_c,'°C')+metric('Độ ẩm không khí',b.air_humidity_pct,'%')+metric('Nhiệt độ đất',b.soil_temp_c,'°C')+metric('Độ ẩm đất',b.soil_moisture_pct,'%')+metric('EC đất',b.soil_ec_ms_cm,'mS/cm')+metric('Độ mặn đất',b.soil_salinity,'')+metric('TDS đất',b.soil_tds,'')+metric('pH đất',b.soil_ph,'')+metric('Điện áp pin',b.battery_voltage_v,'V')+metric('Pin',b.battery_percent,'%');document.getElementById('s2foot').innerHTML=`<span>Sequence <b>${b.sequence}</b></span><span>Nhận ${age(b.age_s)}</span>`}
+}catch(e){console.log(e)}}
+refresh();setInterval(refresh,2500);
+</script></body></html>
+)rawliteral";
+
+String dashboardStation1Json() {
+  const uint32_t now = millis();
+  const uint32_t ageMs = dashboardStation1.valid ? now - dashboardStation1.savedAtMs : 0;
+  const uint32_t seenAgeMs = dashboardStation1.valid ? now - dashboardStation1.lastSeenMs : 0;
+  const bool online = dashboardStation1.valid && seenAgeMs <= DASHBOARD_ONLINE_WINDOW_MS;
+  String j;
+  j.reserve(520);
+  j += "{\"valid\":"; j += dashboardStation1.valid ? "true" : "false";
+  j += ",\"online\":"; j += online ? "true" : "false";
+  j += ",\"sequence\":"; j += String(dashboardStation1.sequence);
+  j += ",\"age_s\":"; j += dashboardStation1.valid ? String(ageMs / 1000UL) : "null";
+  j += ",\"summary_minutes\":\""; j += dashboardJsonString(dashboardStation1.summaryMinutes); j += "\"";
+  j += ",\"distance_cm\":\""; j += dashboardJsonString(dashboardStation1.distanceCm); j += "\"";
+  j += ",\"water_level_cm\":\""; j += dashboardJsonString(dashboardStation1.waterLevelCm); j += "\"";
+  j += ",\"ec_ms_cm\":\""; j += dashboardJsonString(dashboardStation1.ecMsCm); j += "\"";
+  j += ",\"temperature_c\":\""; j += dashboardJsonString(dashboardStation1.temperatureC); j += "\"";
+  j += ",\"tds_ppm\":\""; j += dashboardJsonString(dashboardStation1.tdsPpm); j += "\"";
+  j += ",\"salinity_ppt\":\""; j += dashboardJsonString(dashboardStation1.salinityPpt); j += "\"";
+  j += ",\"battery_voltage_v\":\""; j += dashboardJsonString(dashboardStation1.batteryVoltageV); j += "\"";
+  j += ",\"battery_percent\":\""; j += dashboardJsonString(dashboardStation1.batteryPercent); j += "\"}";
+  return j;
+}
+
+String dashboardStation2Json() {
+  const uint32_t now = millis();
+  const uint32_t ageMs = dashboardStation2.valid ? now - dashboardStation2.savedAtMs : 0;
+  const uint32_t seenAgeMs = dashboardStation2.valid ? now - dashboardStation2.lastSeenMs : 0;
+  const bool online = dashboardStation2.valid && seenAgeMs <= DASHBOARD_ONLINE_WINDOW_MS;
+  String j;
+  j.reserve(620);
+  j += "{\"valid\":"; j += dashboardStation2.valid ? "true" : "false";
+  j += ",\"online\":"; j += online ? "true" : "false";
+  j += ",\"sequence\":"; j += String(dashboardStation2.sequence);
+  j += ",\"age_s\":"; j += dashboardStation2.valid ? String(ageMs / 1000UL) : "null";
+  j += ",\"summary_minutes\":\""; j += dashboardJsonString(dashboardStation2.summaryMinutes); j += "\"";
+  j += ",\"air_temp_c\":\""; j += dashboardJsonString(dashboardStation2.airTempC); j += "\"";
+  j += ",\"air_humidity_pct\":\""; j += dashboardJsonString(dashboardStation2.airHumidityPct); j += "\"";
+  j += ",\"soil_temp_c\":\""; j += dashboardJsonString(dashboardStation2.soilTempC); j += "\"";
+  j += ",\"soil_moisture_pct\":\""; j += dashboardJsonString(dashboardStation2.soilMoisturePct); j += "\"";
+  j += ",\"soil_ec_ms_cm\":\""; j += dashboardJsonString(dashboardStation2.soilEcMsCm); j += "\"";
+  j += ",\"soil_salinity\":\""; j += dashboardJsonString(dashboardStation2.soilSalinity); j += "\"";
+  j += ",\"soil_tds\":\""; j += dashboardJsonString(dashboardStation2.soilTds); j += "\"";
+  j += ",\"soil_ph\":\""; j += dashboardJsonString(dashboardStation2.soilPh); j += "\"";
+  j += ",\"battery_voltage_v\":\""; j += dashboardJsonString(dashboardStation2.batteryVoltageV); j += "\"";
+  j += ",\"battery_percent\":\""; j += dashboardJsonString(dashboardStation2.batteryPercent); j += "\"}";
+  return j;
+}
+
+void handleDashboardRoot() {
+  dashboardServer.send_P(200, "text/html; charset=utf-8", DASHBOARD_HTML);
+}
+
+void handleDashboardApi() {
+  String json;
+  json.reserve(1400);
+  json += "{\"gateway_id\":\""; json += GATEWAY_ID; json += "\"";
+  json += ",\"firmware_version\":\""; json += FIRMWARE_VERSION; json += "\"";
+  json += ",\"uptime_s\":"; json += String(millis() / 1000UL);
+  json += ",\"clients\":"; json += String(WiFi.softAPgetStationNum());
+  json += ",\"station1\":"; json += dashboardStation1Json();
+  json += ",\"station2\":"; json += dashboardStation2Json();
+  json += "}";
+  dashboardServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  dashboardServer.send(200, "application/json; charset=utf-8", json);
+}
+
+void setupWifiDashboard() {
+  WiFi.mode(WIFI_AP);
+  WiFi.setSleep(false);
+  WiFi.softAPConfig(WIFI_AP_IP, WIFI_AP_GATEWAY, WIFI_AP_SUBNET);
+
+  if (WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD)) {
+    Serial.printf("[WIFI] AP san sang SSID=%s IP=%s\n", WIFI_AP_SSID, WiFi.softAPIP().toString().c_str());
+  } else {
+    Serial.println("[WIFI] Khong tao duoc Access Point");
+  }
+
+  dashboardServer.on("/", HTTP_GET, handleDashboardRoot);
+  dashboardServer.on("/api/status", HTTP_GET, handleDashboardApi);
+  dashboardServer.on("/favicon.ico", HTTP_GET, []() { dashboardServer.send(204); });
+  dashboardServer.onNotFound([]() { dashboardServer.sendHeader("Location", "/", true); dashboardServer.send(302, "text/plain", ""); });
+  dashboardServer.begin();
+  Serial.println("[WEB] Dashboard: http://192.168.4.1");
+}
+
+String scaledWireNumber(const String &v, float scale, uint8_t decimals) {
+  if (v.length() == 0 || v == "x" || v == "X") return "null";
+  return String(v.toFloat() * scale, static_cast<unsigned int>(decimals));
+}
+
+void sendSimpleAck(bool station1, uint32_t seq) {
+  String ack = station1 ? "A1|" : "A2|";
+  ack += String(seq);
+
+  // Give the remote transparent-LoRa module a short TX->RX turnaround,
+  // then repeat the tiny ACK several times inside the station's 1.8 s ACK window.
+  watchdogDelay(SIMPLE_ACK_START_DELAY_MS);
+  for (uint8_t i = 0; i < SIMPLE_ACK_REPEAT_COUNT; ++i) {
+    loraSerial.println(ack);
+    loraSerial.flush();
+    if (i + 1 < SIMPLE_ACK_REPEAT_COUNT) {
+      watchdogDelay(SIMPLE_ACK_REPEAT_GAP_MS);
+    }
+  }
+
+  Serial.printf("[ACK] %s x%u\n", ack.c_str(), SIMPLE_ACK_REPEAT_COUNT);
+}
+
+bool validateSimplePacket(const String &line, String &body) {
+  const int lastSep = line.lastIndexOf('|');
+  if (lastSep <= 0) return false;
+
+  body = line.substring(0, lastSep);
+  const String crcText = line.substring(lastSep + 1);
+  if (crcText.length() != 4) return false;
+
+  const uint16_t expected = static_cast<uint16_t>(strtoul(crcText.c_str(), nullptr, 16));
+  return simpleCrc16(body) == expected;
+}
+
+String simplePacketToStationJson(const String &line, bool station1, uint32_t seq) {
+  String json;
+  json.reserve(650);
+
+  if (station1) {
+    // S1|seq|min|distance|water|ec_ms|temp|tds|sal_ppt|bat_v|bat_pct|crc
+    const String minCount = simpleField(line, 2);
+    const String distance = simpleField(line, 3);
+    const String water = simpleField(line, 4);
+    const String ecMs = simpleField(line, 5);
+    const String temp = simpleField(line, 6);
+    const String tds = simpleField(line, 7);
+    const String salPpt = simpleField(line, 8);
+    const String batV = simpleField(line, 9);
+    const String batP = simpleField(line, 10);
+
+    json += "{\"type\":\"station_summary\",\"station_id\":\"STATION_01\",\"firmware_version\":\"simple-qos1-wire\",\"message_id\":\"STATION_01-";
+    json += String(seq);
+    json += "\",\"sequence\":"; json += String(seq);
+    json += ",\"summary_minutes\":"; json += jsonNumberOrNullFromWire(minCount);
+    json += ",\"sensor_height_cm\":350.0";
+    json += ",\"distance_cm\":"; json += jsonNumberOrNullFromWire(distance);
+    json += ",\"water_level_cm\":"; json += jsonNumberOrNullFromWire(water);
+    json += ",\"ec_ms_cm\":"; json += jsonNumberOrNullFromWire(ecMs);
+    json += ",\"ec_us_cm\":"; json += scaledWireNumber(ecMs, 1000.0f, 0);
+    json += ",\"temperature_c\":"; json += jsonNumberOrNullFromWire(temp);
+    json += ",\"tds_ppm\":"; json += jsonNumberOrNullFromWire(tds);
+    json += ",\"salinity_ppt\":"; json += jsonNumberOrNullFromWire(salPpt);
+    json += ",\"salinity_ppm\":"; json += scaledWireNumber(salPpt, 1000.0f, 0);
+    json += ",\"battery_voltage_v\":"; json += jsonNumberOrNullFromWire(batV);
+    json += ",\"battery_percent\":"; json += jsonNumberOrNullFromWire(batP);
+    json += "}";
+  } else {
+    // S2|seq|min|airT|airH|soilT|moist|ec_ms|sal|tds|ph|bat_v|bat_pct|crc
+    const String minCount = simpleField(line, 2);
+    const String airT = simpleField(line, 3);
+    const String airH = simpleField(line, 4);
+    const String soilT = simpleField(line, 5);
+    const String moist = simpleField(line, 6);
+    const String ecMs = simpleField(line, 7);
+    const String sal = simpleField(line, 8);
+    const String tds = simpleField(line, 9);
+    const String ph = simpleField(line, 10);
+    const String batV = simpleField(line, 11);
+    const String batP = simpleField(line, 12);
+
+    json += "{\"type\":\"station_summary\",\"station_id\":\"STATION_02\",\"firmware_version\":\"simple-qos1-wire\",\"message_id\":\"STATION_02-";
+    json += String(seq);
+    json += "\",\"sequence\":"; json += String(seq);
+    json += ",\"summary_minutes\":"; json += jsonNumberOrNullFromWire(minCount);
+    json += ",\"crop\":\"grapefruit\"";
+    json += ",\"air_temp_c\":"; json += jsonNumberOrNullFromWire(airT);
+    json += ",\"air_humidity_pct\":"; json += jsonNumberOrNullFromWire(airH);
+    json += ",\"soil_temp_c\":"; json += jsonNumberOrNullFromWire(soilT);
+    json += ",\"soil_moisture_pct\":"; json += jsonNumberOrNullFromWire(moist);
+    json += ",\"soil_ec_ms_cm\":"; json += jsonNumberOrNullFromWire(ecMs);
+    json += ",\"soil_ec_us_cm\":"; json += scaledWireNumber(ecMs, 1000.0f, 0);
+    json += ",\"soil_salinity\":"; json += jsonNumberOrNullFromWire(sal);
+    json += ",\"soil_tds\":"; json += jsonNumberOrNullFromWire(tds);
+    json += ",\"soil_ph\":"; json += jsonNumberOrNullFromWire(ph);
+    json += ",\"battery_voltage_v\":"; json += jsonNumberOrNullFromWire(batV);
+    json += ",\"battery_percent\":"; json += jsonNumberOrNullFromWire(batP);
+    json += "}";
+  }
+  return json;
+}
+
+void handleSimpleLoRaLine(String line) {
+  line.trim();
+  if (line.length() < 8) return;
+
+  const bool station1 = line.startsWith("S1|");
+  const bool station2 = line.startsWith("S2|");
+  if (!station1 && !station2) {
+    Serial.printf("[LORA] Bo dong la: %s\n", line.c_str());
+    return;
+  }
+
+  String body;
+  if (!validateSimplePacket(line, body)) {
+    Serial.printf("[LORA] CRC/khung loi, bo: %s\n", line.c_str());
+    return;
+  }
+
+  const uint32_t seq = static_cast<uint32_t>(simpleField(line, 1).toInt());
+  sendSimpleAck(station1, seq);  // ACK before any HTTP work.
+  markDashboardStationSeen(station1);
+
+  uint32_t &lastSeq = station1 ? lastSimpleSeq1 : lastSimpleSeq2;
+  if (lastSeq == seq) {
+    Serial.printf("[LORA] Goi trung %s seq=%lu -> ACK lai, khong xu ly lai\n",
+                  station1 ? "STATION_01" : "STATION_02",
+                  static_cast<unsigned long>(seq));
+    return;
+  }
+  lastSeq = seq;
+  updateDashboardSnapshot(line, station1, seq);
+
+  const String stationPayload = simplePacketToStationJson(line, station1, seq);
+  Serial.println("============================================================");
+  Serial.printf("[NHAN OK] %s seq=%lu wire_bytes=%u\n",
+                station1 ? "STATION_01" : "STATION_02",
+                static_cast<unsigned long>(seq),
+                static_cast<unsigned int>(line.length()));
+  Serial.printf("[WIRE] %s\n", line.c_str());
+  Serial.printf("[JSON] %s\n", stationPayload.c_str());
+
+  const String gatewayPayload = wrapGatewayPayload(stationPayload);
+  Serial.print("[GATEWAY] Du lieu dong goi: ");
+  Serial.println(gatewayPayload);
+
+  if (MODEM_ENABLED && httpPostJson(gatewayPayload)) {
+    Serial.println("[HTTP] Da gui len webserver");
+  } else if (MODEM_ENABLED) {
+    Serial.println("[HTTP] Gui that bai");
+  } else {
+    Serial.println("[HTTP] Modem dang tat, LoRa da ACK thanh cong");
+  }
+}
+
+// Stream-recovery receiver.
+// IMPORTANT: LoRa UART can occasionally contain garbage bytes before a valid frame.
+// Never buffer the garbage as part of the packet. Search directly for S1| / S2|,
+// then capture only printable ASCII until newline. CRC still decides validity.
+static bool simpleCapturingFrame = false;
+static String simpleMarkerProbe;
+static uint32_t simpleGarbageBytes = 0;
+static uint32_t simpleAbortedFrames = 0;
+static uint32_t simpleRecoveredStarts = 0;
+static uint32_t simpleFastCompletedFrames = 0;
+static uint32_t simpleLastFrameByteMs = 0;
+static uint8_t simplePipeCount = 0;
+static uint8_t simpleExpectedPipeCount = 0;
+
+bool simpleIsHex(char c) {
+  return (c >= '0' && c <= '9') ||
+         (c >= 'A' && c <= 'F') ||
+         (c >= 'a' && c <= 'f');
+}
+
+void resetSimpleStreamCapture() {
+  simpleRxLine = "";
+  simpleMarkerProbe = "";
+  simpleCapturingFrame = false;
+  simpleLastFrameByteMs = 0;
+  simplePipeCount = 0;
+  simpleExpectedPipeCount = 0;
+}
+
+void startSimpleFrame(const String &marker) {
+  simpleRxLine = marker;
+  simpleMarkerProbe = "";
+  simpleCapturingFrame = true;
+  simpleLastFrameByteMs = millis();
+  simplePipeCount = 1;  // marker S1| / S2| already contains one separator.
+  simpleExpectedPipeCount = marker.startsWith("S1|") ? 11 : 13;
+}
+
+void searchSimpleFrameMarker(char c) {
+  // State machine for exactly S1| or S2|. Everything else is garbage.
+  if (simpleMarkerProbe.length() == 0) {
+    if (c == 'S') {
+      simpleMarkerProbe = "S";
+    } else {
+      simpleGarbageBytes += 1;
+    }
+    return;
+  }
+
+  if (simpleMarkerProbe == "S") {
+    if (c == '1' || c == '2') {
+      simpleMarkerProbe += c;
+    } else if (c == 'S') {
+      simpleMarkerProbe = "S";
+      simpleGarbageBytes += 1;
+    } else {
+      simpleMarkerProbe = "";
+      simpleGarbageBytes += 2;
+    }
+    return;
+  }
+
+  if (simpleMarkerProbe == "S1" || simpleMarkerProbe == "S2") {
+    if (c == '|') {
+      startSimpleFrame(simpleMarkerProbe + "|");
+    } else if (c == 'S') {
+      simpleMarkerProbe = "S";
+      simpleGarbageBytes += 2;
+    } else {
+      simpleMarkerProbe = "";
+      simpleGarbageBytes += 3;
     }
   }
 }
 
-void retryPendingNotice() {
-  if (!spiffsReady) {
+bool tryCompleteSimpleFrameNow() {
+  if (!simpleCapturingFrame || simplePipeCount != simpleExpectedPipeCount) {
+    return false;
+  }
+
+  const int lastSep = simpleRxLine.lastIndexOf('|');
+  if (lastSep < 0) return false;
+
+  const int crcChars = static_cast<int>(simpleRxLine.length()) - lastSep - 1;
+  if (crcChars < 4) return false;
+
+  // As soon as exactly four CRC hex characters arrive, validate immediately.
+  // We do NOT wait for \r/\n, so garbage appended after a good radio packet
+  // cannot destroy a frame that was already complete.
+  if (crcChars == 4) {
+    for (int i = lastSep + 1; i < static_cast<int>(simpleRxLine.length()); ++i) {
+      if (!simpleIsHex(simpleRxLine[i])) {
+        simpleAbortedFrames += 1;
+        resetSimpleStreamCapture();
+        return true;
+      }
+    }
+
+    String body;
+    if (validateSimplePacket(simpleRxLine, body)) {
+      const String completed = simpleRxLine;
+      simpleFastCompletedFrames += 1;
+      resetSimpleStreamCapture();
+      handleSimpleLoRaLine(completed);
+      return true;
+    }
+
+    // Four CRC characters arrived but CRC is wrong: the frame is corrupted.
+    // Drop it immediately so the next retry can be acquired cleanly.
+    simpleAbortedFrames += 1;
+    resetSimpleStreamCapture();
+    return true;
+  }
+
+  // More than four characters after the CRC separator means corruption.
+  simpleAbortedFrames += 1;
+  resetSimpleStreamCapture();
+  return true;
+}
+
+void consumeSimpleLoRaByte(char c) {
+  if (!simpleCapturingFrame) {
+    if (c == '\r' || c == '\n') {
+      simpleMarkerProbe = "";
+      return;
+    }
+    searchSimpleFrameMarker(c);
     return;
   }
 
-  if (millis() - lastRetryMs < RETRY_INTERVAL_MS) {
+  simpleLastFrameByteMs = millis();
+
+  if (c == '\r' || c == '\n') {
+    // Normally the frame has already been completed by CRC before newline.
+    // Keep this as a fallback for compatibility.
+    if (c == '\n' && simpleRxLine.length() >= 8) {
+      String body;
+      if (validateSimplePacket(simpleRxLine, body)) {
+        const String completed = simpleRxLine;
+        resetSimpleStreamCapture();
+        handleSimpleLoRaLine(completed);
+        return;
+      }
+    }
+    resetSimpleStreamCapture();
     return;
   }
-  lastRetryMs = millis();
 
-  File file = SPIFFS.open("/gateway_pending.log", "r");
-  if (!file || file.size() == 0) {
-    if (file) file.close();
+  const uint8_t raw = static_cast<uint8_t>(c);
+  if (raw < 32 || raw > 126) {
+    simpleAbortedFrames += 1;
+    resetSimpleStreamCapture();
+    simpleGarbageBytes += 1;
     return;
   }
 
-  Serial.println("[SPIFFS] Co hang doi pending. Firmware hien tai chi luu lai, chua replay tu dong.");
-  file.close();
+  simpleRxLine += c;
+  if (c == '|') {
+    simplePipeCount += 1;
+    if (simplePipeCount > simpleExpectedPipeCount) {
+      simpleAbortedFrames += 1;
+      resetSimpleStreamCapture();
+      return;
+    }
+  }
+
+  // If another clean marker appears inside a concatenated/damaged frame,
+  // restart directly from the newest marker.
+  if (simpleRxLine.length() > 3) {
+    const int s1 = simpleRxLine.lastIndexOf("S1|");
+    const int s2 = simpleRxLine.lastIndexOf("S2|");
+    const int newest = s1 > s2 ? s1 : s2;
+    if (newest > 0) {
+      const String marker = simpleRxLine.substring(newest, newest + 3);
+      const String tail = simpleRxLine.substring(newest + 3);
+      simpleRecoveredStarts += 1;
+      startSimpleFrame(marker);
+      for (size_t i = 0; i < tail.length() && simpleCapturingFrame; ++i) {
+        consumeSimpleLoRaByte(tail[i]);
+      }
+      return;
+    }
+  }
+
+  if (simpleRxLine.length() > 180) {
+    simpleAbortedFrames += 1;
+    resetSimpleStreamCapture();
+    return;
+  }
+
+  (void)tryCompleteSimpleFrameNow();
+}
+
+void readSimpleLoRaUart() {
+  bool gotByte = false;
+
+  // A valid SIMPLE frame at 9600 baud arrives far quicker than this.
+  // If a partial frame goes silent, release it so a new retry can sync immediately.
+  if (simpleCapturingFrame && simpleLastFrameByteMs != 0 &&
+      millis() - simpleLastFrameByteMs > SIMPLE_FRAME_IDLE_TIMEOUT_MS) {
+    simpleAbortedFrames += 1;
+    resetSimpleStreamCapture();
+  }
+
+  while (loraSerial.available() > 0) {
+    serviceWatchdog();
+    gotByte = true;
+    consumeSimpleLoRaByte(static_cast<char>(loraSerial.read()));
+  }
+
+  if (!gotByte && millis() - lastLoraWaitLogMs >= LORA_WAIT_LOG_INTERVAL_MS) {
+    lastLoraWaitLogMs = millis();
+    Serial.printf("[LORA] Dang nghe... rac=%lu hong=%lu bat_lai=%lu fast_ok=%lu uart_avail=%d\n",
+                  static_cast<unsigned long>(simpleGarbageBytes),
+                  static_cast<unsigned long>(simpleAbortedFrames),
+                  static_cast<unsigned long>(simpleRecoveredStarts),
+                  static_cast<unsigned long>(simpleFastCompletedFrames),
+                  loraSerial.available());
+  }
 }
 
 void setup() {
@@ -899,7 +1656,7 @@ void setup() {
   selfTestStatusOutputs();
 
   Serial.println();
-  Serial.println("[HORIZON] Gateway starting");
+  Serial.println("[HORIZON] Gateway dang khoi dong");
   Serial.printf("[HORIZON] Gateway: %s\n", GATEWAY_ID);
   Serial.printf("[STATUS] green=%d yellow=%d red=%d buzzer=%d active=%s\n",
                 STATUS_GREEN_PIN,
@@ -907,36 +1664,44 @@ void setup() {
                 STATUS_RED_PIN,
                 BUZZER_PIN,
                 MOSFET_ACTIVE_LEVEL == HIGH ? "HIGH" : "LOW");
-  Serial.printf("[STATUS] buzzer mute button IO%d, press to GND\n", BUZZER_MUTE_BUTTON_PIN);
+  Serial.printf("[STATUS] Nut tat coi IO%d, nhan xuong GND\n", BUZZER_MUTE_BUTTON_PIN);
 
+  loraSerial.setRxBufferSize(LORA_RX_BUFFER_BYTES);
   loraSerial.begin(LORA_UART_BAUD, SERIAL_8N1, LORA_UART_RX_PIN, LORA_UART_TX_PIN);
-  Serial.printf("[LORA] RX=%d TX=%d baud=%lu\n", LORA_UART_RX_PIN, LORA_UART_TX_PIN, static_cast<unsigned long>(LORA_UART_BAUD));
+  gpio_pullup_en(static_cast<gpio_num_t>(LORA_UART_RX_PIN));
+  gpio_pulldown_dis(static_cast<gpio_num_t>(LORA_UART_RX_PIN));
+  Serial.printf("[LORA] RX=%d TX=%d baud=%lu rx_buffer=%u pullup_RX=BAT\n",
+                LORA_UART_RX_PIN, LORA_UART_TX_PIN,
+                static_cast<unsigned long>(LORA_UART_BAUD),
+                static_cast<unsigned int>(LORA_RX_BUFFER_BYTES));
+  Serial.printf("[DEBUG] lora_raw_uart=%s\n", DEBUG_LORA_RAW_UART ? "on" : "off");
+  Serial.println("[LORA] SIMPLE QoS1 RX BOOST V4: marker S1/S2 + CRC hoan tat som + ACK x3");
 
-  spiffsReady = setupSpiffs();
-  Serial.printf("[SPIFFS] %s\n", spiffsReady ? "san_sang" : "khong_co");
+  Serial.println("[FLASH] Gateway khong dung SPIFFS/SD");
 
-  initializeDs18b20Sensor();
+  setupWifiDashboard();
 
-  powerOnModem();
-  modemReady = initModem();
-  Serial.printf("[MODEM] %s TX=%d RX=%d PEN=%d\n", modemReady ? "ready" : "not ready", MODEM_TX_PIN, MODEM_RX_PIN, MODEM_PEN_PIN);
-  checkSim4GStatus();
+  if (MODEM_ENABLED) {
+    powerOnModem();
+    modemReady = initModem();
+  }
+  Serial.printf("[MODEM] %s TX=%d RX=%d PEN=%d\n", modemReady ? "san_sang" : "dang_tat_hoac_chua_san_sang", MODEM_TX_PIN, MODEM_RX_PIN, MODEM_PEN_PIN);
 }
 
 void loop() {
-  esp_task_wdt_reset();
+  serviceWatchdog();
   updateStatusOutputs();
-  readLoRaUart();
-  pollRuntimeConfigs();
-  retryPendingNotice();
 
-  if (millis() - lastDs18b20ReadMs >= DS18B20_SAMPLE_INTERVAL_MS) {
-    lastDs18b20ReadMs = millis();
-    readTemperatureSensor();
-    postDs18b20Sample();
+  // LoRa has priority over the local web dashboard. Drain RX first,
+  // service HTTP only while the UART is idle, then drain RX once more.
+  readSimpleLoRaUart();
+  if (loraSerial.available() == 0) {
+    dashboardServer.handleClient();
   }
+  readSimpleLoRaUart();
 
+  pollRuntimeConfigs();
   maybeEnterGatewaySleep();
   updateStatusOutputs();
-  delay(10);
+  watchdogDelay(10);
 }
