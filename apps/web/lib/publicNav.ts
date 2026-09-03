@@ -1,4 +1,4 @@
-import { ClipboardList, Home, Info, LayoutDashboard, Shield } from "lucide-react";
+import { ClipboardList, Home, LayoutDashboard, Shield } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n/vi";
 
 /**
@@ -18,24 +18,40 @@ import type { Dictionary } from "@/lib/i18n/vi";
  */
 export type NavKey = keyof Dictionary["nav"];
 
-export const PUBLIC_NAV_LINKS = [
+/**
+ * THE FOUR PRIMARY DESTINATIONS.
+ *
+ * Home, Monitoring, Report, Admin — and nothing else. Two changes made this
+ * the list:
+ *
+ * ABOUT IS GONE. It was a second narrative page competing with Home for the
+ * same job, and the two had duplicated each other into near-parity: both
+ * opened with the island, both introduced the same three stations, both
+ * explained the same data flow, both ended with the same field notes. A
+ * reader had no way to know which one answered "what is this project". Home
+ * absorbed the material that was genuinely About's own (the place, the
+ * hardware, interpretation, the gallery, who builds it) and `/about` now
+ * redirects there.
+ *
+ * ADMIN IS A TAB. It was rendered as a bare shield icon with no label, which
+ * made the one destination with real consequences the only one a reader
+ * could not name. Being authenticated is not a reason to be unlabelled — the
+ * route is still protected; it is simply no longer a secret. The icon stays
+ * beside the word as an operational cue.
+ */
+export const PRIMARY_NAV_LINKS = [
   { href: "/", key: "home", icon: Home },
-  { href: "/about", key: "about", icon: Info },
   { href: "/dashboard", key: "monitoring", icon: LayoutDashboard },
   { href: "/report", key: "report", icon: ClipboardList },
+  { href: "/admin", key: "admin", icon: Shield },
 ] as const satisfies readonly { href: string; key: NavKey; icon: unknown }[];
 
-export const ADMIN_NAV_LINK = { href: "/admin", key: "admin", icon: Shield } as const;
-
 /**
- * The full five-item global navigation, admin included.
- *
- * Admin used to be split out of the nav array and rendered separately behind
- * a divider — which made it read as a different class of destination, and
- * left the mobile bar with only four. It is a hierarchy distinction, not a
- * different navigation: same list, same treatment, everywhere.
+ * `/admin` is the operational one. Renderers use this to give it a slightly
+ * different weight without moving it out of the list — a hierarchy cue, not a
+ * separate class of navigation.
  */
-export const PRIMARY_NAV_LINKS = [...PUBLIC_NAV_LINKS, ADMIN_NAV_LINK] as const;
+export const OPERATIONAL_NAV_HREF = "/admin";
 
 export function isPublicNavActive(href: string, activePath?: string): boolean {
   return activePath === href || (href !== "/" && (activePath?.startsWith(href) ?? false));

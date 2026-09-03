@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import type { FreshnessState } from "@/components/ui/status-indicator";
 import { CON_HO, CON_HO_ZOOM } from "@/lib/geo";
 import { resolveTheme, THEME_CHANGE_EVENT, type ResolvedTheme } from "@/lib/theme";
-import { stationHref, type PilotStationId } from "@/lib/publicStations";
+import { OBSERVATORY_HREF } from "@/lib/publicStations";
 import { cn } from "@/lib/utils";
 
 export interface MapStation {
@@ -106,7 +106,7 @@ interface StationNetworkMapProps {
   stations: MapStation[];
   /**
    * `full` (default) is the homepage's interactive map. `preview` is a
-   * shorter, locked-view instance for station-detail/about — real data, no
+   * shorter, locked-view instance for in-page embeds — real data, no
    * pan/zoom/click, so it reads as a preview rather than a second full map
    * instance (REDESIGN_SPECIFICATION.md §13). `observatory` is Monitoring's
    * own taller instance — the map is meant to be a dominant spatial anchor
@@ -274,7 +274,7 @@ export function StationNetworkMap({
             // link. The map only ever receives pilot stations (its callers
             // filter to the allowlist), so the cast is safe and keeps this
             // call site honest about what it accepts.
-            marker.on("click", () => router.push(stationHref(station.id as PilotStationId)));
+            marker.on("click", () => router.push(OBSERVATORY_HREF));
             (marker.getElement() as SVGElement | undefined)?.style.setProperty("cursor", "pointer");
           }
 
@@ -288,7 +288,16 @@ export function StationNetworkMap({
         } else if (stations.length === 1) {
           map.setView([stations[0].lat, stations[0].lng], 14);
         } else {
-          map.fitBounds(L.latLngBounds(stations.map((s) => [s.lat, s.lng])), { padding: [32, 32] });
+          // `maxZoom` matters here now that positions are the surveyed ones:
+          // the three nodes span about 380 m, and an uncapped fitBounds on a
+          // cell this size resolves past z17 — close enough that the island
+          // leaves the frame entirely and the map reads as abstract grey
+          // shapes. Capped, the network and the water around it stay visible,
+          // and it matches the zoom the basemap-only view opens at.
+          map.fitBounds(L.latLngBounds(stations.map((s) => [s.lat, s.lng])), {
+            padding: [32, 32],
+            maxZoom: CON_HO_ZOOM,
+          });
         }
 
         setMapReady(true);

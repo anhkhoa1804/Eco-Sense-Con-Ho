@@ -50,7 +50,15 @@ export function Wordmark({ href = "/", markSize = "fluid", className }: Wordmark
         alt="HORIZON"
         width={Math.round(LOGO_INTRINSIC_HEIGHT * LOGO_ASPECT_RATIO)}
         height={LOGO_INTRINSIC_HEIGHT}
-        className={cn("w-auto shrink-0", markSizeClasses[markSize])}
+        className={cn(
+          "w-auto shrink-0",
+          // Dark-mode keyline. Defined in globals.css rather than as a
+          // `dark:` utility because this project's dark mode is a three-way
+          // system (system preference, explicit light, explicit dark) and
+          // Tailwind's stock `dark:` variant only knows about the first.
+          "wordmark-mark",
+          markSizeClasses[markSize],
+        )}
       />
     </Link>
   );

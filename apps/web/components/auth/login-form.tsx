@@ -22,10 +22,20 @@ async function loginAdmin(formData: FormData) {
   const emailQuery = email ? `&email=${encodeURIComponent(email)}` : "";
 
   // Checked before anything else so a deployment missing its admin secrets
-  // says so, instead of failing further down as "wrong password" (which
-  // would send an operator hunting for a credential problem that isn't
-  // there) or as an unhandled 500.
+  // fails as itself, instead of further down as "wrong password" (which would
+  // send an operator hunting for a credential problem that isn't there) or as
+  // an unhandled 500.
+  //
+  // The DIAGNOSTIC goes to the server log, not to the page. Naming the two
+  // environment variables is exactly what an operator needs and exactly what
+  // an anonymous visitor should not be handed — /admin/login is public, and
+  // the message it used to render told anyone which variables gate the
+  // console. The visitor now sees only that sign-in is unavailable.
   if (!isAdminAuthConfigured()) {
+    console.error(
+      "[auth] Admin sign-in is not configured: ADMIN_SESSION_SECRET and/or ADMIN_PASSWORD are unset " +
+        "for this server process. Set both (plus ADMIN_ALLOWED_EMAILS) in the environment and redeploy.",
+    );
     redirect(`/admin/login?error=not-configured${emailQuery}`);
   }
 

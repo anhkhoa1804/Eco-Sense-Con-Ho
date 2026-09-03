@@ -2,14 +2,18 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import fs from "node:fs";
 import path from "node:path";
-import { isPilotStation, PILOT_STATION_IDS, stationHref } from "@/lib/publicStations";
+import { isPilotStation, OBSERVATORY_HREF, PILOT_STATION_IDS } from "@/lib/publicStations";
 import { stationProfiles } from "@/lib/stationProfile";
 
 describe("canonical station links", () => {
-  it("builds the expected route for every pilot station", () => {
-    assert.equal(stationHref("STATION_01"), "/s/STATION_01");
-    assert.equal(stationHref("STATION_02"), "/s/STATION_02");
-    assert.equal(stationHref("STATION_03"), "/s/STATION_03");
+  it("sends every station link to the observatory anchor", () => {
+    // The per-station pages (/s/:id) are gone: the observatory answers the
+    // same question better, and everything those pages carried that was not
+    // telemetry now sits on Home's network chapter. The hash matters — a QR
+    // code on a station in the field must land on the Bento, not on the
+    // Monitoring page title.
+    assert.equal(OBSERVATORY_HREF, "/dashboard#observatory");
+    assert.ok(OBSERVATORY_HREF.includes("#"), "the deep link must carry its anchor");
   });
 
   it("covers exactly the three pilot stations", () => {
@@ -24,32 +28,20 @@ describe("canonical station links", () => {
     assert.ok(!isPilotStation("nonsense"));
   });
 
-  it("has a profile for every linkable station", () => {
-    // A link that resolves to a station with no profile would 404 or render
-    // a nameless page.
+  it("has a profile for every station the network chapter renders", () => {
     for (const id of PILOT_STATION_IDS) {
       assert.ok(stationProfiles[id], `no profile for ${id}`);
       assert.ok(stationProfiles[id].name.length > 0);
     }
   });
-
-  it("never links a station to itself in an 'other stations' list", () => {
-    // Regression guard: "Trạm khác" previously iterated every profile
-    // including the current one, so STATION_01's page listed STATION_01 as
-    // somewhere else to go.
-    for (const current of PILOT_STATION_IDS) {
-      const others = PILOT_STATION_IDS.filter((id) => id !== current);
-      assert.equal(others.length, 2);
-      assert.ok(!others.includes(current));
-      assert.ok(!others.map(stationHref).includes(stationHref(current)));
-    }
-  });
 });
 
 describe("station link call sites", () => {
-  it("constructs /s/ paths only through the canonical helper", () => {
-    // Guards the invariant rather than a single instance of it: a new
-    // hardcoded `/s/${id}` anywhere in app/ or components/ fails this.
+  it("builds no /s/ route anywhere — the route no longer exists", () => {
+    // Guards the invariant rather than one instance of it. /s/:id survives
+    // only as a redirect declared in next.config.ts; anything in app/ or
+    // components/ still constructing that path would be linking through a
+    // redirect hop to a page that is not coming back.
     const roots = ["app", "components"].map((d) => path.join(process.cwd(), d));
     const offenders: string[] = [];
 
@@ -59,7 +51,6 @@ describe("station link call sites", () => {
         if (entry.isDirectory()) walk(full);
         else if (/\.tsx?$/.test(entry.name)) {
           const src = fs.readFileSync(full, "utf8");
-          // Template or literal construction of the station route.
           if (/["'`]\/s\/\$\{/.test(src) || /["']\/s\/STATION_/.test(src)) {
             offenders.push(path.relative(process.cwd(), full));
           }
@@ -69,10 +60,24 @@ describe("station link call sites", () => {
 
     for (const root of roots) if (fs.existsSync(root)) walk(root);
 
-    assert.deepEqual(
-      offenders,
-      [],
-      `hardcoded station routes found — use stationHref(): ${offenders.join(", ")}`,
+    assert.deepEqual(offenders, [], `station routes found: ${offenders.join(", ")}`);
+  });
+
+  it("routes the removed pages through redirects rather than deleting them", () => {
+    // Printed QR codes and any existing inbound link must not 404.
+    const config = fs.readFileSync(path.join(process.cwd(), "next.config.ts"), "utf8");
+    assert.match(config, /source: "\/about", destination: "\/"/, "/about must redirect to Home");
+    assert.match(
+      config,
+      /source: "\/s\/:stationId", destination: "\/dashboard#observatory"/,
+      "/s/:id must redirect to the observatory anchor",
     );
+    // 307, not 308 — see the note in next.config.ts.
+    assert.ok(!/permanent: true/.test(config), "these redirects must stay non-permanent");
+  });
+
+  it("no longer ships the routes themselves", () => {
+    assert.ok(!fs.existsSync(path.join(process.cwd(), "app", "about")), "/about page is back");
+    assert.ok(!fs.existsSync(path.join(process.cwd(), "app", "s")), "/s/[stationId] page is back");
   });
 });

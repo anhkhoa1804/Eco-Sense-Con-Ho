@@ -8,8 +8,14 @@ import { useEffect } from "react";
  *
  * One listener for the whole document, rather than one per decorative layer.
  * Anything that wants depth reads the variable and multiplies it by its own
- * factor (see `.horizon-dotfield::before`), so layers move at different rates
- * from one shared source of truth and can never drift out of sync.
+ * factor, so layers move at different rates from one shared source of truth
+ * and can never drift out of sync. Current consumers, fastest first:
+ *
+ *   .horizon-band          -0.34   the only layer with a locatable edge, and
+ *                                  therefore the only one whose motion can
+ *                                  actually be perceived
+ *   .horizon-atmosphere::before  +0.16   the graticule
+ *   .horizon-atmosphere::after   -0.09   the gradient pools
  *
  * Why a variable driving `transform` rather than `background-attachment:
  * fixed`, which this replaces: fixed-attachment backgrounds are among the few
@@ -55,10 +61,35 @@ export function ParallaxRoot() {
       frame = requestAnimationFrame(write);
     };
 
+    /**
+     * Re-sync on visibility and history restore.
+     *
+     * `requestAnimationFrame` does not run while a document is hidden, so a
+     * scroll that happens around a visibility change — most commonly a
+     * back/forward restore, where the browser reinstates a scroll position
+     * without firing `scroll` — leaves `--parallax` holding whatever it last
+     * wrote. The atmosphere then sits at the wrong offset until the reader
+     * scrolls again, which reads as the background being subtly misaligned
+     * for no reason.
+     *
+     * These write synchronously rather than scheduling: they fire once, not
+     * per frame, and scheduling into a frame that may not come is the whole
+     * problem.
+     */
+    const resync = () => {
+      scheduled = false;
+      last = -1;
+      write();
+    };
+
     write();
     window.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("visibilitychange", resync);
+    window.addEventListener("pageshow", resync);
     return () => {
       window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("pageshow", resync);
       cancelAnimationFrame(frame);
       root.style.removeProperty("--parallax");
     };

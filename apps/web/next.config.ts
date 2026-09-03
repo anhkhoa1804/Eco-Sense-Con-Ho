@@ -47,6 +47,27 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+
+  /**
+   * Routes that were removed as destinations but must not become dead links.
+   *
+   * Both are `permanent: false` (307) rather than 308. A permanent redirect is
+   * cached hard by browsers and intermediaries, and these two are product
+   * decisions rather than settled facts about the URL space: /about's material
+   * now lives in Home's chapters, and the per-station pages were folded into
+   * the observatory. If either destination earns its own page again, a 307
+   * lets that happen without every previous visitor holding a poisoned cache
+   * entry.
+   *
+   * /s/:id keeps its hash so a QR code printed on a station still lands on the
+   * Bento rather than at the top of the Monitoring page.
+   */
+  async redirects() {
+    return [
+      { source: "/about", destination: "/", permanent: false },
+      { source: "/s/:stationId", destination: "/dashboard#observatory", permanent: false },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);

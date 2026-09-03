@@ -29,19 +29,20 @@ export function isPilotStation(stationId: string): stationId is PilotStationId {
 }
 
 /**
- * The one place that knows how to build a station URL.
+ * Where a station link goes now that per-station pages are gone.
  *
- * Every surface (home, monitoring, about, station detail, the map, report
- * deep-links) previously interpolated `/s/${id}` at its own call site. That is
- * five independent chances for the route shape and the id source to drift —
- * and they had already drifted once, with station-detail's "Trạm khác" list
- * linking to the station the reader was currently on. Routing through one
- * helper means a future route change is a single edit, and the id is always
- * typed as a real pilot station rather than an arbitrary string.
+ * `/s/:id` existed to show one node's telemetry in isolation. That is the
+ * question the observatory answers better — the Bento shows the network as
+ * one instrument, and a reader comparing the river station against the
+ * garden station was previously made to navigate between two pages to do it.
+ * Everything those pages carried that was not telemetry (each node's role,
+ * location and measured variables) is stated on Home's network chapter.
+ *
+ * The old route redirects here rather than 404ing, so printed QR codes keep
+ * working; the hash lands the reader on the Bento instead of the page title.
+ * See next.config.ts.
  */
-export function stationHref(stationId: PilotStationId): string {
-  return `/s/${stationId}`;
-}
+export const OBSERVATORY_HREF = "/dashboard#observatory";
 
 export function filterToPilotStations(stations: Station[]): Station[] {
   return stations.filter((station) => isPilotStation(station.id));

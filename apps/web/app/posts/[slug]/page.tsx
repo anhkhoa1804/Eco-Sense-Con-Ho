@@ -45,11 +45,11 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const statusNote = STATUS_NOTE[post.status];
 
   return (
-    <PublicShell activePath="/about">
+    <PublicShell activePath="/">
       <article className="py-6 md:py-10">
         <div className="mx-auto max-w-[var(--width-reading)]">
           <Link
-            href="/about#ghi-chep"
+            href="/#ghi-chep"
             className="inline-flex items-center gap-2 text-sm font-medium text-muted transition-colors duration-[var(--motion-base)] hover:text-accent"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />

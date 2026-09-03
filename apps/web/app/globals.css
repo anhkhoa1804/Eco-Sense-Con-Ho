@@ -148,6 +148,11 @@
   --h-atmos-green: rgba(25, 122, 63, 0.05);
   --h-atmos-lift: rgba(212, 231, 240, 0.5);
   --h-atmos-vignette: rgba(193, 180, 152, 0.2);
+  /* The horizon band — the one atmosphere layer with a locatable edge, and
+     therefore the only one whose parallax can actually be seen. Kept just
+     above the threshold of notice: it should register as light on water, not
+     as a shape. */
+  --h-atmos-band: rgba(12, 95, 125, 0.10);
 
   --h-selection: rgba(12, 95, 125, 0.18);
 }
@@ -224,6 +229,10 @@
        single flat value and dark mode reads as one sheet of near-black. */
     --h-atmos-lift: rgba(150, 172, 186, 0.26);
     --h-atmos-vignette: rgba(10, 14, 20, 0.3);
+  --h-atmos-band: rgba(79, 176, 212, 0.13);
+    /* Brighter in dark mode: the band is doing more work here, standing in
+       for the horizon a night sky would otherwise lose entirely. */
+    --h-atmos-band: rgba(79, 176, 212, 0.13);
 
     --h-selection: rgba(79, 176, 212, 0.26);
   }
@@ -401,7 +410,14 @@
      bigger size. 6rem lands between the two: still the largest, most
      cinematic title on the site, but proportionate to its neighbours instead
      of dominating by an order of magnitude. */
-  --text-title-display: clamp(2.75rem, 1.35rem + 6.4vw, 6rem);
+  /* Retuned with the hero copy, not independently of it. The display title is
+     now a full sentence rather than a four-noun fragment, and the constraint
+     is still TWO LINES on desktop — so the type came down from a 96px ceiling
+     and the measure went up (max-w-5xl on the hero block). 60px over a 1024px
+     measure gives ~34 characters a line, which is two lines for both the
+     Vietnamese and the English title and keeps them within a few characters
+     of each other so the hero does not resize on a language switch. */
+  --text-title-display: clamp(2rem, 1.1rem + 3.4vw, 3.75rem);
   /* About's tier — one step down from Home, one step up from Monitoring and
      Report, so the four pages read as one ladder instead of "Home" and
      "everything else". */
@@ -727,6 +743,14 @@
     64px 64px,
     256px 256px,
     256px 256px;
+  /* WHY 0.16 IS NOT ENOUGH ON ITS OWN, and why it stays anyway.
+     A seamless 64px tile displaced by any distance is pixel-identical to
+     itself — the eye has no landmark to measure against, so the graticule
+     could travel 400px and read as perfectly still. That is the actual
+     reason the parallax on this site was reported as invisible, and no
+     amount of raising this factor fixes it. The rate is kept because it
+     softens the grid's relationship to the content; the PERCEPTIBLE layer is
+     `.horizon-atmosphere .horizon-band` below, which is not tiled. */
   background-position:
     center calc(50% + var(--parallax, 0px) * 0.16),
     center calc(50% + var(--parallax, 0px) * 0.16),
@@ -766,6 +790,53 @@
     radial-gradient(ellipse 110% 75% at 50% 46%, var(--h-atmos-lift), transparent 68%);
   transform: translate3d(0, calc(var(--parallax, 0px) * -0.09), 0);
   will-change: transform;
+}
+
+/*
+ * THE HORIZON BAND — the layer that makes the parallax visible.
+ *
+ * Everything else in this atmosphere is featureless: a seamless graticule and
+ * a set of soft radial pools. Both move, and neither can be SEEN to move,
+ * because the eye needs an identifiable edge to measure displacement against.
+ * That is why previous passes could truthfully report "the transform is
+ * changing" while the page looked static.
+ *
+ * This is one wide, very low contrast band with a locatable soft edge, placed
+ * around the lower third and travelling at 0.34 — roughly a third of content
+ * speed, and more than double the graticule's rate. Against the content
+ * scrolling past it, that difference is legible without becoming a moving
+ * decoration competing for attention.
+ *
+ * It is a horizon line, which is the one piece of imagery this project can
+ * draw without inventing anything: it is the name of the product and the
+ * shape of a river seen from an islet. It is NOT photography and does not
+ * pretend to be.
+ *
+ * Kept off the compositor's critical path the same way as the pools —
+ * `translate3d` only, no layout, no paint per frame.
+ */
+.horizon-atmosphere .horizon-band {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  /* Sits low, so it is in view during the part of the page a reader actually
+     scrolls through rather than only behind the hero. */
+  top: 58%;
+  height: 46vh;
+  background-image: radial-gradient(
+    ellipse 62% 100% at 50% 0%,
+    var(--h-atmos-band) 0%,
+    transparent 72%
+  );
+  transform: translate3d(0, calc(var(--parallax, 0px) * -0.34), 0);
+  will-change: transform;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .horizon-atmosphere .horizon-band {
+    transform: none;
+  }
 }
 
 /*
@@ -1080,6 +1151,36 @@
 }
 .prose-horizon li + li {
   margin-top: 0.5rem;
+}
+
+/* ===========================================================================
+ * THE WORDMARK IN DARK MODE
+ *
+ * The supplied artwork carries fine dark linework in the frog's face, which
+ * vanishes against a graphite canvas — the head reads as a solid blob. The
+ * artwork is NOT redrawn and NOT replaced: it gets a keyline instead.
+ *
+ * Stacked `drop-shadow()` filters trace the image's own alpha channel, so the
+ * outline follows the real silhouette rather than boxing the sprite. Four
+ * offsets at 0.75px produce a continuous ~1px edge; one centred shadow would
+ * only thicken the mark's own dark pixels, not outline them.
+ *
+ * Light mode gets nothing — the mark is already legible on paper, and an
+ * outline there would make it look like a sticker.
+ * ======================================================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .wordmark-mark {
+    filter:
+      drop-shadow(0.75px 0 0 var(--h-surface)) drop-shadow(-0.75px 0 0 var(--h-surface))
+      drop-shadow(0 0.75px 0 var(--h-surface)) drop-shadow(0 -0.75px 0 var(--h-surface));
+  }
+}
+
+:root[data-theme="dark"] .wordmark-mark {
+  filter:
+    drop-shadow(0.75px 0 0 var(--h-surface)) drop-shadow(-0.75px 0 0 var(--h-surface))
+    drop-shadow(0 0.75px 0 var(--h-surface)) drop-shadow(0 -0.75px 0 var(--h-surface));
 }
 
 /* ===========================================================================

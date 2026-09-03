@@ -16,7 +16,9 @@ import { getI18n } from "@/lib/i18n/server";
  *
  * Home is also the only route that justifies two actions — a reader arriving
  * here has not chosen between "show me the data" and "tell me about this"
- * yet. Every other page passes fewer, or none.
+ * yet. Every other page passes fewer, or none. The second action used to
+ * navigate to /about; that page was merged into this one, so it now scrolls
+ * to the story rather than leaving.
  *
  * A Server Component, so both language versions are resolved before anything
  * reaches the browser — the hero never flashes the wrong language.
@@ -39,7 +41,7 @@ export async function Hero() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg">
-            <Link href="/about">{dict.home.ctaSecondary}</Link>
+            <Link href="#horizon">{dict.home.ctaSecondary}</Link>
           </Button>
         </>
       }

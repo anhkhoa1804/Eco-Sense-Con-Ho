@@ -1,12 +1,13 @@
 "use client";
 
-import { CloudRain, Droplets, Send, Thermometer, Waves, Wind } from "lucide-react";
+import { ChevronDown, CloudRain, Droplets, Send, Thermometer, Waves, Wind } from "lucide-react";
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { ObservationLog } from "@/components/monitoring/observation-log";
 import type { ExternalWeather } from "@/lib/external/weather";
 import { useDict } from "@/lib/i18n/client";
 import type { Dictionary } from "@/lib/i18n/vi";
 import { buildSignalGroups, type SignalGroup } from "@/lib/monitoring/signals";
+import { contextLine, deviceContext, type ContextMetricKey } from "@/lib/monitoring/context";
 import { statusFor, worstStatus, STATUS_SURFACE, type MetricStatus } from "@/lib/monitoring/status";
 import { cn } from "@/lib/utils";
 import type {
@@ -30,8 +31,8 @@ import type {
  *
  * What remains: demo mode still says so, once, in the badge beside the page
  * title. That is the fact a reader must have. Which particular cell is
- * regional rather than local is documentation — /about carries it — not a
- * caption on every number.
+ * regional rather than local is documented on Home's chapters and in
+ * docs/ASSET-SOURCES.md — not as a caption on every number.
  *
  * The model still carries each value's `DataOrigin`; only its rendering
  * here is gone.
@@ -75,12 +76,19 @@ import type {
  * clipped; giving it two everywhere left it 342px tall at 768 holding two
  * numbers.
  *
- * WHY THE CONTEXT CELLS ARE 2x2 BELOW md AND 1x1 AT md. At 390 one unit is
- * 81px, and an icon, a label and a value do not belong in 81px: the labels
- * wrapped and the figures had to shrink below the size the owner wanted. Two
- * units square gives them 171px there — the same physical size the md
- * arrangement gets from ONE unit at 768. The four stay a block of equal
- * squares either way; only how many units each is made of changes.
+ * THE CONTEXT CELLS: 1x4 FROM md UP, 2x2 BELOW IT. They are four readings of
+ * the same kind and must always read as four EQUAL instruments — what changes
+ * is only how many base cells each is made of.
+ *
+ * At md and above one unit is 148-193px, which comfortably holds an icon, a
+ * label, a value and its interpretation, so the four sit in one row:
+ * TEMPERATURE | HUMIDITY | WIND | RAIN.
+ *
+ * At 390 one unit is ~81px. A 1x4 row there forced 9px labels that wrapped
+ * mid-word and left no room for the interpretation line at all — the row was
+ * intact and the cells were unreadable. Two units square gives them 171px,
+ * which is the same physical size md gets from one unit. Readability wins
+ * over arrangement purity; the four stay equal either way.
  *
  * STATUS BELONGS TO THE REGION, NOT THE VALUE. Each box resolves ONE status
  * (worstStatus across whatever it holds) and tints its whole surface. The
@@ -93,7 +101,8 @@ import type {
  * Soil chemistry, the stations' own air readings, and station identity are
  * deliberately absent — not deleted from the model, just not rendered here.
  * This grid is the observatory read as one instrument, not three stations
- * side by side; per-station detail lives on each station's own page.
+ * side by side. Each node's role, location and measured variables live on
+ * Home's network chapter; the per-station routes were folded into this page.
  */
 
 const STATUS_LABEL: Record<MetricStatus["level"], keyof Dictionary["alerts"]> = {
@@ -137,11 +146,14 @@ function Value({
   metric,
   dict,
   size = "secondary",
+  note,
 }: {
   label: string;
   metric: ObservatoryMetric | null | undefined;
   dict: Dictionary;
   size?: keyof typeof VALUE_SIZE;
+  /** Optional one-line state derived from a defined band — never invented. */
+  note?: string | null;
 }) {
   const hasValue = !!metric && metric.value !== null;
   return (
@@ -174,7 +186,9 @@ function Value({
           "—"
         )}
       </p>
-      {hasValue ? null : (
+      {hasValue ? (
+        note ? <p className="mt-1.5 truncate text-[11px] text-foreground-subtle">{note}</p> : null
+      ) : (
         <p className="mt-1.5 truncate text-[11px] text-foreground-subtle">{dict.common.noData}</p>
       )}
     </div>
@@ -194,12 +208,24 @@ function Value({
 function ContextValue({
   metric,
   dict,
+  note,
 }: {
   metric: ObservatoryMetric | null | undefined;
   dict: Dictionary;
+  /**
+   * A published-classification phrase, or null. Two of the four regional
+   * readings have one; temperature and humidity deliberately do not, because
+   * every official index that would judge them is a function of both
+   * together. See lib/monitoring/context.ts.
+   *
+   * Shown at every width: the context cells are 2x2 units below md, which
+   * gives them 171px at 390 — enough for the line without shrinking anything.
+   */
+  note?: string | null;
 }) {
   const hasValue = !!metric && metric.value !== null;
   return (
+    <div className="min-w-0">
     <p
       className={cn(
         "font-semibold tabular-nums leading-none tracking-tight [font-family:var(--font-data)]",
@@ -220,6 +246,10 @@ function ContextValue({
         "—"
       )}
     </p>
+    {note && hasValue ? (
+      <p className="mt-1.5 truncate text-[11px] text-foreground-subtle">{note}</p>
+    ) : null}
+    </div>
   );
 }
 
@@ -426,8 +456,25 @@ function ObservatoryBento({
           dict={dict}
         />
         <div className="mt-auto grid grid-cols-[auto_auto] justify-start gap-6 pt-[var(--bento-header-gap)] md:gap-8">
-          <Value label={dict.metricLabels.signal} metric={signal} dict={dict} size="secondary" />
-          <Value label={dict.metricLabels.battery} metric={battery} dict={dict} size="secondary" />
+          {/* The contextual word comes from the SAME resolved status the box
+              is tinted by, not from a second read of the raw value — so
+              "Pin thấp" can never appear on a green surface. Both bands are
+              real (BATTERY_V / SIGNAL_DBM in lib/monitoring/status.ts); no
+              threshold is invented here. */}
+          <Value
+            label={dict.metricLabels.signal}
+            metric={signal}
+            dict={dict}
+            size="secondary"
+            note={deviceContext("signal", status(signal)?.level ?? null, dict)}
+          />
+          <Value
+            label={dict.metricLabels.battery}
+            metric={battery}
+            dict={dict}
+            size="secondary"
+            note={deviceContext("battery", status(battery)?.level ?? null, dict)}
+          />
         </div>
       </div>
 
@@ -469,7 +516,11 @@ function ObservatoryBento({
               {label}
             </span>
           </div>
-          <ContextValue metric={contextMetric(key)} dict={dict} />
+          <ContextValue
+            metric={contextMetric(key)}
+            dict={dict}
+            note={contextLine(key as ContextMetricKey, contextMetric(key)?.value ?? null, dict)}
+          />
         </div>
       ))}
     </div>
@@ -489,56 +540,79 @@ const STANDING_META: Record<
   unverified: { key: "standingUnverified", className: "bg-watch-bg text-watch" },
 };
 
+/**
+ * The interpretation basis, as a stacked disclosure list.
+ *
+ * It was three side-by-side prose columns, which is the shape of a textbook
+ * page rather than of a reference: each column ran to a paragraph plus a
+ * threshold table plus a source line, so the section was the tallest and
+ * densest thing on Monitoring and almost certainly the least read.
+ *
+ * Now every item shows its title, its standing and its numbers — the parts a
+ * reader scans — and folds the prose behind a native `<details>`. Native
+ * because it is keyboard-operable, findable by in-page search when open, and
+ * announced correctly by screen readers without a line of JavaScript.
+ *
+ * The standing badge is deliberately NOT hidden: "Chưa xác minh" is the most
+ * important word in this section, because it is the one that stops a
+ * configured project number being read as a published standard.
+ */
 function ReferencePanel({ reference, dict }: { reference: ObservatoryReferenceItem[]; dict: Dictionary }) {
   return (
-    <div className="grid gap-x-10 gap-y-8 md:grid-cols-3">
+    <div className="divide-y divide-border border-y border-border">
       {reference.map((item) => {
         const meta = STANDING_META[item.standing];
         return (
-          <div key={item.title} className="space-y-3 border-t border-border pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold">{item.title}</p>
+          <details key={item.title} className="group py-4">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent">
+              <ChevronDown
+                className="h-4 w-4 shrink-0 text-foreground-subtle transition-transform duration-[var(--motion-base)] group-open:rotate-180"
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 text-sm font-semibold">{item.title}</span>
               <span
                 className={cn(
-                  "rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em]",
+                  "shrink-0 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em]",
                   meta.className,
                 )}
               >
                 {dict.monitoring[meta.key]}
               </span>
+            </summary>
+
+            <div className="mt-4 space-y-3 pl-7">
+              {item.rows.length > 0 ? (
+                <dl className="space-y-1.5">
+                  {item.rows.map((row) => (
+                    <div key={row.range} className="flex items-baseline justify-between gap-4">
+                      <dt className="text-sm tabular-nums [font-family:var(--font-data)]">{row.range}</dt>
+                      <dd className="text-sm text-muted">{row.meaning}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+
+              <p className="max-w-2xl text-sm leading-relaxed text-muted">{item.detail}</p>
+
+              {item.sourceLabel ? (
+                <p className="text-xs leading-relaxed text-muted">
+                  {dict.common.source}:{" "}
+                  {item.sourceUrl ? (
+                    <a
+                      href={item.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-accent underline-offset-2 hover:underline"
+                    >
+                      {item.sourceLabel}
+                    </a>
+                  ) : (
+                    item.sourceLabel
+                  )}
+                </p>
+              ) : null}
             </div>
-
-            {item.rows.length > 0 ? (
-              <dl className="space-y-1.5">
-                {item.rows.map((row) => (
-                  <div key={row.range} className="flex items-baseline justify-between gap-4">
-                    <dt className="text-sm tabular-nums [font-family:var(--font-data)]">{row.range}</dt>
-                    <dd className="text-sm text-muted">{row.meaning}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
-
-            <p className="text-sm leading-relaxed text-muted">{item.detail}</p>
-
-            {item.sourceLabel ? (
-              <p className="text-xs leading-relaxed text-muted">
-                {dict.common.source}:{" "}
-                {item.sourceUrl ? (
-                  <a
-                    href={item.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-accent underline-offset-2 hover:underline"
-                  >
-                    {item.sourceLabel}
-                  </a>
-                ) : (
-                  item.sourceLabel
-                )}
-              </p>
-            ) : null}
-          </div>
+          </details>
         );
       })}
     </div>
@@ -590,7 +664,13 @@ export function ObservatoryCanvas({
           summary now titles the infrastructure box, where the reader is
           already looking at the network's signal and battery. Demo mode is
           still declared, once, by the badge beside the page title. */}
-      <section className="instrument-in">
+      {/* THE DEEP-LINK TARGET.
+          `/dashboard#observatory` is what a QR code printed on a station in
+          the field resolves to, and it is where `/s/:id` now redirects. The
+          landing has to put the Bento under the reader's eyes, not under the
+          sticky header — hence `scroll-mt`, sized against --header-h plus a
+          little air rather than a guessed constant. */}
+      <section id="observatory" className="instrument-in scroll-mt-[calc(var(--header-h)+1.5rem)]">
         <ObservatoryBento
           groups={signalGroups}
           dict={dict}

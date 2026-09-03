@@ -269,13 +269,14 @@ describe("observatory Bento grid", () => {
     }
   });
 
-  it("keeps the four regional readings a block of four EQUAL squares at every width", () => {
-    // Whatever the arrangement, the four must be the same size as each other
-    // and a whole number of base cells: 2×2 units each below md (171px at
-    // 390, where one unit is 81px and too small for an icon, a label and a
-    // value), 1×1 at md and above (167px at 768, 148px at 1024). What is
-    // forbidden is what the old content-driven reflow produced — cells whose
-    // size came from their text rather than from the unit.
+  it("keeps the four regional readings equal to each other at every width", () => {
+    // The invariant is EQUALITY and whole-unit sizing, not a fixed
+    // arrangement. 1×4 from md up (one unit each, 148–193px); 2×2 below it
+    // (two units square, 171px at 390) because a 1×4 row at 390 gives each
+    // cell ~81px, which forced 9px labels that wrapped mid-word and left no
+    // room for the interpretation line. Readability wins over arrangement
+    // purity — what must never happen is cells sized by their text rather
+    // than by the unit, which is what the old content-driven reflow did.
     const src = source();
     const weatherBoxes = (src.match(/\{ icon: \w+, label: dict\.metricLabels\.\w+, key: "\w+", cell:/g) || []).length;
     assert.equal(weatherBoxes, 4, "expected four regional readings (temperature, humidity, wind, precipitation)");
@@ -285,7 +286,6 @@ describe("observatory Bento grid", () => {
       ["md", "md:", 1],
       ["lg", "lg:", 1],
     ] as const) {
-      // The last four placements in source order are the context cells.
       const context = extractPlacements(src, prefix).slice(-4);
       assert.equal(context.length, 4, `${label}: expected four context placements`);
       for (const p of context) {
@@ -294,9 +294,38 @@ describe("observatory Bento grid", () => {
       }
       const shapes = new Set(context.map((p) => `${p.colEnd - p.colStart}x${p.rowEnd - p.rowStart}`));
       assert.equal(shapes.size, 1, `${label}: the four context cells are not all the same size`);
-      const cells = new Set(context.map((p) => `${p.rowStart},${p.colStart}`));
-      assert.equal(cells.size, 4, `${label}: two context cells share an origin`);
+      const origins = new Set(context.map((p) => `${p.rowStart},${p.colStart}`));
+      assert.equal(origins.size, 4, `${label}: two context cells share an origin`);
     }
+
+    // At md and above they must still be ONE row of four columns.
+    for (const [label, prefix] of [["md", "md:"] , ["lg", "lg:"]] as const) {
+      const context = extractPlacements(src, prefix).slice(-4);
+      if (label === "md") {
+        assert.equal(new Set(context.map((p) => p.rowStart)).size, 1, "md: context cells must share one row");
+        assert.equal(new Set(context.map((p) => p.colStart)).size, 4, "md: context cells must span four columns");
+      }
+    }
+  });
+
+  it("interprets a regional reading only where a published scale exists", () => {
+    // Wind (Beaufort) and rainfall intensity have documented single-variable
+    // boundaries. Temperature and humidity do NOT — every official index that
+    // would judge them (heat index, humidex, WBGT) is a function of both
+    // together, so labelling either alone would be inventing a rule.
+    const ctx = fs.readFileSync(
+      path.join(process.cwd(), "lib", "monitoring", "context.ts"),
+      "utf8",
+    );
+    assert.match(ctx, /function windBand/, "the Beaufort mapping is gone");
+    assert.match(ctx, /function rainBand/, "the rainfall-intensity mapping is gone");
+    assert.match(
+      ctx,
+      /temperature \/ humidity — no single-variable published classification/,
+      "the reason temperature and humidity get no context line must stay documented",
+    );
+    // The guard that matters: no band function for either.
+    assert.ok(!/function (temperatureBand|humidityBand)/.test(ctx), "an unsourced weather band is back");
   });
 
   it("never gives regional weather a station id — it reads through contextMetric() only", () => {
@@ -389,7 +418,19 @@ describe("observation log controls", () => {
 
     // No rail, in either of its two historical forms.
     assert.ok(!/overflow-x-auto/.test(src), "a horizontally-scrolling control rail is back");
-    assert.ok(!/flex-wrap/.test(src), "the control row wraps again — both controls must stay on one line");
+
+    // The two controls must stay together as a pair. The header ROW may wrap
+    // at mobile (label above, controls below) rather than shrinking the
+    // selects until their own labels truncate — what is forbidden is the two
+    // controls separating from each other.
+    const groupStart = src.indexOf('<div className="flex shrink-0 items-center gap-1.5">');
+    assert.ok(groupStart >= 0, "the two controls are no longer a single shrink-0 group");
+    const between = src.slice(groupStart, src.indexOf("{hasData ?"));
+    assert.equal(
+      (between.match(/<ControlSelect\b/g) || []).length,
+      2,
+      "the two controls are not in the same group — they can separate",
+    );
   });
 
   it("labels both controls for assistive tech", () => {
@@ -435,14 +476,28 @@ describe("observation log controls", () => {
     assert.equal(chart, canvas, "the chart's header type has drifted from the other boxes'");
   });
 
-  it("states the metric and range once — in the controls, not also in a title", () => {
-    // "Độ mặn · 24 giờ" above a select reading "Độ mặn" and another reading
-    // "24 giờ" is the same fact printed twice. Of the two, the controls are
-    // the instance that also does something.
+  it("puts the label and BOTH controls on one header row, with no title line", () => {
+    // Three shapes have been tried here. A title line above the controls
+    // printed "Độ mặn · 24 giờ" while the two selects immediately beneath
+    // already read "Độ mặn" and "24 giờ" — the box spent a third of its
+    // height restating its own controls. The controls are the title.
     const src = log();
     assert.ok(
       !/\{dict\.chart\.metrics\[shown\]\} · \{dict\.chart\[rangeDictKey\]\}/.test(src),
       "the title line duplicating both controls is back",
+    );
+    assert.ok(!/rangeDictKey/.test(src), "dead rangeDictKey left behind");
+
+    // ONE header row holding the label and both controls: the label and both
+    // selects must all appear before the plot, inside the same flex row.
+    const rowStart = src.indexOf('<div className="flex flex-wrap items-center justify-between');
+    assert.ok(rowStart >= 0, "the shared header row is gone");
+    const header = src.slice(rowStart, src.indexOf("{hasData ?"));
+    assert.match(header, /dict\.chart\.boxLabel/, "the box label is not on the shared header row");
+    assert.equal(
+      (header.match(/<ControlSelect\b/g) || []).length,
+      2,
+      "both controls must sit on the same header row as the label",
     );
   });
 

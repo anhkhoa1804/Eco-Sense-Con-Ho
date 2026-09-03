@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
+import { CON_HO } from "@/lib/geo";
 import { getExternalWeather } from "@/lib/external/weather";
 
 /**
@@ -125,9 +126,20 @@ describe("external weather adapter", () => {
     });
 
     await getExternalWeather();
-    assert.match(requested, /latitude=10\.2419/);
-    assert.match(requested, /longitude=105\.826/);
+
+    // Asserted against the shared constant rather than a literal, and the
+    // literal is what this used to be: the private copy in this adapter said
+    // 10.2419/105.826, which is ~48 km from where the stations actually are.
+    // Open-Meteo answers for a model grid cell, so that was silently
+    // returning a different place's weather. Pinning the constant means the
+    // two can never disagree again.
+    assert.match(requested, new RegExp(`latitude=${CON_HO.lat}`));
+    assert.match(requested, new RegExp(`longitude=${CON_HO.lng}`));
     assert.match(requested, /wind_speed_unit=kmh/);
+
+    // The centroid must sit on the island, not in the next province.
+    assert.ok(Math.abs(CON_HO.lat - 10.0725) < 0.01, "reference point drifted in latitude");
+    assert.ok(Math.abs(CON_HO.lng - 106.2525) < 0.01, "reference point drifted in longitude");
     // No credential should ever appear in this URL.
     assert.ok(!/api[_-]?key|token|secret/i.test(requested), "adapter must not send a credential");
   });

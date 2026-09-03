@@ -8,7 +8,7 @@ import { Wordmark } from "@/components/ui/wordmark";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useDict } from "@/lib/i18n/client";
-import { ADMIN_NAV_LINK, isPublicNavActive, PUBLIC_NAV_LINKS } from "@/lib/publicNav";
+import { isPublicNavActive, OPERATIONAL_NAV_HREF, PRIMARY_NAV_LINKS } from "@/lib/publicNav";
 
 /**
  * Scroll-compaction state, with hysteresis.
@@ -83,11 +83,14 @@ function NavLink({
   label,
   active,
   icon: Icon,
+  operational = false,
 }: {
   href: string;
   label: string;
   active: boolean;
   icon: React.ComponentType<{ className?: string }>;
+  /** Admin. Same nav family, one notch quieter at rest — a hierarchy cue, not a separate class. */
+  operational?: boolean;
 }) {
   return (
     <Link
@@ -103,32 +106,13 @@ function NavLink({
         "transition-colors duration-[var(--motion-base)]",
         active
           ? "nav-link-active text-accent"
-          : "text-foreground-muted hover:bg-wash-hover hover:text-foreground",
+          : operational
+            ? "text-foreground-subtle hover:bg-wash-hover hover:text-foreground"
+            : "text-foreground-muted hover:bg-wash-hover hover:text-foreground",
       )}
     >
       <Icon className="h-4 w-4 shrink-0" aria-hidden />
       {label}
-    </Link>
-  );
-}
-
-/** Admin reduced to its mark — same icon family, tooltip + accessible name kept. */
-function AdminLink({ active, label, className }: { active: boolean; label: string; className?: string }) {
-  const Icon = ADMIN_NAV_LINK.icon;
-  return (
-    <Link
-      href={ADMIN_NAV_LINK.href}
-      aria-label={label}
-      title={label}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-sm",
-        "transition-colors duration-[var(--motion-base)]",
-        active ? "text-accent" : "text-foreground-muted hover:bg-wash-hover hover:text-foreground",
-        className,
-      )}
-    >
-      <Icon className="h-4 w-4" aria-hidden />
     </Link>
   );
 }
@@ -170,22 +154,24 @@ export function SiteHeader({ register = "public", activePath, adminEmail, adminA
 
         <div className="flex items-center gap-1">
           <nav aria-label={dict.nav.primaryLabel} className="hidden items-center gap-0.5 md:flex lg:gap-1">
-            {PUBLIC_NAV_LINKS.map(({ href, key, icon }) => (
+            {PRIMARY_NAV_LINKS.map(({ href, key, icon }) => (
               <NavLink
                 key={href}
                 href={href}
                 label={dict.nav[key]}
                 icon={icon}
-                active={!inAdmin && isPublicNavActive(href, activePath)}
+                operational={href === OPERATIONAL_NAV_HREF}
+                active={
+                  href === OPERATIONAL_NAV_HREF
+                    ? inAdmin
+                    : !inAdmin && isPublicNavActive(href, activePath)
+                }
               />
             ))}
           </nav>
 
           <div className="mx-1 hidden h-5 w-px bg-border md:block" aria-hidden />
 
-          {/* Admin is an icon at every width — on mobile it is the only header
-              control, since the four public items live in the bottom bar. */}
-          <AdminLink active={inAdmin} label={dict.nav.admin} />
           <ThemeToggle />
           <LanguageToggle className="ml-0.5" />
         </div>

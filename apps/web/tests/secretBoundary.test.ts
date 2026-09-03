@@ -65,10 +65,19 @@ describe("service-role secret boundary", () => {
     assert.deepEqual(offenders, [], "these run in the browser and must not reach server-only modules");
   });
 
-  it("exposes only the two intended NEXT_PUBLIC_ variables", () => {
-    // Anything NEXT_PUBLIC_ is inlined into the browser bundle. The anon key
-    // belongs there (it is RLS-bound and public by design); a new one added
-    // carelessly might not.
+  it("exposes only the intended NEXT_PUBLIC_ variables", () => {
+    // Anything NEXT_PUBLIC_ is inlined into the browser bundle, so each entry
+    // below is a deliberate decision that the value is safe to publish:
+    //
+    //   NEXT_PUBLIC_SUPABASE_URL       the project's public API origin
+    //   NEXT_PUBLIC_SUPABASE_ANON_KEY  RLS-bound and public by design
+    //   NEXT_PUBLIC_SITE_URL           the site's own public origin — it is
+    //                                  printed in the sitemap and in every
+    //                                  canonical link, so it is public by
+    //                                  definition
+    //
+    // A NEW variable failing here is the point. Confirm it can be published
+    // before adding it.
     const found = new Set<string>();
     for (const file of sourceFiles) {
       for (const m of fs.readFileSync(file, "utf8").matchAll(/NEXT_PUBLIC_[A-Z0-9_]+/g)) {
@@ -77,7 +86,11 @@ describe("service-role secret boundary", () => {
     }
     assert.deepEqual(
       [...found].sort(),
-      ["NEXT_PUBLIC_SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_URL"],
+      [
+        "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL",
+      ],
       "a new client-exposed variable appeared — confirm it is safe to publish",
     );
   });

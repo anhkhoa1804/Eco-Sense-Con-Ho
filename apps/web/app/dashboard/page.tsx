@@ -4,6 +4,7 @@ import { getObservatoryViewModel } from "@/lib/monitoring/buildObservatory";
 import { getExternalWeather } from "@/lib/external/weather";
 import { getI18n } from "@/lib/i18n/server";
 import { ObservatoryCanvas } from "@/components/monitoring/observatory-canvas";
+import { HashScroll } from "@/components/ui/hash-scroll";
 import { PageHero } from "@/components/layout/page-hero";
 import { PublicShell } from "@/components/layout/public-shell";
 import DashboardLoading from "./loading";
@@ -66,6 +67,12 @@ export default async function DashboardPage({
           measurements should be the first thing a reader reaches, not the
           fourth. The demo flag stays — it changes how every number below
           should be read, which is the bar `aside` has to clear. */}
+      {/* `/dashboard#observatory` is the QR deep-link target and where
+          /s/:id redirects. The Bento streams in behind Suspense, so the
+          browser's own one-shot hash resolution finds nothing — see
+          HashScroll. */}
+      <HashScroll />
+
       <PageHero
         scale="observatory"
         eyebrow={dict.monitoring.eyebrow}

@@ -136,7 +136,11 @@ export function PageHero({
             10–15% longer than Vietnamese here, and without a shared cap the
             two would wrap to different heights and change the hero's size
             when the reader switches language. */}
-        <div className="animate-entrance max-w-3xl">
+        {/* The display tier gets a wider measure than the page tiers. Its
+            title is a sentence at 60px, and 768px would break it over three
+            lines; 1024px holds it in two in both languages. The narrower tiers
+            keep max-w-3xl, where their smaller type already reads well. */}
+        <div className={cn("animate-entrance", isDisplay ? "max-w-5xl" : "max-w-3xl")}>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">
             {eyebrow}
           </p>

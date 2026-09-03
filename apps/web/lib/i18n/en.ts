@@ -218,13 +218,16 @@ export const en: Dictionary = {
 
   home: {
     eyebrow: "HORIZON · Cồn Hô, Vĩnh Long",
-    /* Not a literal rendering of the Vietnamese — "and the water is turning
-       salt" is not English. Same thesis, same visual weight, idiomatic. */
-    title: "An islet in the river, where the water is turning salty.",
+    /* Not a literal rendering of the Vietnamese — same thesis, same visual
+       weight, idiomatic English. Both languages are two lines on desktop and
+       within a few characters of each other, so the hero does not change
+       height when a reader switches. */
+    title: "The water around Cồn Hô is turning salty. We are recording it.",
     subtitle:
-      "Three points measuring water, soil and air at Cồn Hô — and a public page that says where every figure came from.",
+      "Three points measuring water, soil and air on the islet — see what the network is recording, and where every figure came from.",
     ctaPrimary: "View the monitoring network",
     ctaSecondary: "About the project",
+    storyAnchorLabel: "The project story",
     pilotNote: "Pilot stage · equipment not yet installed in the field.",
   },
 
@@ -412,8 +415,7 @@ export const en: Dictionary = {
     loginNotAllowed: "This email is not on the administrator allowlist.",
     loginBadPassword: "That administrator password is not correct.",
     loginRateLimited: "Too many failed attempts. Please wait a few minutes and try again.",
-    loginNotConfigured:
-      "Administrator login is not configured on this server. ADMIN_PASSWORD and ADMIN_SESSION_SECRET must be set before it can be used.",
+    loginNotConfigured: "Administrator sign-in is currently unavailable. Please contact the project administrator.",
   },
 
   gallery: {
@@ -505,6 +507,61 @@ export const en: Dictionary = {
     description: "Network status, field reports and device configuration.",
   },
 
+
+  context: {
+    wind: {
+      calm: "Calm",
+      light: "Light breeze",
+      moderate: "Moderate breeze",
+      fresh: "Fresh breeze",
+      strong: "Strong wind",
+    },
+    rain: {
+      none: "No rain",
+      light: "Light rain",
+      moderate: "Moderate rain",
+      heavy: "Heavy rain",
+      violent: "Violent rain",
+    },
+    signal: {
+      ok: "Strong signal",
+      watch: "Fair signal",
+      warn: "Weak signal",
+      critical: "Very weak signal",
+    },
+    battery: {
+      ok: "Battery good",
+      watch: "Battery fair",
+      warn: "Battery low",
+      critical: "Battery critical",
+    },
+  },
+
+  contact: {
+    eyebrow: "Contact",
+    title: "Get in touch.",
+    lead: "About collaboration, research, or any question that is not a field observation.",
+    name: "Name",
+    email: "Email",
+    message: "Message",
+    send: "Compose email",
+    subject: "HORIZON enquiry",
+    mailtoNote: "This opens your email app with the message prefilled — the project has no automated mail system yet.",
+    reportEyebrow: "Field observation",
+    reportTitle: "Seen something on the islet?",
+    reportLead:
+      "Unusual water levels, plants behaving oddly, or equipment that looks wrong. Every note is stored with its time and place.",
+    noAddress:
+      "The project has not published a direct address yet. Until it does, the report form is the only channel that is stored and read.",
+  },
+
+  operator: {
+    eyebrow: "Operations",
+    title: "Network administration.",
+    lead:
+      "The project team uses the admin area to read field reports, check device health and configure alert thresholds. It requires a sign-in.",
+    cta: "Open the admin area",
+  },
 
   metricLabels: {
     salinity: "Salinity",

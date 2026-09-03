@@ -230,14 +230,31 @@ export const vi = {
        and stopping there. The clause about salt is what gives the reader a
        reason to keep reading, and it is a claim the project can stand
        behind. */
-    title: "Một cù lao giữa sông, và nước đang mặn dần.",
-    /* One sentence, not the two-paragraph lead this replaced. The geography
-       already sits in the eyebrow, so the subtitle spends its length on what
-       the project actually is and on the provenance promise. */
+    /* THE HERO TITLE.
+       Two lines on desktop in both languages — a hard constraint, met by
+       tuning the type and measure rather than by shortening the sentence
+       until it says nothing. The version before this ("Cù lao giữa sông,
+       nước mặn dần.") hit two lines by dropping to a fragment: four nouns and
+       no verb, which reads as a caption on a photograph rather than as a
+       claim the project is making.
+
+       This is a sentence. It names the place, says what is happening to it,
+       and says that someone is watching — which is the whole project in one
+       line. `--text-title-display` and the hero's measure were retuned to fit
+       it; see globals.css. */
+    title: "Nước quanh Cồn Hô đang mặn dần. Chúng tôi đang ghi lại điều đó.",
+    /* A product statement, not a description of the website. The previous
+       subtitle ended "...một trang công khai nói rõ mỗi con số đến từ đâu",
+       which talks about the page the reader is already on. This talks about
+       the network. */
     subtitle:
-      "Ba điểm đo nước, đất và không khí ở Cồn Hô — và một trang công khai nói rõ mỗi con số đến từ đâu.",
+      "Ba điểm đo nước, đất và không khí trên cù lao — xem mạng lưới đang ghi nhận gì, và biết mỗi con số đến từ đâu.",
     ctaPrimary: "Xem mạng lưới quan trắc",
     ctaSecondary: "Về dự án",
+    /* Anchor label for the in-page jump the secondary action now makes —
+       /about was merged into this page, so "Về dự án" scrolls rather than
+       navigates. */
+    storyAnchorLabel: "Câu chuyện dự án",
     pilotNote: "Giai đoạn thí điểm · thiết bị chưa lắp đặt ngoài thực địa.",
   },
 
@@ -439,8 +456,15 @@ export const vi = {
     loginNotAllowed: "Email này chưa nằm trong danh sách được phép quản trị.",
     loginBadPassword: "Mật khẩu quản trị chưa đúng.",
     loginRateLimited: "Đã thử sai quá nhiều lần. Vui lòng chờ ít phút rồi thử lại.",
-    loginNotConfigured:
-      "Đăng nhập quản trị chưa được cấu hình trên máy chủ này. Cần đặt ADMIN_PASSWORD và ADMIN_SESSION_SECRET trước khi sử dụng.",
+    /* Deliberately says nothing about WHY.
+       This message renders on a public page to anyone who visits
+       /admin/login, and the version it replaces named the two environment
+       variables that gate the admin console — a configuration diagnostic
+       aimed at an operator, printed for anonymous visitors. The operator
+       needs that detail, so it moved to the server log where only they can
+       read it; the visitor gets a plain statement that sign-in is
+       unavailable, which is all the information they can act on. */
+    loginNotConfigured: "Đăng nhập quản trị hiện chưa khả dụng. Vui lòng liên hệ quản trị viên dự án.",
   },
 
   gallery: {
@@ -566,6 +590,71 @@ export const vi = {
    * every reading would be noise. Fully-qualified names live in
    * lib/i18n/terminology.ts for use outside a group.
    */
+  /**
+   * One-line interpretations. Only for quantities with a published
+   * single-variable classification — see lib/monitoring/context.ts for why
+   * temperature and humidity deliberately have none.
+   */
+  context: {
+    /** Beaufort scale bands (WMO), km/h at 10 m. */
+    wind: {
+      calm: "Lặng gió",
+      light: "Gió nhẹ",
+      moderate: "Gió vừa",
+      fresh: "Gió khá mạnh",
+      strong: "Gió mạnh",
+    },
+    /** Rainfall intensity classes, mm/h. */
+    rain: {
+      none: "Không mưa",
+      light: "Mưa nhỏ",
+      moderate: "Mưa vừa",
+      heavy: "Mưa to",
+      violent: "Mưa rất to",
+    },
+    /** Derived from the same device bands statusFor() uses — never a second opinion. */
+    signal: {
+      ok: "Tín hiệu mạnh",
+      watch: "Tín hiệu khá",
+      warn: "Tín hiệu yếu",
+      critical: "Tín hiệu rất yếu",
+    },
+    battery: {
+      ok: "Pin tốt",
+      watch: "Pin khá",
+      warn: "Pin thấp",
+      critical: "Pin cạn",
+    },
+  },
+
+  /** The Home contact section. Composes a mailto — nothing is posted or stored. */
+  contact: {
+    eyebrow: "Liên hệ",
+    title: "Liên hệ với dự án.",
+    lead: "Về hợp tác, nghiên cứu, hoặc bất cứ câu hỏi nào không phải là một quan sát hiện trường.",
+    name: "Tên",
+    email: "Email",
+    message: "Nội dung",
+    send: "Soạn thư",
+    subject: "Liên hệ HORIZON",
+    mailtoNote: "Nút này mở ứng dụng email của bạn với nội dung đã điền sẵn — dự án chưa có hệ thống gửi thư tự động.",
+    reportEyebrow: "Ghi nhận hiện trường",
+    reportTitle: "Bạn quan sát thấy điều gì trên cồn?",
+    reportLead:
+      "Nước lên bất thường, cây có dấu hiệu lạ, hay một thiết bị trông không ổn. Mỗi ghi nhận được lưu lại kèm thời điểm và vị trí.",
+    noAddress:
+      "Dự án chưa công bố địa chỉ liên hệ trực tiếp. Trong lúc chờ, biểu mẫu báo cáo là kênh duy nhất được lưu lại và có người đọc.",
+  },
+
+  /** The operator side of the system, introduced on Home. Not a login form. */
+  operator: {
+    eyebrow: "Vận hành",
+    title: "Quản trị mạng lưới.",
+    lead:
+      "Người phụ trách dự án dùng khu vực quản trị để xem báo cáo hiện trường, tình trạng thiết bị và cấu hình ngưỡng cảnh báo. Khu vực này yêu cầu đăng nhập.",
+    cta: "Vào khu vực quản trị",
+  },
+
   metricLabels: {
     salinity: "Độ mặn",
     waterLevel: "Mực nước",

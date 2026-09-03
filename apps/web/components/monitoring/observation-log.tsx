@@ -86,6 +86,11 @@ function ControlSelect<T extends string>({
   ariaLabel: string;
   className?: string;
 }) {
+  // Widths are sized against the LONGEST label in either language, not the
+  // current one: "24 hours" and "30 days" are wider than "24 giờ" and
+  // "30 ngày", and at 390 the range control was rendering "24 ho…" in
+  // English. A control that truncates its own current value is worse than a
+  // slightly wider control.
   return (
     <div className={cn("relative min-w-0", className)}>
       <select
@@ -167,18 +172,21 @@ export function ObservationLog({ series }: { series: Record<TrendRange, Observat
     // Without it a flex child refuses to go below its content height, the
     // section overflows the fixed grid row, and the parent's overflow-hidden
     // silently amputates the bottom of the plot.
-    <section className="flex h-full min-h-0 flex-col gap-2">
-      {/* ONE header row: the box's label on the left, its two controls on
-          the right — the same shape as every other box in the Bento, where
-          the right of the header row is where a box states its current
-          state. It cost the plot a whole row to have the controls sit under
-          the label, and the label is 7 characters wide; there was never a
-          reason for them to be on separate lines.
+    <section className="flex h-full min-h-0 flex-col gap-1.5">
+      {/* ONE header row at every width: label on the left, both controls on
+          the right — the same shape every other Bento box opens with.
 
-          The controls also ARE the title. A "Độ mặn · 24 giờ" line printed
-          exactly what the two selects read, so of the two, the instance that
-          also does something is the one that stayed. */}
-      <div className="flex items-center justify-between gap-2">
+          This replaced a three-row stack (label / title / controls). The
+          title line was the thing to cut: it printed "Độ mặn · 24 giờ" while
+          two selects immediately beneath already read "Độ mặn" and "24 giờ",
+          so the box spent a third of its height restating its own controls.
+          The controls ARE the title now, and they are the instance that also
+          does something.
+
+          At mobile the row wraps once — label above, controls below — rather
+          than shrinking the selects until their labels truncate. That is a
+          deliberate two-line arrangement, not the old three-row stack. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 items-center gap-1.5 text-foreground-muted">
           <Activity className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em]">
@@ -192,14 +200,14 @@ export function ObservationLog({ series }: { series: Record<TrendRange, Observat
             onChange={setMetric}
             options={metricOptions}
             ariaLabel={dict.chart.metricControl}
-            className="w-[7.5rem] sm:w-[9.5rem]"
+            className="w-[9rem] sm:w-[10rem]"
           />
           <ControlSelect
             value={range}
             onChange={setRange}
             options={rangeOptions}
             ariaLabel={dict.chart.rangeControl}
-            className="w-[4.75rem] sm:w-[5.25rem]"
+            className="w-[6rem] sm:w-[6.25rem]"
           />
         </div>
       </div>

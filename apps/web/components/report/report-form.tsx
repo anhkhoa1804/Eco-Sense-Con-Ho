@@ -8,11 +8,9 @@ import {
   ArrowRight,
   Check,
   Crosshair,
-  ImagePlus,
   Pencil,
   Send,
   Sprout,
-  Trash2,
   Waves,
 } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
@@ -22,7 +20,6 @@ import {
   DESCRIPTION_MAX,
   DESCRIPTION_MIN,
   IMAGE_ACCEPT,
-  IMAGE_MAX_BYTES,
   REPORT_CATEGORIES,
   categoryLabel,
 } from "@/lib/reports/reportCategories";
@@ -36,20 +33,26 @@ import type { StationKind } from "@/lib/stationProfile";
 
 const KIND_ICON: Record<StationKind, typeof Waves> = { water: Waves, soil: Sprout, gateway: Send };
 
+/**
+ * THREE STEPS, NOT FOUR.
+ *
+ * "Bằng chứng" (Evidence) is gone, because its only control was a photo
+ * picker that never sent anything: there is no image handling in
+ * /api/public/reports and no Supabase Storage bucket, so a selected file was
+ * previewed in the browser and then discarded. The step existed to host a
+ * capability the system does not have, and the UI apologised for that in
+ * prose the reader had to read past ("Lưu ảnh chưa được bật…").
+ *
+ * Removing the control removes the apology with it. When image persistence
+ * is actually built, this becomes a step again — with a control that works.
+ */
 const STEPS = [
   { id: 1, key: "step1" },
   { id: 2, key: "step2" },
-  { id: 3, key: "step3" },
-  { id: 4, key: "step4" },
+  { id: 3, key: "step4" },
 ] as const satisfies readonly { id: number; key: keyof Dictionary["report"] }[];
 
 type StepId = (typeof STEPS)[number]["id"];
-
-interface LocalImage {
-  url: string;
-  name: string;
-  size: number;
-}
 
 interface SubmitResult {
   id: string;
@@ -57,7 +60,6 @@ interface SubmitResult {
   stationName: string;
   categoryLabel: string;
   submittedAt: string;
-  hadImage: boolean;
 }
 
 function errorMessageFor(status: number, code: string | undefined, dict: Dictionary): string {
@@ -67,10 +69,6 @@ function errorMessageFor(status: number, code: string | undefined, dict: Diction
   if (code === "description_too_long") return fmt(f.errTooLong, { max: DESCRIPTION_MAX });
   if (code === "invalid_category") return f.errInvalidKind;
   return f.errSendFailed;
-}
-
-function formatBytes(bytes: number): string {
-  return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +185,6 @@ function SuccessView({ result, onAnother }: { result: SubmitResult; onAnother: (
           { label: f.station, value: result.stationName },
           { label: f.condition, value: result.categoryLabel },
           { label: f.time, value: result.submittedAt },
-          ...(result.hadImage ? [{ label: f.photo, value: f.photoNotSent }] : []),
         ].map((row) => (
           <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-3">
             <dt className="text-[11px] uppercase tracking-[0.14em] text-muted">{row.label}</dt>
@@ -230,25 +227,17 @@ export function ReportForm() {
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsState, setGpsState] = useState<"idle" | "locating" | "error">("idle");
   const [gpsNote, setGpsNote] = useState<string | null>(null);
-  const [image, setImage] = useState<LocalImage | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SubmitResult | null>(null);
 
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const stepChangedRef = useRef(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const station = useMemo(() => REPORT_STATION_OPTIONS.find((s) => s.id === stationId) ?? null, [stationId]);
   const trimmed = description.trim();
 
   // Object URLs are not garbage-collected on their own — release the previous
-  // preview whenever it is replaced or the form unmounts.
-  useEffect(() => {
-    if (!image) return;
-    return () => URL.revokeObjectURL(image.url);
-  }, [image]);
 
   // Move focus to the new step's heading so keyboard and screen-reader users
   // land on the task rather than staying on the (now unmounted) Next button.
@@ -268,7 +257,6 @@ export function ReportForm() {
     1: stationId !== null,
     2: category !== null && trimmed.length >= DESCRIPTION_MIN && trimmed.length <= DESCRIPTION_MAX,
     3: true,
-    4: true,
   };
 
   async function handleLocate() {
@@ -295,28 +283,6 @@ export function ReportForm() {
       setGpsState("error");
       setGpsNote(f.errGeoFailed);
     }
-  }
-
-  function handlePickImage(file: File | undefined) {
-    setImageError(null);
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      setImageError(f.errNotAnImage);
-      return;
-    }
-    if (file.size > IMAGE_MAX_BYTES) {
-      setImageError(fmt(f.errImageTooLarge, { max: formatBytes(IMAGE_MAX_BYTES) }));
-      return;
-    }
-
-    setImage({ url: URL.createObjectURL(file), name: file.name, size: file.size });
-  }
-
-  function clearImage() {
-    setImage(null);
-    setImageError(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleSubmit() {
@@ -351,7 +317,6 @@ export function ReportForm() {
         stationName: stationText(station.id, dict).name,
         categoryLabel: categoryLabel(category, dict),
         submittedAt: new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date()),
-        hadImage: image !== null,
       });
     } catch {
       setError(f.errSendFailed);
@@ -361,7 +326,6 @@ export function ReportForm() {
   }
 
   function resetForm() {
-    clearImage();
     setResult(null);
     setStationId(presetStation?.id ?? null);
     setCategory(null);
@@ -390,7 +354,6 @@ export function ReportForm() {
     { label: f.condition, value: category ? categoryLabel(category, dict) : null },
     { label: f.location, value: locationSummary },
     { label: f.description, value: trimmed ? fmt(f.charCount, { n: trimmed.length }) : null },
-    { label: f.photo, value: image ? f.photoSessionOnly : null },
   ];
 
   const currentStep = STEPS.find((s) => s.id === step)!;
@@ -426,8 +389,8 @@ export function ReportForm() {
             <h2 ref={headingRef} tabIndex={-1} className="text-h1 font-semibold tracking-tight [&:focus]:outline-none">
               {step === 1 ? f.q1 : null}
               {step === 2 ? f.q2 : null}
-              {step === 3 ? f.q3 : null}
-              {step === 4 ? f.q4 : null}
+              {/* q3 was the evidence question; step 3 is now the review. */}
+              {step === 3 ? f.q4 : null}
             </h2>
           </div>
 
@@ -473,25 +436,38 @@ export function ReportForm() {
                 })}
               </fieldset>
 
-              <div className="space-y-3 border-t border-border/50 pt-6">
-                <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">{f.moreExact}</p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button type="button" variant="outline" onClick={handleLocate} disabled={gpsState === "locating"}>
-                    <Crosshair className={cn("h-4 w-4", gpsState === "locating" && "animate-pulse")} aria-hidden />
-                    {gpsState === "locating" ? f.locating : gps ? f.updateLocation : f.useCurrentLocation}
-                  </Button>
-                  {gps ? (
-                    <p className="text-sm text-muted [font-family:var(--font-data)]">
-                      {gps.lat.toFixed(4)}, {gps.lng.toFixed(4)}
-                    </p>
-                  ) : null}
-                </div>
-                <p className="text-sm leading-relaxed text-muted">
-                  {gps
-                    ? f.willUseGps
-                    : gpsNote ?? f.optionalGps}
-                </p>
+              {/* GPS refinement belongs TO the station choice, not beside it.
+                  It used to sit under its own "Vị trí chính xác hơn" heading
+                  behind a horizontal rule, which read as a second, unrelated
+                  location question — a reader who had just picked a station
+                  was asked to pick a location again. It is now the last row
+                  of the same fieldset: one question ("where?"), answered
+                  coarsely by the station and optionally refined by GPS. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLocate}
+                  disabled={gpsState === "locating"}
+                  className="gap-2 text-foreground-muted"
+                >
+                  <Crosshair className={cn("h-4 w-4", gpsState === "locating" && "animate-pulse")} aria-hidden />
+                  {gpsState === "locating" ? f.locating : gps ? f.updateLocation : f.useCurrentLocation}
+                </Button>
+                {gps ? (
+                  <p className="text-sm text-muted [font-family:var(--font-data)]">
+                    {gps.lat.toFixed(4)}, {gps.lng.toFixed(4)}
+                  </p>
+                ) : (
+                  <p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground-subtle">
+                    {gpsNote ?? f.optionalGps}
+                  </p>
+                )}
               </div>
+              {gps ? (
+                <p className="text-xs leading-relaxed text-foreground-subtle">{f.willUseGps}</p>
+              ) : null}
             </div>
           ) : null}
 
@@ -564,80 +540,8 @@ export function ReportForm() {
             </div>
           ) : null}
 
-          {/* 03 — Evidence */}
+          {/* 03 — Review */}
           {step === 3 ? (
-            <div className="space-y-6">
-              <Alert tone="info">
-                {f.photoNotStoredBefore}
-                <strong className="font-semibold">{f.photoNotStoredStrong}</strong>.
-                            </Alert>
-
-              {image ? (
-                <div className="animate-entrance space-y-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- local object URL, never a remote asset; next/image cannot optimize a blob: URL */}
-                  <img
-                    src={image.url}
-                    alt={`${f.previewAlt}: ${image.name}`}
-                    className="max-h-[320px] w-full rounded-lg border border-border object-contain"
-                  />
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="min-w-0 text-sm text-muted">
-                      <span className="block truncate font-medium text-foreground">{image.name}</span>
-                      {formatBytes(image.size)} · {f.sessionOnly}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                        <Pencil className="h-3.5 w-3.5" aria-hidden />
-                        {f.changePhoto}
-                                            </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={clearImage}>
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                        {f.removePhoto}
-                                            </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <label
-                  htmlFor="report-image"
-                  className={cn(
-                    "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border px-6 py-12 text-center transition-colors duration-[var(--motion-base)]",
-                    "hover:border-accent/50 hover:bg-accent/[0.03] focus-within:ring-2 focus-within:ring-accent",
-                  )}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    handlePickImage(e.dataTransfer.files?.[0]);
-                  }}
-                >
-                  <ImagePlus className="h-6 w-6 text-muted" aria-hidden />
-                  <span className="text-sm font-medium">{f.pickPhoto}</span>
-                  <span className="text-xs text-muted">{f.pickHint}</span>
-                </label>
-              )}
-
-              {/* One always-mounted input, referenced by the dropzone's htmlFor
-                  and by the f.changePhoto button — so the ref stays valid whether
-                  or not a preview is currently showing. */}
-              <input
-                ref={fileInputRef}
-                id="report-image"
-                type="file"
-                accept={IMAGE_ACCEPT}
-                className="sr-only"
-                onChange={(e) => handlePickImage(e.target.files?.[0])}
-              />
-
-              {imageError ? <Alert tone="critical">{imageError}</Alert> : null}
-
-              <p className="text-sm leading-relaxed text-muted">
-                {f.noPhotoOk}
-                            </p>
-            </div>
-          ) : null}
-
-          {/* 04 — Review */}
-          {step === 4 ? (
             <div className="space-y-8">
               <dl className="divide-y divide-border/50 border-y border-border/50">
                 {[
@@ -645,11 +549,6 @@ export function ReportForm() {
                   { label: f.condition, value: category ? categoryLabel(category, dict) : "—", jump: 2 as StepId },
                   { label: f.location, value: locationSummary ?? "—", jump: 1 as StepId },
                   { label: f.description, value: trimmed || "—", jump: 2 as StepId },
-                  {
-                    label: f.photo,
-                    value: image ? `${image.name} — ${f.photoNotSent}` : f.none,
-                    jump: 3 as StepId,
-                  },
                 ].map((row) => (
                   <div key={row.label} className="flex items-start justify-between gap-4 py-4">
                     <div className="min-w-0 space-y-1">

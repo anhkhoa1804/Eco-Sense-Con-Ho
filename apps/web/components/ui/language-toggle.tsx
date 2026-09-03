@@ -31,7 +31,17 @@ export function LanguageToggle({ className }: { className?: string }) {
     <div
       role="radiogroup"
       aria-label={dict.controls.languageLabel}
-      className={cn("inline-flex items-center rounded-sm border border-border p-0.5", className)}
+      // A sunken track with a raised thumb, rather than a bordered box with a
+      // solid-accent segment. The old treatment put a filled accent block in
+      // the header at every moment — the loudest thing in a bar whose job is
+      // to be quiet — and read as a button someone had left pressed. This
+      // reads as a control: the track recedes, the active segment sits on the
+      // page's own surface colour and carries the accent in its TEXT.
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-md bg-wash-sunken p-0.5",
+        "ring-1 ring-inset ring-border/70",
+        className,
+      )}
     >
       {LOCALES.map((locale) => {
         const active = locale === current;
@@ -46,11 +56,15 @@ export function LanguageToggle({ className }: { className?: string }) {
             // Re-selecting the current locale would reload for no reason.
             onClick={() => (active ? undefined : setLocaleCookie(locale))}
             className={cn(
-              "rounded-[3px] px-2 py-1 text-[11px] font-semibold tracking-[0.08em]",
-              "transition-colors duration-[var(--motion-base)]",
+              // `font-semibold` on BOTH states, and a fixed min-width: the
+              // control must not resize when the active segment changes, or
+              // the whole header shifts on every language switch.
+              "min-w-[2.25rem] rounded-[5px] px-2 py-1 text-[11px] font-semibold tracking-[0.08em]",
+              "transition-[background-color,color,box-shadow] duration-[var(--motion-base)]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-canvas",
               active
-                ? "bg-accent text-background"
-                : "text-foreground-muted hover:bg-wash-hover hover:text-foreground",
+                ? "bg-surface text-accent shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                : "text-foreground-subtle hover:text-foreground",
             )}
           >
             {LOCALE_LABEL[locale]}

@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Geist_Mono } from "next/font/google";
 import { QueryProvider } from "@/providers/query-provider";
 import { BackgroundAtmosphere } from "@/components/layout/background-atmosphere";
+import { Analytics } from "@vercel/analytics/next";
 import { ParallaxRoot } from "@/components/ui/parallax-root";
+import { isIndexable, siteUrl } from "@/lib/siteUrl";
 import { LocaleProvider } from "@/lib/i18n/client";
 import { HTML_LANG } from "@/lib/i18n/config";
 import { getI18n, getLocale } from "@/lib/i18n/server";
@@ -69,17 +71,29 @@ export async function generateMetadata(): Promise<Metadata> {
   },
 
   /**
-   * No metadataBase is set deliberately: the canonical public origin is a
-   * deployment concern, and hardcoding one here would emit wrong absolute
-   * URLs on preview deployments. Next resolves the relative image against
-   * the request origin, which is correct on every environment.
+   * Resolved per environment rather than hardcoded — see lib/siteUrl.ts. The
+   * previous build omitted this entirely, which meant Next could not build
+   * absolute Open Graph URLs or a canonical link at all.
    */
+  metadataBase: new URL(siteUrl()),
+
+  alternates: { canonical: "/" },
+
+  /**
+   * Preview and local deployments explicitly refuse indexing, so a preview
+   * URL can never compete with production in a search index.
+   */
+  robots: isIndexable()
+    ? { index: true, follow: true }
+    : { index: false, follow: false, nocache: true },
+
   openGraph: {
       type: "website",
       siteName: SITE_NAME,
       title: dict.meta.titleDefault,
       description: dict.meta.description,
       locale: locale === "en" ? "en_US" : "vi_VN",
+      url: "/",
     },
     twitter: {
       card: "summary_large_image",
@@ -122,6 +136,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             add a viewport-spanning texture. */}
         <BackgroundAtmosphere />
         {/* Publishes --parallax once per frame for every depth layer. */}
+        {/* ANALYTICS — one tool, deliberately.
+            Vercel Analytics because this deploys on Vercel, it is cookieless
+            and stores no personal data, and it ships a script small enough
+            not to matter on a page whose audience may be on a rural mobile
+            connection. It records page views and Web Vitals only — nothing
+            from a report body, an email address, a coordinate, an admin
+            session or a telemetry payload ever reaches it, because none of
+            those are ever passed to it.
+            No second analytics tool. Two is how a small site ends up with
+            two disagreeing numbers and twice the script weight. */}
+        <Analytics />
         <ParallaxRoot />
         {/* Locale is resolved once here and handed down, so no client
             component re-reads the cookie and risks a hydration mismatch. */}
