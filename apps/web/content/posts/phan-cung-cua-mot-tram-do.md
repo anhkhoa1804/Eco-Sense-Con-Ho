@@ -15,7 +15,7 @@ Toàn bộ nội dung dưới đây là **thiết kế của hệ thống**. Ph�
 đặt ngoài thực địa. Các sơ đồ trên trang chủ là hình minh họa kỹ thuật, không
 phải ảnh chụp thiết bị đã dựng.
 
-## Nhóm 1 — Nước (Trạm 1)
+## Nhóm 1 — Nước (Trạm Nước)
 
 **A02YYUW.** Cảm biến siêu âm đo khoảng cách tới mặt nước, từ đó suy ra mực
 nước. Chọn siêu âm vì đầu đo không cần chạm nước: không có bộ phận ngâm lâu
@@ -32,7 +32,7 @@ Vì chưa đọc được đầu dò, dự án cũng chưa hiệu chuẩn đư�
 hệ đó phụ thuộc thành phần ion và nhiệt độ của chính vùng nước này, không có
 hằng số chung nào dùng được.
 
-## Nhóm 2 — Đất và không khí (Trạm 2)
+## Nhóm 2 — Đất và không khí (Trạm Đất)
 
 **ES-SM-THEC-01.** Đầu dò cắm trong đất, đo cùng lúc độ ẩm, độ dẫn điện và
 nhiệt độ của đất. Một đầu dò cho ba chỉ số nghĩa là ba giá trị luôn đến từ cùng

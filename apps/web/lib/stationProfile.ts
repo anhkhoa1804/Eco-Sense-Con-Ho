@@ -32,7 +32,7 @@ export const stationProfiles: Record<string, StationProfile> = {
   STATION_01: {
     id: "STATION_01",
     kind: "water",
-    name: "Trạm 1 - Gần sông",
+    name: "Trạm Nước",
     location: "Khu ven sông Cồn Hô",
     intro: "Theo dõi mực nước, độ mặn và dấu hiệu triều cường để bà con nhận biết biến động của dòng nước sớm hơn.",
     chartTitle: "Diễn biến nước 24 giờ",
@@ -45,7 +45,7 @@ export const stationProfiles: Record<string, StationProfile> = {
   STATION_02: {
     id: "STATION_02",
     kind: "soil",
-    name: "Trạm 2 - Dữ liệu đất",
+    name: "Trạm Đất",
     location: "Khu canh tác giữa cồn",
     intro: "Đo EC đất và độ ẩm tương đối để hỗ trợ bà con chọn thời điểm tưới, chăm sóc và trồng trọt phù hợp.",
     chartTitle: "Diễn biến đất 24 giờ",
@@ -58,7 +58,7 @@ export const stationProfiles: Record<string, StationProfile> = {
   STATION_03: {
     id: "STATION_03",
     kind: "gateway",
-    name: "Trạm 3 - Gateway",
+    name: "Gateway",
     location: "Điểm gửi dữ liệu cuối cồn",
     intro: "Tổng hợp dữ liệu từ các trạm và chuyển thông tin nhanh chóng về cho bà con qua các kênh liên lạc quen dùng.",
     chartTitle: "Trạng thái gửi dữ liệu 24 giờ",
@@ -225,8 +225,8 @@ export function qualityFor(profile: StationProfile, reading: EnvironmentalReadin
  * `stationProfiles` above stays the STRUCTURAL source — id, kind, series
  * keys, colours, units — and its Vietnamese strings remain only as the
  * fallback for an id the dictionary does not know. Display text comes from
- * here so that "Trạm 1 - Gần sông" becomes "Station 1 — Riverside" when the
- * interface is English. Only "Cồn Hô" stays put; it is a place name.
+ * here so that "Trạm Nước" becomes "Water Station" when the interface is
+ * English. Only "Cồn Hô" stays put; it is a place name.
  */
 export function stationText(
   id: string,

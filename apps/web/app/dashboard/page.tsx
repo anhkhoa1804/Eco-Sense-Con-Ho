@@ -30,7 +30,7 @@ async function MonitoringContent({ mode }: { mode: "real" | "demo" }) {
   // The dictionary is threaded INTO the builder rather than applied at render
   // because the view model bakes station names, the gateway capability note
   // and the whole reference panel as strings. Building it language-blind is
-  // what left "Trạm 1 - Gần sông" on the English observatory.
+  // what left "Trạm Nước" untranslated on the English observatory.
   const [model, weather] = await Promise.all([
     getObservatoryViewModel(mode, dict),
     getExternalWeather(),

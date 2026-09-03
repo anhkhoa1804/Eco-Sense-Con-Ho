@@ -287,7 +287,7 @@ export const vi = {
     roleEyebrow: "Vai trò",
     gatewayTitle: "Thiết bị hạ tầng",
     gatewayBody:
-      "Gateway không đo môi trường — thiết bị này tổng hợp dữ liệu từ Trạm 1 và Trạm 2 rồi chuyển tiếp về hệ thống. Tín hiệu ở trên là kết nối của chính gateway, không phải một chỉ số môi trường.",
+      "Gateway không đo môi trường — thiết bị này tổng hợp dữ liệu từ trạm nước và trạm đất rồi chuyển tiếp về hệ thống. Tín hiệu ở trên là kết nối của chính gateway, không phải một chỉ số môi trường.",
     chartWaterOnly: "Biểu đồ xu hướng hiện chỉ khả dụng cho trạm đo nước — {station} chưa có nguồn dữ liệu theo chuỗi thời gian.",
 
     /* Fully-qualified reading labels. Unlike the canvas's contextual
@@ -323,7 +323,10 @@ export const vi = {
     lead: "Chọn trạm gần bạn nhất, mô tả điều bạn thấy, rồi gửi.",
     step1: "Địa điểm",
     step2: "Quan sát",
-    step3: "Bằng chứng",
+    /** step3 ("Bằng chứng") was the photo-evidence step, removed along with
+     * the picker — its control never persisted anything. step4 is kept as a
+     * key name (rather than renumbered to step3) so it still reads as "the
+     * last step" if evidence capture is ever rebuilt with real storage. */
     step4: "Xem lại",
     progressLabel: "Tiến trình báo cáo",
     record: "Bản ghi",
@@ -341,14 +344,12 @@ export const vi = {
     form: {
       q1: "Bạn đang ở gần trạm nào?",
       q2: "Bạn thấy gì?",
-      q3: "Có ảnh kèm theo không?",
       q4: "Kiểm tra lại trước khi gửi.",
 
       station: "Trạm",
       condition: "Hiện trạng",
       location: "Vị trí",
       description: "Mô tả",
-      photo: "Ảnh",
       time: "Thời điểm",
       refCode: "Mã tham chiếu",
       none: "Không có",
@@ -361,13 +362,8 @@ export const vi = {
       optionalGps: "Không bắt buộc. Nếu bỏ qua, báo cáo được gắn theo vị trí trạm bạn chọn.",
       gpsDevice: "GPS thiết bị",
       byStation: "Theo vị trí trạm đã chọn",
-      changePhoto: "Đổi ảnh",
-      previewAlt: "Xem trước ảnh đã chọn",
       sending: "Đang gửi…",
       submit: "Gửi báo cáo",
-
-      photoNotSent: "Không được gửi kèm — chưa hỗ trợ lưu ảnh",
-      photoSessionOnly: "1 ảnh (chỉ trong phiên)",
 
       savedToDb: "Báo cáo đã được lưu vào cơ sở dữ liệu quan trắc.",
       savedLocally:
@@ -380,8 +376,6 @@ export const vi = {
       errSendFailed: "Không gửi được báo cáo. Vui lòng kiểm tra kết nối và thử lại.",
       errGeoUnsupported: "Thiết bị không hỗ trợ định vị. Báo cáo sẽ dùng vị trí trạm bạn chọn.",
       errGeoFailed: "Chưa lấy được vị trí. Báo cáo vẫn gửi được bằng vị trí trạm bạn chọn.",
-      errNotAnImage: "Tệp này không phải ảnh. Vui lòng chọn ảnh JPG, PNG hoặc WEBP.",
-      errImageTooLarge: "Ảnh vượt quá {max}. Vui lòng chọn ảnh nhỏ hơn.",
 
       charsNeeded: "Cần ít nhất {min} ký tự — hiện có {n}.",
       charsOf: "{n} / {max} ký tự.",
@@ -394,15 +388,6 @@ export const vi = {
       legendStation: "Chọn trạm gần nhất",
       moreExact: "Vị trí chính xác hơn",
       conditionType: "Loại hiện trạng",
-      photoNotStoredBefore:
-        "Lưu ảnh chưa được bật trong hệ thống hiện tại. Ảnh bạn chọn chỉ hiển thị trong phiên này để đối chiếu khi viết mô tả, và ",
-      photoNotStoredStrong: "không được gửi đi cùng báo cáo",
-      sessionOnly: "chỉ trong phiên này",
-      removePhoto: "Bỏ ảnh",
-      pickPhoto: "Chọn ảnh từ thiết bị",
-      pickHint: "Kéo thả hoặc chạm để chọn · JPG, PNG, WEBP · tối đa 8 MB",
-      noPhotoOk:
-        "Không có ảnh cũng không sao — mô tả cụ thể (vị trí, hiện trạng, mức độ) là phần quan trọng nhất.",
       edit: "Sửa",
       fieldNote: "Đây là một quan sát từ hiện trường, không phải số đo của trạm quan trắc.",
       needStation: "Chọn một trạm để tiếp tục.",
@@ -492,17 +477,19 @@ export const vi = {
   /**
    * Station display text, keyed by station id.
    *
-   * "Trạm 1 - Gần sông" is an interface label, not a proper noun: only
-   * "Cồn Hô" is a place name. Leaving these in stationProfile.ts meant an
-   * English reader picking a station in the report form met three Vietnamese
-   * options in the middle of an otherwise-English page.
+   * Names are ROLE-based ("Trạm Nước"), not ordinal ("Trạm 1"). The station
+   * is not "the first one" — it is the water station; STATION_01 is its ID,
+   * not its identity. "Khu ven sông Cồn Hô" etc. stay in `location`, because
+   * that is a real geographic fact, not a position in a sequence.
    *
-   * The profile keeps everything structural — id, kind, series keys, colours,
-   * units, coordinates. Only the words live here.
+   * Leaving these in stationProfile.ts meant an English reader picking a
+   * station in the report form met three Vietnamese options in the middle of
+   * an otherwise-English page. The profile keeps everything structural — id,
+   * kind, series keys, colours, units, coordinates. Only the words live here.
    */
   stationProfiles: {
     STATION_01: {
-      name: "Trạm 1 - Gần sông",
+      name: "Trạm Nước",
       location: "Khu ven sông Cồn Hô",
       intro:
         "Theo dõi mực nước, độ mặn và dấu hiệu triều cường để bà con nhận biết biến động của dòng nước sớm hơn.",
@@ -510,7 +497,7 @@ export const vi = {
       chartNote: "So sánh mực nước và độ mặn tại khu gần sông.",
     },
     STATION_02: {
-      name: "Trạm 2 - Dữ liệu đất",
+      name: "Trạm Đất",
       location: "Khu canh tác giữa cồn",
       intro:
         "Đo EC đất và độ ẩm tương đối để hỗ trợ bà con chọn thời điểm tưới, chăm sóc và trồng trọt phù hợp.",
@@ -518,7 +505,7 @@ export const vi = {
       chartNote: "Theo dõi EC đất cùng độ ẩm ước tính tại vùng canh tác.",
     },
     STATION_03: {
-      name: "Trạm 3 - Gateway",
+      name: "Gateway",
       location: "Điểm gửi dữ liệu cuối cồn",
       intro:
         "Tổng hợp dữ liệu từ các trạm và chuyển thông tin nhanh chóng về cho bà con qua các kênh liên lạc quen dùng.",
@@ -631,23 +618,20 @@ export const vi = {
     },
   },
 
-  /** The Home contact section. Composes a mailto — nothing is posted or stored. */
+  /** The Home contact section — direct channels, not a form that posts anywhere. */
   contact: {
     eyebrow: "Liên hệ",
-    title: "Liên hệ với dự án.",
-    lead: "Về hợp tác, nghiên cứu, hoặc bất cứ câu hỏi nào không phải là một quan sát hiện trường.",
-    name: "Tên",
-    email: "Email",
-    message: "Nội dung",
-    send: "Soạn thư",
-    subject: "Liên hệ HORIZON",
-    mailtoNote: "Nút này mở ứng dụng email của bạn với nội dung đã điền sẵn — dự án chưa có hệ thống gửi thư tự động.",
+    title: "Liên hệ & hợp tác.",
+    lead: "Về hợp tác, nghiên cứu, hoặc bất cứ câu hỏi nào không phải là một quan sát hiện trường — liên hệ trực tiếp qua các kênh dưới đây.",
+    channelEmail: "Email",
+    channelPhone: "Điện thoại",
+    channelZalo: "Zalo",
+    channelFacebook: "Facebook",
+    channelWebsite: "Website",
     reportEyebrow: "Ghi nhận hiện trường",
     reportTitle: "Bạn quan sát thấy điều gì trên cồn?",
     reportLead:
       "Nước lên bất thường, cây có dấu hiệu lạ, hay một thiết bị trông không ổn. Mỗi ghi nhận được lưu lại kèm thời điểm và vị trí.",
-    noAddress:
-      "Dự án chưa công bố địa chỉ liên hệ trực tiếp. Trong lúc chờ, biểu mẫu báo cáo là kênh duy nhất được lưu lại và có người đọc.",
   },
 
   /** The operator side of the system, introduced on Home. Not a login form. */

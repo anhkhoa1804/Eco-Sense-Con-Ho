@@ -79,7 +79,7 @@ function demoAdminStations(): Station[] {
   return [
     {
       id: "STATION_01",
-      name: "Trạm 1 - Gần sông",
+      name: "Trạm Nước",
       lat: 10.0,
       lng: 106.0,
       status: "active",
@@ -87,7 +87,7 @@ function demoAdminStations(): Station[] {
     },
     {
       id: "STATION_02",
-      name: "Trạm 2 - Dữ liệu đất",
+      name: "Trạm Đất",
       lat: 10.0,
       lng: 106.0,
       status: "active",
@@ -95,7 +95,7 @@ function demoAdminStations(): Station[] {
     },
     {
       id: "STATION_03",
-      name: "Trạm 3 - Gateway",
+      name: "Gateway",
       lat: 10.0,
       lng: 106.0,
       status: "active",

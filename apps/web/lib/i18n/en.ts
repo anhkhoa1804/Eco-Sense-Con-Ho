@@ -260,7 +260,7 @@ export const en: Dictionary = {
     roleEyebrow: "Role",
     gatewayTitle: "Infrastructure node",
     gatewayBody:
-      "The gateway does not measure the environment — it collects data from Station 1 and Station 2 and relays it to the system. The signal above is the gateway's own link, not an environmental reading.",
+      "The gateway does not measure the environment — it collects data from the water and soil stations and relays it to the system. The signal above is the gateway's own link, not an environmental reading.",
     chartWaterOnly: "Trend charts are currently only available for the water station — {station} has no time-series source yet.",
 
     mSoilMoisture: "Soil moisture",
@@ -292,7 +292,6 @@ export const en: Dictionary = {
     lead: "Pick the station nearest you, describe what you saw, then send it.",
     step1: "Location",
     step2: "Observation",
-    step3: "Evidence",
     step4: "Review",
     progressLabel: "Report progress",
     record: "Record",
@@ -300,14 +299,12 @@ export const en: Dictionary = {
     form: {
       q1: "Which station are you near?",
       q2: "What did you see?",
-      q3: "Any photo to attach?",
       q4: "Check it over before sending.",
 
       station: "Station",
       condition: "Condition",
       location: "Location",
       description: "Description",
-      photo: "Photo",
       time: "Time",
       refCode: "Reference code",
       none: "None",
@@ -320,13 +317,8 @@ export const en: Dictionary = {
       optionalGps: "Optional. If you skip it, the report is placed at the station you picked.",
       gpsDevice: "Device GPS",
       byStation: "From the station you picked",
-      changePhoto: "Change photo",
-      previewAlt: "Preview of the selected photo",
       sending: "Sending…",
       submit: "Send report",
-
-      photoNotSent: "Not attached — photo storage is not supported yet",
-      photoSessionOnly: "1 photo (this session only)",
 
       savedToDb: "Your report has been saved to the monitoring database.",
       savedLocally:
@@ -339,8 +331,6 @@ export const en: Dictionary = {
       errSendFailed: "Could not send the report. Check your connection and try again.",
       errGeoUnsupported: "This device cannot report its location. The report will use the station you picked.",
       errGeoFailed: "Could not get your location. You can still send the report using the station you picked.",
-      errNotAnImage: "That file is not an image. Please choose a JPG, PNG or WEBP.",
-      errImageTooLarge: "That image is over {max}. Please choose a smaller one.",
 
       charsNeeded: "At least {min} characters needed — {n} so far.",
       charsOf: "{n} / {max} characters.",
@@ -353,15 +343,6 @@ export const en: Dictionary = {
       legendStation: "Choose the nearest station",
       moreExact: "A more exact position",
       conditionType: "Condition type",
-      photoNotStoredBefore:
-        "Photo storage is not enabled in the current system. The image you pick is shown only in this session, to help you write the description, and is ",
-      photoNotStoredStrong: "not sent with the report",
-      sessionOnly: "this session only",
-      removePhoto: "Remove photo",
-      pickPhoto: "Choose a photo from your device",
-      pickHint: "Drag and drop or tap to choose · JPG, PNG, WEBP · 8 MB max",
-      noPhotoOk:
-        "No photo is fine — a specific description (where, what, how severe) is the part that matters most.",
       edit: "Edit",
       fieldNote: "This is an observation from the field, not a measurement from a monitoring station.",
       needStation: "Choose a station to continue.",
@@ -440,9 +421,14 @@ export const en: Dictionary = {
     placeholder: "Placeholder content",
   },
 
+  /**
+   * Names are ROLE-based ("Water Station"), not ordinal ("Station 1"). See
+   * the matching comment in vi.ts — the station is not "the first one," it
+   * is the water station; STATION_01 is its ID, not its identity.
+   */
   stationProfiles: {
     STATION_01: {
-      name: "Station 1 — Riverside",
+      name: "Water Station",
       location: "Riverbank area, Cồn Hô",
       intro:
         "Tracks water level, salinity and signs of tidal surge so residents can see changes in the river sooner.",
@@ -450,7 +436,7 @@ export const en: Dictionary = {
       chartNote: "Water level against salinity at the riverside site.",
     },
     STATION_02: {
-      name: "Station 2 — Soil data",
+      name: "Soil Station",
       location: "Cultivated area, mid-island",
       intro:
         "Measures soil EC and relative moisture to help growers judge when to irrigate, tend and plant.",
@@ -458,7 +444,7 @@ export const en: Dictionary = {
       chartNote: "Soil EC alongside estimated moisture in the growing area.",
     },
     STATION_03: {
-      name: "Station 3 — Gateway",
+      name: "Gateway",
       location: "Data relay point, far end of the island",
       intro:
         "Collects data from the stations and relays it back to residents through the channels they already use.",
@@ -543,20 +529,17 @@ export const en: Dictionary = {
 
   contact: {
     eyebrow: "Contact",
-    title: "Get in touch.",
-    lead: "About collaboration, research, or any question that is not a field observation.",
-    name: "Name",
-    email: "Email",
-    message: "Message",
-    send: "Compose email",
-    subject: "HORIZON enquiry",
-    mailtoNote: "This opens your email app with the message prefilled — the project has no automated mail system yet.",
+    title: "Contact & collaborate.",
+    lead: "About collaboration, research, or any question that is not a field observation — reach the project directly through the channels below.",
+    channelEmail: "Email",
+    channelPhone: "Phone",
+    channelZalo: "Zalo",
+    channelFacebook: "Facebook",
+    channelWebsite: "Website",
     reportEyebrow: "Field observation",
     reportTitle: "Seen something on the islet?",
     reportLead:
       "Unusual water levels, plants behaving oddly, or equipment that looks wrong. Every note is stored with its time and place.",
-    noAddress:
-      "The project has not published a direct address yet. Until it does, the report form is the only channel that is stored and read.",
   },
 
   operator: {

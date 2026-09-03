@@ -229,7 +229,6 @@
        single flat value and dark mode reads as one sheet of near-black. */
     --h-atmos-lift: rgba(150, 172, 186, 0.26);
     --h-atmos-vignette: rgba(10, 14, 20, 0.3);
-  --h-atmos-band: rgba(79, 176, 212, 0.13);
     /* Brighter in dark mode: the band is doing more work here, standing in
        for the horizon a night sky would otherwise lose entirely. */
     --h-atmos-band: rgba(79, 176, 212, 0.13);
@@ -539,7 +538,6 @@
      decorative — it just gives the motion enough duration to be perceived as
      motion. Interaction timings are untouched: a button that took 620ms to
      respond would feel broken. */
-  --motion-reveal: 620ms;
   --motion-reveal: 620ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-brand: cubic-bezier(0.16, 1, 0.3, 1);

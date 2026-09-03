@@ -1,9 +1,21 @@
 import Link from "next/link";
 import { cache, Suspense } from "react";
-import { ArrowRight, ClipboardList, LayoutDashboard, Mail, Send, Shield, Sprout, Waves } from "lucide-react";
+import {
+  ArrowRight,
+  ClipboardList,
+  Facebook,
+  Globe,
+  LayoutDashboard,
+  Mail,
+  MessageCircle,
+  Phone,
+  Send,
+  Shield,
+  Sprout,
+  Waves,
+} from "lucide-react";
 import { MapStation, StationNetworkMap } from "@/components/dashboard/station-network-map";
 import { GalleryStrip } from "@/components/about/gallery-strip";
-import { ContactForm } from "@/components/home/contact-form";
 import { FieldNotesCarousel } from "@/components/home/field-notes-carousel";
 import { Hero } from "@/components/home/hero";
 import { Reveal } from "@/components/ui/reveal";
@@ -14,6 +26,7 @@ import { freshnessStatus, StatusIndicator } from "@/components/ui/status-indicat
 import { getGalleryItems } from "@/lib/content/gallery";
 import { getRecentPosts } from "@/lib/content/posts";
 import { getI18n } from "@/lib/i18n/server";
+import type { Dictionary } from "@/lib/i18n/vi";
 import { STATION_COORDS } from "@/lib/geo";
 import { getPublicRepositories } from "@/lib/publicRead";
 import { filterSnapshotsToPilotStations, OBSERVATORY_HREF, PILOT_STATION_IDS, type PilotStationId } from "@/lib/publicStations";
@@ -53,11 +66,15 @@ const KIND_ICON: Record<StationKind, typeof Waves> = { water: Waves, soil: Sprou
  *
  * Deliberately `null` rather than a plausible-looking address. A contact
  * action that silently goes nowhere is worse than none, and not printing
- * things the project cannot stand behind is the whole premise here. While
- * this is null the contact chapter routes people to the report flow, which is
- * real and persisted; set it to a string and a mail action appears beside it.
+ * things the project cannot stand behind is the whole premise here.
  */
-const CONTACT_EMAIL: string | null = null;
+const CONTACT_CHANNELS = [
+  { key: "channelEmail", icon: Mail, label: "magnusfrog.frogsleap@gmail.com", href: "mailto:magnusfrog.frogsleap@gmail.com" },
+  { key: "channelPhone", icon: Phone, label: "0867 430 045", href: "tel:+84867430045" },
+  { key: "channelZalo", icon: MessageCircle, label: "Zalo OA", href: "https://zalo.me/2851935006706412776" },
+  { key: "channelFacebook", icon: Facebook, label: "facebook.com/frogsleapvn", href: "https://www.facebook.com/frogsleapvn" },
+  { key: "channelWebsite", icon: Globe, label: "frogsleap.com.vn", href: "https://frogsleap.com.vn" },
+] as const satisfies readonly { key: keyof Dictionary["contact"]; icon: typeof Mail; label: string; href: string }[];
 
 interface ObservatoryData {
   /** Already filtered to the curated 3-station pilot allowlist — never the raw 5-row DB response. */
@@ -271,7 +288,7 @@ function MapFallback() {
 const HARDWARE_GROUPS = [
   {
     domain: "Nước",
-    station: "Trạm 1",
+    station: "STATION_01",
     image: "/assets/illustrations/station-water-placeholder.svg",
     parts: [
       { part: "A02YYUW", role: "Cảm biến siêu âm đo khoảng cách tới mặt nước, từ đó suy ra mực nước.", note: null },
@@ -284,7 +301,7 @@ const HARDWARE_GROUPS = [
   },
   {
     domain: "Đất và không khí",
-    station: "Trạm 2",
+    station: "STATION_02",
     image: "/assets/illustrations/station-soil-placeholder.svg",
     parts: [
       { part: "ES-SM-THEC-01", role: "Đầu dò cắm trong đất, đo cùng lúc độ ẩm, độ dẫn điện và nhiệt độ của đất.", note: null },
@@ -294,7 +311,7 @@ const HARDWARE_GROUPS = [
   },
   {
     domain: "Truyền dữ liệu",
-    station: "Gateway",
+    station: "STATION_03",
     image: "/assets/illustrations/gateway-placeholder.svg",
     parts: [
       {
@@ -449,7 +466,7 @@ export default async function HomePage() {
                 {/* eslint-disable-next-line @next/next/no-img-element -- local static asset with known aspect ratio; next/image has previously failed to resolve in this project (see wordmark.tsx) */}
                 <img
                   src="/assets/illustrations/con-ho-station-map.png"
-                  alt="Bản đồ minh họa vị trí ba điểm quan trắc trên Cồn Hô: Trạm 1 gần sông, Trạm 2 giữa cồn, Gateway cuối cồn"
+                  alt="Bản đồ minh họa vị trí ba điểm quan trắc trên Cồn Hô: trạm nước gần sông, trạm đất giữa cồn, gateway cuối cồn"
                   width={1614}
                   height={974}
                   loading="lazy"
@@ -616,18 +633,13 @@ export default async function HomePage() {
           </Reveal>
 
           {/* 11 — Contact.
-              CONTACT AND REPORT ARE DIFFERENT THINGS, and this section exists
-              because they were being conflated. A report is an environmental
-              observation that becomes a durable row in Supabase; a contact is
-              a person wanting to reach the team. Sending everyone to the
-              report form asked the second group to file the first kind of
-              thing.
-
-              Left states the report channel and links to it. Right is a real
-              contact form — which composes a mailto rather than posting,
-              because no email provider is configured and a form that says
-              "sent" without sending is the one thing this product must never
-              do. See components/home/contact-form.tsx. */}
+              CONTACT AND REPORT ARE DIFFERENT THINGS. A report is an
+              environmental observation that becomes a durable row in
+              Supabase; a contact is a person wanting to reach the project.
+              Left states the report channel and links to it. Right lists the
+              project's real, owner-provided channels as direct links —
+              mailto/tel/https, nothing posted through this site — since no
+              server-side email provider exists to back a submission form. */}
           <Reveal stagger as="section" id="lien-he" className="scroll-mt-28">
             <ChapterHeading eyebrow={`11 · ${dict.contact.eyebrow}`} title={dict.contact.title} />
             <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-border bg-border lg:grid-cols-[0.85fr_1.15fr]">
@@ -657,21 +669,38 @@ export default async function HomePage() {
                   </span>
                 </div>
                 <p className="max-w-xl text-sm leading-relaxed text-muted">{dict.contact.lead}</p>
-                {CONTACT_EMAIL ? (
-                  <ContactForm address={CONTACT_EMAIL} />
-                ) : (
-                  <p className="text-sm leading-relaxed text-muted">{dict.contact.noAddress}</p>
-                )}
+                <ul className="grid gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-2">
+                  {CONTACT_CHANNELS.map(({ key, icon: Icon, label, href }) => (
+                    <li key={key} className="bg-background">
+                      <a
+                        href={href}
+                        target={href.startsWith("http") ? "_blank" : undefined}
+                        rel={href.startsWith("http") ? "noreferrer" : undefined}
+                        className="flex items-center gap-3 px-4 py-3.5 transition-colors duration-[var(--motion-base)] hover:bg-wash-hover"
+                      >
+                        <Icon className="h-4 w-4 shrink-0 text-foreground-subtle" aria-hidden />
+                        <span className="min-w-0">
+                          <span className="block text-[11px] font-medium uppercase tracking-[0.1em] text-foreground-subtle">
+                            {dict.contact[key]}
+                          </span>
+                          <span className="block truncate text-sm text-foreground">{label}</span>
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </Reveal>
 
-          {/* 12 — The operator side.
-              Not a login form and not a second admin entry point — Admin is
-              already a primary nav tab. This exists because a reader who has
-              just been told the project publishes everything openly should
-              also be told that someone operates it, and where that happens.
-              Deliberately the quietest section on the page. */}
+          {/* The operator side — deliberately unnumbered, same as the
+              illustration between chapters 02 and 03: an interstitial, not a
+              chapter in the count. Not a login form and not a second admin
+              entry point — Admin is already a primary nav tab. This exists
+              because a reader who has just been told the project publishes
+              everything openly should also be told that someone operates it,
+              and where that happens. Deliberately the quietest section on
+              the page. */}
           <Reveal stagger as="section">
             <div className="flex flex-col gap-6 border-t border-border pt-8 md:flex-row md:items-center md:justify-between md:gap-12">
               <div className="max-w-2xl space-y-2">
@@ -694,9 +723,11 @@ export default async function HomePage() {
             </div>
           </Reveal>
 
-          {/* 12 — Where to go next */}
+          {/* 12 — Where to go next. Chapter numbering continues from 11
+              (Contact); the operator section above intentionally does not
+              consume a number. */}
           <Reveal stagger as="section" className="pb-8">
-            <ChapterHeading eyebrow="13 · Tiếp tục" title="Đi sâu hơn." className="mb-10" />
+            <ChapterHeading eyebrow="12 · Tiếp tục" title="Đi sâu hơn." className="mb-10" />
             <ExploreChapter />
           </Reveal>
         </div>

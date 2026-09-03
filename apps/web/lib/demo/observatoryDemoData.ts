@@ -90,7 +90,7 @@ export const DEMO_ENVIRONMENT_WEEK: DemoEnvironmentPoint[] = Array.from({ length
 });
 
 /**
- * Illustrative 24-hour soil series for Trạm 2's six sensors, on a 90-minute
+ * Illustrative 24-hour soil series for the soil station's six sensors, on a 90-minute
  * cadence (16 points) — deliberately a different rhythm from the water
  * station's hourly series, since they are independent devices.
  *

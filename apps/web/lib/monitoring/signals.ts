@@ -27,7 +27,7 @@ import type {
  * produced it, so attribution appears once as group context rather than
  * being repeated on all eight metric cells. That was the explicit
  * requirement: every metric must still reveal its source, without the page
- * printing "Trạm 2" six times.
+ * printing "Trạm Đất" six times.
  *
  * Note the asymmetry this deliberately produces: STATION_02 contributes to
  * BOTH the soil and air groups, because it physically carries both a soil
@@ -357,7 +357,7 @@ export interface CanvasMetric {
   id: string;
   domain: MetricDomain | "infrastructure" | "context";
   metric: ObservatoryMetric;
-  /** "Trạm 2 · Dữ liệu đất", or "Vĩnh Long · Ngoài mạng lưới" for external. */
+  /** "Trạm Đất · Dữ liệu đất", or "Vĩnh Long · Ngoài mạng lưới" for external. */
   attribution: string;
   /** null for anything that did not come from HORIZON hardware. */
   stationId: string | null;
