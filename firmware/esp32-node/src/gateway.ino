@@ -59,7 +59,22 @@ static const uint32_t SIMPLE_FRAME_IDLE_TIMEOUT_MS = 600;
 static const uint8_t SIMPLE_ACK_REPEAT_COUNT = 3;
 static const uint32_t SIMPLE_ACK_START_DELAY_MS = 80;
 static const uint32_t SIMPLE_ACK_REPEAT_GAP_MS = 120;
-static const uint32_t MODEM_BAUD = 115200;
+static const uint32_t MODEM_BAUD_CANDIDATES[] = {115200, 9600, 57600, 38400, 19200, 230400};
+static const size_t MODEM_BAUD_CANDIDATE_COUNT = sizeof(MODEM_BAUD_CANDIDATES) / sizeof(MODEM_BAUD_CANDIDATES[0]);
+static const uint32_t MODEM_BAUD_PROBE_MS = 900;
+static const uint32_t MODEM_RETRY_INTERVAL_MS = 60000;
+
+// Optional but strongly recommended: E32 AUX -> IO10.
+// If AUX is not connected, INPUT_PULLUP keeps this HIGH and the gateway still works.
+static const int LORA_AUX_PIN = 10;
+
+// Garbage-storm watchdog. A normal HORIZON packet stream is only a few dozen bytes/s.
+// The observed failure was ~1000 bytes/s, almost saturating UART 9600.
+static const uint32_t LORA_RX_HEALTH_WINDOW_MS = 3000;
+static const uint32_t LORA_GARBAGE_STORM_BYTES_PER_WINDOW = 1200;
+static const uint8_t LORA_GARBAGE_BAD_WINDOWS_BEFORE_RESTART = 2;
+static const uint32_t LORA_UART_RESTART_COOLDOWN_MS = 8000;
+static const uint32_t LORA_NO_GOOD_FRAME_BEFORE_RESTART_MS = 5000;
 
 static const int LORA_UART_RX_PIN = 16;
 static const int LORA_UART_TX_PIN = 15;
@@ -141,6 +156,9 @@ static Station1DashboardSnapshot dashboardStation1;
 static Station2DashboardSnapshot dashboardStation2;
 
 static bool modemReady = false;
+static uint32_t activeModemBaud = 0;
+static uint32_t lastModemInitAttemptMs = 0;
+static uint32_t modemBinaryDropped = 0;
 static String loraLine;
 static uint32_t packetSequence = 0;
 static uint32_t lastConfigPollMs = 0;
@@ -256,31 +274,193 @@ void updateStatusOutputs() {
   writeMosfet(BUZZER_PIN, buzzerOn);
 }
 
-String modemReadUntil(uint32_t timeoutMs) {
-  String response;
+void clearModemRx(uint32_t quietMs = 80) {
   const uint32_t startedAt = millis();
+  uint32_t lastByteAt = millis();
+  while (millis() - startedAt < 800) {
+    while (modemSerial.available() > 0) {
+      modemSerial.read();
+      lastByteAt = millis();
+    }
+    if (millis() - lastByteAt >= quietMs) break;
+    serviceWatchdog();
+    delay(2);
+  }
+}
+
+bool modemProbeBaud(uint32_t baud) {
+  modemSerial.end();
+  pinMode(MODEM_RX_PIN, INPUT_PULLUP);
+  pinMode(MODEM_TX_PIN, OUTPUT);
+  digitalWrite(MODEM_TX_PIN, HIGH);
+  delay(40);
+
+  modemSerial.setRxBufferSize(2048);
+  modemSerial.begin(baud, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
+  gpio_pullup_en(static_cast<gpio_num_t>(MODEM_RX_PIN));
+  gpio_pulldown_dis(static_cast<gpio_num_t>(MODEM_RX_PIN));
+  delay(120);
+  clearModemRx();
+
+  String probe;
+  probe.reserve(128);
+  uint32_t binary = 0;
+  for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+    modemSerial.print("AT\r\n");
+    const uint32_t t0 = millis();
+    while (millis() - t0 < MODEM_BAUD_PROBE_MS) {
+      serviceWatchdog();
+      while (modemSerial.available() > 0) {
+        const uint8_t b = static_cast<uint8_t>(modemSerial.read());
+        if (b == '\r' || b == '\n' || b == '\t' || (b >= 0x20 && b <= 0x7E)) {
+          if (probe.length() < 256) probe += static_cast<char>(b);
+        } else {
+          binary += 1;
+        }
+      }
+      if (probe.indexOf("OK") >= 0) {
+        Serial.printf("[MODEM] Tim thay AT baud=%lu (binary_bo=%lu)\n",
+                      static_cast<unsigned long>(baud),
+                      static_cast<unsigned long>(binary));
+        activeModemBaud = baud;
+        modemBinaryDropped += binary;
+        return true;
+      }
+      delay(5);
+    }
+    delay(80);
+  }
+
+  Serial.printf("[MODEM] baud=%lu: khong co OK (ascii=%u, binary=%lu)\n",
+                static_cast<unsigned long>(baud),
+                static_cast<unsigned int>(probe.length()),
+                static_cast<unsigned long>(binary));
+  modemBinaryDropped += binary;
+  return false;
+}
+
+bool detectModemBaud() {
+  Serial.printf("[MODEM] Tu dong do baud RX=%d TX=%d; RX pull-up=BAT\n", MODEM_RX_PIN, MODEM_TX_PIN);
+  for (size_t i = 0; i < MODEM_BAUD_CANDIDATE_COUNT; ++i) {
+    if (modemProbeBaud(MODEM_BAUD_CANDIDATES[i])) {
+      return true;
+    }
+  }
+
+  modemSerial.end();
+  pinMode(MODEM_RX_PIN, INPUT_PULLUP);
+  Serial.println("[MODEM] KHONG tim thay modem AT. Kiem tra TX modem->RX18, RX modem<-TX17, GND chung va muc logic UART.");
+  return false;
+}
+
+bool ensureModemReady() {
+  if (!MODEM_ENABLED) return false;
+  if (modemReady) return true;
+
+  // Do not block every incoming LoRa packet with repeated modem scans.
+  if (lastModemInitAttemptMs != 0 && millis() - lastModemInitAttemptMs < MODEM_RETRY_INTERVAL_MS) {
+    const uint32_t elapsed = millis() - lastModemInitAttemptMs;
+    const uint32_t remain = (MODEM_RETRY_INTERVAL_MS > elapsed) ? (MODEM_RETRY_INTERVAL_MS - elapsed) : 0;
+    Serial.printf("[MODEM] Chua san sang; cho retry ~%lu giay (baud=%lu)\n",
+                  static_cast<unsigned long>((remain + 999) / 1000),
+                  static_cast<unsigned long>(activeModemBaud));
+    return false;
+  }
+
+  Serial.println("[MODEM] Thu khoi tao lai modem...");
+  modemReady = initModem();
+  return modemReady;
+}
+
+String modemWaitHttpAction(uint8_t method, uint32_t timeoutMs) {
+  String response;
+  response.reserve(512);
+  const String marker = String("+HTTPACTION: ") + String(method) + ",";
+  const uint32_t startedAt = millis();
+  uint32_t dropped = 0;
 
   while (millis() - startedAt < timeoutMs) {
     serviceWatchdog();
-
     while (modemSerial.available() > 0) {
-      response += static_cast<char>(modemSerial.read());
+      const uint8_t b = static_cast<uint8_t>(modemSerial.read());
+      if (b == '\r' || b == '\n' || b == '\t' || (b >= 0x20 && b <= 0x7E)) {
+        if (response.length() < 4096) response += static_cast<char>(b);
+      } else {
+        dropped += 1;
+      }
     }
-    if (response.indexOf("\r\nOK\r\n") >= 0 || response.indexOf("\r\nERROR\r\n") >= 0) {
+
+    // IMPORTANT: do NOT stop on the immediate "OK". SIMCom returns OK first,
+    // then the asynchronous +HTTPACTION URC when the network transaction finishes.
+    if (response.indexOf(marker) >= 0 || response.indexOf("ERROR") >= 0) {
       break;
     }
     watchdogDelay(10);
   }
 
+  modemBinaryDropped += dropped;
+  return response;
+}
+
+int parseHttpActionStatus(const String &response, uint8_t method) {
+  const String marker = String("+HTTPACTION: ") + String(method) + ",";
+  const int p = response.indexOf(marker);
+  if (p < 0) return -1;
+  const int start = p + marker.length();
+  const int comma = response.indexOf(',', start);
+  if (comma < 0) return response.substring(start).toInt();
+  return response.substring(start, comma).toInt();
+}
+
+String modemReadUntil(uint32_t timeoutMs) {
+  String response;
+  response.reserve(512);
+  const uint32_t startedAt = millis();
+  uint32_t dropped = 0;
+
+  while (millis() - startedAt < timeoutMs) {
+    serviceWatchdog();
+
+    while (modemSerial.available() > 0) {
+      const uint8_t b = static_cast<uint8_t>(modemSerial.read());
+      // AT/HTTP responses are text. Keep CR/LF/TAB and printable ASCII;
+      // drop binary garbage so a wrong/floating UART cannot fill RAM or spam Serial.
+      if (b == '\r' || b == '\n' || b == '\t' || (b >= 0x20 && b <= 0x7E)) {
+        if (response.length() < 4096) {
+          response += static_cast<char>(b);
+        }
+      } else {
+        dropped += 1;
+      }
+    }
+    if (response.indexOf("\r\nOK\r\n") >= 0 ||
+        response.indexOf("\r\nERROR\r\n") >= 0 ||
+        response.indexOf("DOWNLOAD") >= 0) {
+      break;
+    }
+    watchdogDelay(10);
+  }
+
+  modemBinaryDropped += dropped;
+  if (dropped > 0) {
+    Serial.printf("[MODEM] Da loc %lu byte binary tren UART modem\n", static_cast<unsigned long>(dropped));
+  }
   return response;
 }
 
 bool sendAt(const String &command, const char *expected = "OK", uint32_t timeoutMs = MODEM_TIMEOUT_MS) {
+  if (activeModemBaud == 0) return false;
   Serial.print("[MODEM] ");
   Serial.println(command);
-  modemSerial.println(command);
+  clearModemRx(30);
+  modemSerial.print(command);
+  modemSerial.print("\r\n");
   const String response = modemReadUntil(timeoutMs);
-  Serial.println(response);
+  if (response.length() > 0) {
+    Serial.println(response);
+  } else {
+    Serial.println("[MODEM] (khong co phan hoi text)");
+  }
   return response.indexOf(expected) >= 0;
 }
 
@@ -309,31 +489,73 @@ bool initModem() {
     return false;
   }
 
-  modemSerial.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
-  watchdogDelay(500);
+  lastModemInitAttemptMs = millis();
+  Serial.println("[MODEM] ===== KHOI TAO 4G =====");
 
-  for (uint8_t attempt = 0; attempt < 5; attempt += 1) {
-    if (sendAt("AT")) {
-      break;
-    }
-    watchdogDelay(1000);
+  if (!detectModemBaud()) {
+    activeModemBaud = 0;
+    Serial.println("[MODEM FAIL] Khong tim thay modem tra loi AT");
+    return false;
   }
 
-  if (!sendAt("ATE0")) return false;
-  if (!sendAt("AT+CPIN?", "READY")) return false;
-  if (!sendAt("AT+CSQ")) return false;
-  if (!sendAt("AT+CREG?", "OK")) return false;
-  if (!sendAt("AT+CGREG?", "OK")) return false;
+  if (!sendAt("AT", "OK", 2500)) {
+    Serial.println("[MODEM FAIL] AT khong OK");
+    return false;
+  }
+  if (!sendAt("ATE0", "OK", 2500)) {
+    Serial.println("[MODEM FAIL] Khong tat duoc echo ATE0");
+    return false;
+  }
+
+  sendAt("AT+IPR?", "OK", 2500);
+  sendAt("AT+SIMCOMATI", "OK", 3000);   // diagnostic: modem/firmware family
+  if (!sendAt("AT+CPIN?", "READY", 5000)) {
+    Serial.println("[MODEM FAIL] SIM chua READY / PIN / SIM khong nhan");
+    return false;
+  }
+  sendAt("AT+COPS?", "OK", 5000);
+  sendAt("AT+CPSI?", "OK", 5000);
+  if (!sendAt("AT+CSQ", "OK", 3000)) {
+    Serial.println("[MODEM FAIL] Khong doc duoc CSQ");
+    return false;
+  }
+  sendAt("AT+CREG?", "OK", 3000);
+  sendAt("AT+CGREG?", "OK", 3000);
+  sendAt("AT+CEREG?", "OK", 3000);
 
   String apnCommand = "AT+CGDCONT=1,\"IP\",\"";
   apnCommand += SIM_APN;
   apnCommand += "\"";
-  if (!sendAt(apnCommand)) return false;
+  if (!sendAt(apnCommand, "OK", 5000)) {
+    Serial.printf("[MODEM FAIL] Khong set duoc APN '%s'\n", SIM_APN);
+    return false;
+  }
 
-  // Works on SIMCom-style modules such as SIM7600/A7670 families.
-  sendAt("AT+NETCLOSE", "OK", 5000);
-  if (!sendAt("AT+NETOPEN", "OK", 20000)) return false;
+  // Attach packet service. If already attached this returns +CGATT: 1.
+  if (!sendAt("AT+CGATT?", "+CGATT: 1", 4000)) {
+    Serial.println("[MODEM] Chua attach data -> thu AT+CGATT=1");
+    if (!sendAt("AT+CGATT=1", "OK", 15000)) {
+      Serial.println("[MODEM FAIL] CGATT=1 that bai");
+      return false;
+    }
+  }
 
+  // Activate PDP context. This is the important data-session step for HTTP on A76xx/SIM76xx.
+  if (!sendAt("AT+CGACT=1,1", "OK", 15000)) {
+    Serial.println("[MODEM FAIL] Khong kich hoat duoc PDP context CGACT=1,1");
+    return false;
+  }
+  if (!sendAt("AT+CGPADDR=1", "OK", 5000)) {
+    Serial.println("[MODEM FAIL] Khong lay duoc IP PDP (CGPADDR)");
+    return false;
+  }
+
+  // NETOPEN belongs to the TCP/IP socket stack on many SIMCom firmwares.
+  // HTTP(S) has its own service, so keep this diagnostic/non-fatal instead of blocking HTTP.
+  sendAt("AT+NETOPEN", "OK", 8000);
+
+  Serial.printf("[MODEM] SAN SANG baud=%lu APN=%s\n",
+                static_cast<unsigned long>(activeModemBaud), SIM_APN);
   return true;
 }
 
@@ -363,41 +585,36 @@ String httpGet(const char *url) {
     return "";
   }
 
-  if (!modemReady) {
-    modemReady = initModem();
-    if (!modemReady) {
-      return "";
-    }
+  if (!ensureModemReady()) {
+    return "";
   }
 
   sendAt("AT+HTTPTERM", "OK", 3000);
-
-  if (strncmp(url, "https://", 8) == 0) {
-    sendAt("AT+CSSLCFG=\"sslversion\",0,3", "OK", 3000);
-    sendAt("AT+CSSLCFG=\"enableSNI\",0,1", "OK", 3000);
-    sendAt("AT+CSSLCFG=\"authmode\",0,0", "OK", 3000);
-  }
-
   if (!sendAt("AT+HTTPINIT")) return "";
-
-  if (strncmp(url, "https://", 8) == 0 && !sendAt("AT+HTTPPARA=\"SSLCFG\",0", "OK", 3000)) {
-    Serial.println("[HTTP] Khong cau hinh duoc SSL context cho HTTPS");
-    sendAt("AT+HTTPTERM", "OK", 3000);
-    return "";
-  }
 
   String urlCommand = "AT+HTTPPARA=\"URL\",\"";
   urlCommand += url;
   urlCommand += "\"";
-  if (!sendAt(urlCommand)) {
-    sendAt("AT+HTTPTERM", "OK", 3000);
-    return "";
+  if (!sendAt(urlCommand)) return "";
+
+  if (String(url).startsWith("https://")) {
+    sendAt("AT+HTTPSSL=1", "OK", 4000);
   }
 
-  modemSerial.println("AT+HTTPACTION=0");
-  const String actionResponse = modemReadUntil(HTTP_TIMEOUT_MS);
+  if (strlen(GATEWAY_INGEST_TOKEN) > 0) {
+    String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
+    headerCommand += GATEWAY_INGEST_TOKEN;
+    headerCommand += "\"";
+    sendAt(headerCommand, "OK", 3000);
+  }
+
+  clearModemRx(30);
+  modemSerial.print("AT+HTTPACTION=0\r\n");
+  const String actionResponse = modemWaitHttpAction(0, HTTP_TIMEOUT_MS);
   Serial.println(actionResponse);
-  if (actionResponse.indexOf("+HTTPACTION: 0,200") < 0) {
+  const int httpStatus = parseHttpActionStatus(actionResponse, 0);
+  Serial.printf("[HTTP GET] status=%d\n", httpStatus);
+  if (httpStatus != 200) {
     sendAt("AT+HTTPTERM", "OK", 3000);
     return "";
   }
@@ -584,78 +801,114 @@ void maybeEnterGatewaySleep() {
 
 bool httpPostJson(const String &payload) {
   if (!MODEM_ENABLED) {
+    Serial.println("[HTTP] Bo POST: MODEM_ENABLED=false");
     return false;
   }
 
-  if (!modemReady) {
-    modemReady = initModem();
-    if (!modemReady) {
-      return false;
-    }
-  }
-
-  sendAt("AT+HTTPTERM", "OK", 3000);
-
-  if (strncmp(WEB_SERVER_URL, "https://", 8) == 0) {
-    sendAt("AT+CSSLCFG=\"sslversion\",0,3", "OK", 3000);
-    sendAt("AT+CSSLCFG=\"enableSNI\",0,1", "OK", 3000);
-    sendAt("AT+CSSLCFG=\"authmode\",0,0", "OK", 3000);
-  }
-
-  if (!sendAt("AT+HTTPINIT")) return false;
-
-  if (strncmp(WEB_SERVER_URL, "https://", 8) == 0 && !sendAt("AT+HTTPPARA=\"SSLCFG\",0", "OK", 3000)) {
-    Serial.println("[HTTP] Khong cau hinh duoc SSL context cho HTTPS");
-    sendAt("AT+HTTPTERM", "OK", 3000);
+  if (!ensureModemReady()) {
+    Serial.println("[HTTP] Bo POST: modem chua san sang / chua co data network");
     return false;
   }
+
+  Serial.printf("[HTTP] POST %u byte -> %s\n",
+                static_cast<unsigned int>(payload.length()), WEB_SERVER_URL);
+
+  // Clean previous session. ERROR here is harmless if no session exists.
+  sendAt("AT+HTTPTERM", "OK", 2500);
+
+  if (!sendAt("AT+HTTPINIT", "OK", 5000)) {
+    Serial.println("[HTTP FAIL] HTTPINIT");
+    return false;
+  }
+
+  // Some SIMCom firmwares expose CID/redirect, others do not; keep them non-fatal.
+  sendAt("AT+HTTPPARA=\"CID\",1", "OK", 3000);
+  sendAt("AT+HTTPPARA=\"REDIR\",1", "OK", 3000);
 
   String urlCommand = "AT+HTTPPARA=\"URL\",\"";
   urlCommand += WEB_SERVER_URL;
   urlCommand += "\"";
-  if (!sendAt(urlCommand)) {
-    sendAt("AT+HTTPTERM", "OK", 3000);
+  if (!sendAt(urlCommand, "OK", 5000)) {
+    Serial.println("[HTTP FAIL] Khong set duoc URL");
+    sendAt("AT+HTTPTERM", "OK", 2500);
     return false;
+  }
+
+  // HTTPS handling differs slightly by SIMCom firmware. A76xx often accepts an
+  // https:// URL directly; HTTPSSL is therefore diagnostic/non-fatal here.
+  if (String(WEB_SERVER_URL).startsWith("https://")) {
+    const bool sslCmdOk = sendAt("AT+HTTPSSL=1", "OK", 4000);
+    Serial.printf("[HTTP] HTTPSSL=%s (ERROR co the binh thuong tren firmware tu xu ly https URL)\n",
+                  sslCmdOk ? "OK" : "khong-ho-tro/ERROR");
   }
 
   if (strlen(GATEWAY_INGEST_TOKEN) > 0) {
     String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
     headerCommand += GATEWAY_INGEST_TOKEN;
     headerCommand += "\"";
-    sendAt(headerCommand);
+    sendAt(headerCommand, "OK", 3000);
   }
 
-  if (!sendAt("AT+HTTPPARA=\"CONTENT\",\"application/json\"")) {
-    sendAt("AT+HTTPTERM", "OK", 3000);
+  if (!sendAt("AT+HTTPPARA=\"CONTENT\",\"application/json\"", "OK", 5000)) {
+    Serial.println("[HTTP FAIL] CONTENT application/json");
+    sendAt("AT+HTTPTERM", "OK", 2500);
     return false;
   }
 
   String dataCommand = "AT+HTTPDATA=";
   dataCommand += String(payload.length());
   dataCommand += ",10000";
-  modemSerial.println(dataCommand);
-  String prompt = modemReadUntil(5000);
+  clearModemRx(30);
+  modemSerial.print(dataCommand);
+  modemSerial.print("\r\n");
+  String prompt = modemReadUntil(7000);
+  Serial.println(prompt);
   if (prompt.indexOf("DOWNLOAD") < 0) {
-    Serial.println("[HTTP] Khong nhan duoc prompt DOWNLOAD");
+    Serial.println("[HTTP FAIL] Khong nhan duoc DOWNLOAD sau HTTPDATA");
+    sendAt("AT+HTTPTERM", "OK", 2500);
     return false;
   }
 
   modemSerial.print(payload);
-  String dataResponse = modemReadUntil(12000);
+  String dataResponse = modemReadUntil(15000);
+  Serial.println(dataResponse);
   if (dataResponse.indexOf("OK") < 0) {
-    Serial.println("[HTTP] Nap du lieu len modem that bai");
+    Serial.println("[HTTP FAIL] Modem khong xac nhan payload OK");
+    sendAt("AT+HTTPTERM", "OK", 2500);
     return false;
   }
 
-  modemSerial.println("AT+HTTPACTION=1");
-  const String actionResponse = modemReadUntil(HTTP_TIMEOUT_MS);
+  // AT+HTTPACTION is ASYNCHRONOUS: immediate OK is NOT the HTTP result.
+  // Wait for +HTTPACTION: 1,<status>,<length> before deciding success/failure.
+  clearModemRx(30);
+  modemSerial.print("AT+HTTPACTION=1\r\n");
+  const String actionResponse = modemWaitHttpAction(1, HTTP_TIMEOUT_MS);
   Serial.println(actionResponse);
 
-  // SIMCom response format: +HTTPACTION: 1,<status>,<length>
-  const bool success =
-    actionResponse.indexOf("+HTTPACTION: 1,200") >= 0 ||
-    actionResponse.indexOf("+HTTPACTION: 1,201") >= 0 ||
-    actionResponse.indexOf("+HTTPACTION: 1,202") >= 0;
+  const int httpStatus = parseHttpActionStatus(actionResponse, 1);
+  Serial.printf("[HTTP] HTTPACTION POST status=%d\n", httpStatus);
+
+  const bool success = (httpStatus >= 200 && httpStatus < 300);
+  if (!success) {
+    if (httpStatus == -1) {
+      Serial.println("[HTTP FAIL] Khong thay +HTTPACTION truoc timeout");
+    } else if (httpStatus >= 600) {
+      Serial.println("[HTTP FAIL] Ma 6xx cua modem: loi DNS/network/SSL tuy firmware");
+    } else {
+      Serial.println("[HTTP FAIL] Server da tra HTTP ngoai 2xx");
+    }
+  }
+
+  // Read response body for diagnostics when available; non-fatal.
+  if (httpStatus > 0) {
+    clearModemRx(20);
+    modemSerial.print("AT+HTTPREAD=0,512\r\n");
+    const String readResponse = modemReadUntil(5000);
+    if (readResponse.length() > 0) {
+      Serial.println("[HTTP RESPONSE]");
+      Serial.println(readResponse);
+    }
+  }
 
   sendAt("AT+HTTPTERM", "OK", 3000);
   return success;
