@@ -397,7 +397,16 @@ export function ReportForm() {
           {/* 01 — Location */}
           {step === 1 ? (
             <div className="space-y-8">
-              <fieldset className="space-y-3">
+              {/* THE THREE NODES, AS THREE CHOICES.
+                  This was a stack of thin left-bordered rows — the visual
+                  weight of a settings list, for what is the single most
+                  important decision on the page. A reporter standing in a
+                  field on a phone is choosing between three physical places
+                  they can see, so the control should look like three places,
+                  not three form rows. Role name leads; the STATION_0n
+                  identifier is kept but demoted to a footer, since it is what
+                  the system calls the node, not what a person calls it. */}
+              <fieldset className="grid gap-3 sm:grid-cols-3">
                 <legend className="sr-only">{f.legendStation}</legend>
                 {REPORT_STATION_OPTIONS.map((option) => {
                   const Icon = KIND_ICON[option.kind];
@@ -407,9 +416,11 @@ export function ReportForm() {
                     <label
                       key={option.id}
                       className={cn(
-                        "flex cursor-pointer items-center gap-4 border-l-2 py-4 pl-4 pr-3 transition-colors duration-[var(--motion-base)]",
+                        "relative flex cursor-pointer flex-col gap-3 rounded-lg border p-5 transition-all duration-[var(--motion-base)]",
                         "focus-within:ring-2 focus-within:ring-accent",
-                        active ? "border-accent bg-accent/[0.06]" : "border-border/60 hover:border-border hover:bg-muted/20",
+                        active
+                          ? "border-accent bg-accent/[0.07] shadow-[inset_0_0_0_1px_var(--color-accent)]"
+                          : "border-border hover:border-foreground-subtle hover:bg-wash-hover",
                       )}
                     >
                       <input
@@ -420,17 +431,27 @@ export function ReportForm() {
                         onChange={() => setStationId(option.id)}
                         className="sr-only"
                       />
-                      <Icon className={cn("h-5 w-5 shrink-0", active ? "text-accent" : "text-muted")} aria-hidden />
-                      <span className="min-w-0 flex-1">
-                        <span className={cn("block text-base font-semibold tracking-tight", active && "text-accent")}>
+                      <span className="flex items-center justify-between gap-2">
+                        <Icon
+                          className={cn("h-6 w-6 shrink-0", active ? "text-accent" : "text-foreground-subtle")}
+                          aria-hidden
+                        />
+                        {active ? <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden /> : null}
+                      </span>
+                      <span className="min-w-0">
+                        <span
+                          className={cn(
+                            "block text-lg font-semibold tracking-tight",
+                            active ? "text-accent" : "text-foreground",
+                          )}
+                        >
                           {text.name}
                         </span>
-                        <span className="block text-sm text-muted">{text.location}</span>
+                        <span className="mt-0.5 block text-sm leading-snug text-muted">{text.location}</span>
                       </span>
-                      <span className="shrink-0 text-[10px] uppercase tracking-[0.12em] text-muted/70 [font-family:var(--font-data)]">
+                      <span className="mt-auto text-[10px] uppercase tracking-[0.12em] text-foreground-subtle [font-family:var(--font-data)]">
                         {option.id}
                       </span>
-                      {active ? <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden /> : null}
                     </label>
                   );
                 })}
@@ -478,16 +499,24 @@ export function ReportForm() {
                 <legend className="mb-3 text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
                   {f.conditionType}
                                 </legend>
-                <div className="divide-y divide-border/50 border-y border-border/50">
+                {/* Selectable tiles, not a radio list. Same reasoning as the
+                    node cards in step 1: this is a choice between six
+                    concrete field conditions, and a divided list of faint
+                    rows with a small ring on the right made the selected one
+                    hard to see at a glance — especially outdoors, which is
+                    where this form is actually filled in. */}
+                <div className="grid gap-2.5 sm:grid-cols-2">
                   {REPORT_CATEGORIES.map((item) => {
                     const active = category === item.value;
                     return (
                       <label
                         key={item.value}
                         className={cn(
-                          "flex cursor-pointer items-center justify-between gap-4 py-3.5 pl-1 pr-1 transition-colors duration-[var(--motion-base)]",
+                          "flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3.5 transition-all duration-[var(--motion-base)]",
                           "focus-within:ring-2 focus-within:ring-accent",
-                          active ? "text-accent" : "hover:bg-muted/20",
+                          active
+                            ? "border-accent bg-accent/[0.07] shadow-[inset_0_0_0_1px_var(--color-accent)]"
+                            : "border-border hover:border-foreground-subtle hover:bg-wash-hover",
                         )}
                       >
                         <input
@@ -498,7 +527,6 @@ export function ReportForm() {
                           onChange={() => setCategory(item.value)}
                           className="sr-only"
                         />
-                        <span className={cn("text-base", active && "font-semibold")}>{dict.reportCategories[item.value]}</span>
                         <span
                           className={cn(
                             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-[var(--motion-base)]",
@@ -507,6 +535,9 @@ export function ReportForm() {
                           aria-hidden
                         >
                           {active ? <Check className="h-3 w-3 text-background" /> : null}
+                        </span>
+                        <span className={cn("text-base leading-snug", active ? "font-semibold text-accent" : "text-foreground")}>
+                          {dict.reportCategories[item.value]}
                         </span>
                       </label>
                     );

@@ -1416,3 +1416,41 @@ main {
     );
   }
 }
+
+/*
+ * Map node labels — the permanent role names beside each marker
+ * (components/dashboard/station-network-map.tsx).
+ *
+ * Leaflet's default tooltip is a white box with a border, a drop shadow and a
+ * pointer arrow, which on a light basemap reads as three floating cards
+ * competing with the markers they annotate. What is wanted is a caption: the
+ * name, set small and tight, legible over both the basemap and the water,
+ * with no chrome of its own.
+ *
+ * The halo is a text-shadow rather than a filled background, so the label
+ * never occludes the geography underneath it.
+ */
+.leaflet-tooltip.horizon-marker-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--h-foreground);
+  text-shadow:
+    0 0 3px var(--h-canvas),
+    0 0 3px var(--h-canvas),
+    0 0 6px var(--h-canvas);
+  white-space: nowrap;
+}
+
+/* Leaflet draws the arrow as a ::before on the tooltip; with no bubble to
+   point at it is just a stray triangle. */
+.leaflet-tooltip.horizon-marker-label::before {
+  display: none;
+}

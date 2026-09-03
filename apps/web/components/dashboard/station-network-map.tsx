@@ -268,7 +268,25 @@ export function StationNetworkMap({
             fillOpacity: 1,
           }).addTo(map);
 
-          marker.bindTooltip(station.name, { direction: "top", offset: [0, -8] });
+          // A PERMANENT label, not a hover tooltip.
+          //
+          // Three identical dots differing only in freshness colour answered
+          // "is the network alive?" but not "which of these is the water
+          // station?" — and on a touch screen there is no hover to reveal it,
+          // so the second question had no answer at all. The role name is the
+          // whole point of the map: WATER at the western tip, SOIL and
+          // GATEWAY toward the southern bank is a fact about the deployment
+          // that a reader should get without interacting.
+          //
+          // `permanent` with a small offset keeps each label clear of its own
+          // marker; the three nodes are ~150 m apart at z14, which is enough
+          // separation that the labels do not collide.
+          marker.bindTooltip(station.name, {
+            direction: "top",
+            offset: [0, -10],
+            permanent: true,
+            className: "horizon-marker-label",
+          });
           if (interactive) {
             // Routed through the canonical helper like every other station
             // link. The map only ever receives pilot stations (its callers
