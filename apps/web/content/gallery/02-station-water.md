@@ -1,8 +1,8 @@
 ---
-title: Trạm Nước — cấu hình đo nước
-caption: Sơ đồ bố trí cảm biến siêu âm đo mực nước và đầu dò EC đo độ mặn.
+title: Cảm biến siêu âm đo mực nước
+caption: A02YYUW — đo khoảng cách tới mặt nước từ phía trên, không có bộ phận nào ngâm trong nước lợ.
 category: Phần cứng
-status: placeholder
-image: /assets/illustrations/station-water-placeholder.svg
-source: Sơ đồ kỹ thuật do dự án tự dựng
+status: verified
+image: /assets/hardware/sensor-ultrasonic.jpg
+source: Ảnh do dự án chụp
 ---

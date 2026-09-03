@@ -1,6 +1,6 @@
 ---
 title: Lối vào Cồn Hô
-caption: Cổng vào cù lao. Khoảng hai mươi hộ dân sống và canh tác phía trong, không có lưới điện quốc gia kéo tới.
+caption: Cổng vào cù lao, phía trong là vườn và đường đất dẫn tới các điểm đo.
 category: Cảnh quan
 status: verified
 image: /assets/field/con-ho-entrance-gate.jpg

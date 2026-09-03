@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { cache, Suspense } from "react";
 import {
@@ -289,7 +290,8 @@ const HARDWARE_GROUPS = [
   {
     domain: "Nước",
     station: "STATION_01",
-    image: "/assets/illustrations/station-water-placeholder.svg",
+    image: "/assets/hardware/sensor-ultrasonic.jpg",
+    imageAlt: "Cảm biến siêu âm A02YYUW của trạm nước",
     parts: [
       { part: "A02YYUW", role: "Cảm biến siêu âm đo khoảng cách tới mặt nước, từ đó suy ra mực nước.", note: null },
       {
@@ -302,7 +304,8 @@ const HARDWARE_GROUPS = [
   {
     domain: "Đất và không khí",
     station: "STATION_02",
-    image: "/assets/illustrations/station-soil-placeholder.svg",
+    image: "/assets/hardware/sensor-soil-ec.jpg",
+    imageAlt: "Đầu dò đo độ ẩm, EC và nhiệt độ đất",
     parts: [
       { part: "ES-SM-THEC-01", role: "Đầu dò cắm trong đất, đo cùng lúc độ ẩm, độ dẫn điện và nhiệt độ của đất.", note: null },
       { part: "ES-PH-SOIL-01", role: "Đầu dò đo độ pH của đất.", note: null },
@@ -312,7 +315,8 @@ const HARDWARE_GROUPS = [
   {
     domain: "Truyền dữ liệu",
     station: "STATION_03",
-    image: "/assets/illustrations/gateway-placeholder.svg",
+    image: "/assets/hardware/board-gateway.jpg",
+    imageAlt: "Bo mạch gateway với ESP32-S3, module LoRa và module 4G",
     parts: [
       {
         part: "SX1278 (LoRa)",
@@ -535,22 +539,40 @@ export default async function HomePage() {
               title="Thiết bị được chọn theo câu hỏi cần trả lời."
               lead="Mỗi đầu dò được chọn để trả lời một câu hỏi cụ thể về nước, đất hoặc không khí trên cù lao."
             />
+            {/* Photographs of the actual built hardware, not diagrams. The
+                boards exist, are populated, and carry this project's own
+                Vietnamese silkscreen; the sensors are the exact part numbers
+                listed beneath each one. Until this pass the chapter rendered
+                no imagery at all and the page claimed no device photography
+                existed — which stopped being true the moment these were
+                supplied. */}
             <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
               {HARDWARE_GROUPS.map((group) => (
-                <div key={group.domain} className="space-y-4 bg-background p-6 md:p-7">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h3 className="text-lg font-semibold tracking-tight">{group.domain}</h3>
-                    <span className="text-[11px] uppercase tracking-[0.14em] text-muted [font-family:var(--font-data)]">
-                      {group.station}
-                    </span>
+                <div key={group.domain} className="flex flex-col bg-background">
+                  <div className="relative aspect-[4/3] overflow-hidden bg-wash-sunken">
+                    <Image
+                      src={group.image}
+                      alt={group.imageAlt}
+                      fill
+                      sizes="(min-width: 768px) 33vw, 100vw"
+                      className="object-cover"
+                    />
                   </div>
-                  <ul className="space-y-1">
-                    {group.parts.map(({ part }) => (
-                      <li key={part} className="text-sm text-muted [font-family:var(--font-data)]">
-                        {part}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="space-y-4 p-6 md:p-7">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h3 className="text-lg font-semibold tracking-tight">{group.domain}</h3>
+                      <span className="text-[11px] uppercase tracking-[0.14em] text-muted [font-family:var(--font-data)]">
+                        {group.station}
+                      </span>
+                    </div>
+                    <ul className="space-y-1">
+                      {group.parts.map(({ part }) => (
+                        <li key={part} className="text-sm text-muted [font-family:var(--font-data)]">
+                          {part}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               ))}
             </div>

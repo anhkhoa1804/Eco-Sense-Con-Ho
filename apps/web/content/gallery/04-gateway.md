@@ -1,8 +1,8 @@
 ---
-title: Gateway — điểm trung chuyển dữ liệu
-caption: Sơ đồ đường đi của dữ liệu từ hai trạm đo về gateway rồi lên hệ thống.
+title: Bo mạch gateway
+caption: ESP32-S3 với module LoRa và module di động, trên bo mạch do dự án tự thiết kế. Nhãn trên mạch là tiếng Việt.
 category: Phần cứng
-status: placeholder
-image: /assets/illustrations/gateway-placeholder.svg
-source: Sơ đồ kỹ thuật do dự án tự dựng
+status: verified
+image: /assets/hardware/board-gateway.jpg
+source: Ảnh do dự án chụp
 ---

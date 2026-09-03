@@ -17,6 +17,8 @@ of owner-supplied photographs:
 | `hero/hero.png` | Owner-supplied illustration of the islet, used as the Home hero backdrop. An illustration, not a photograph — it is never captioned as one. |
 | `field/con-ho-entrance-gate.jpg` | Owner-supplied photograph: the entrance to Cồn Hô. |
 | `field/con-ho-river-sunset.jpg` | Owner-supplied photograph: the river branch around the islet at dusk. |
+| `hardware/board-gateway.jpg`, `board-station-water-soil.jpg` | Photographs of the project's own fabricated boards. Vietnamese silkscreen, ESP32-S3 + LoRa + cellular. |
+| `hardware/sensor-*.jpg` | Photographs of the actual sensor units: ultrasonic, water EC, soil EC, soil pH, air temp/humidity. |
 | `illustrations/con-ho-station-map.png` | Project-drawn station map. Labelled in the UI as an illustration, never as satellite imagery. |
 | `illustrations/*-placeholder.svg` | Project-drawn technical diagrams. Labelled as diagrams, never as photographs of hardware. |
 | `gallery/gallery-placeholder-*.svg` | Project-drawn placeholders, still used as covers for three field notes. |
@@ -35,7 +37,7 @@ are deliberately **not committed or published**:
 | --- | --- |
 | `1-3727.avif`, `35-6637.avif`, `1080.avif` | Visibly watermarked "Tiền Phong" — press photographs. No reuse licence has been established. |
 | `1911.du-lich-con-ho1.jpg`, `1911.du-lich-con-ho2.jpg` | Visibly watermarked "Fonline" — press photographs. Same reason. |
-| `technical stuffs/*` | Owner's own photographs of the sensor hardware, and genuinely useful — but they are extension-less HEIC files stored as tiled grids, which the toolchain here cannot reassemble into a correct full-resolution image. They need re-exporting as JPEG/WebP from a phone or Photos app before they can be used. |
+| `technical stuffs/*` | **Now converted and in use.** These are the owner's HEIC originals. An earlier pass wrongly concluded they were unusable — ffmpeg decodes an HEIF tile grid one 512px tile at a time, which looked like corruption. `pillow-heif` reads them correctly at full 3024x4032, and all seven are now committed as web JPEGs under `hardware/` with EXIF rotation applied. The originals are kept here, uncommitted, as the masters. |
 | `sequence-…webp`, `Thiết kế chưa có tên.png`, `brand/frogsleap-logo-*.png`, `brand/logo.svg`, `qr-dashboard.svg` | Unreferenced by any page. Held pending a decision on where, or whether, they belong. |
 
 Publishing a watermarked press photograph on the project's own domain is a
