@@ -627,6 +627,7 @@ export const vi = {
     channelPhone: "Điện thoại",
     channelZalo: "Zalo",
     channelFacebook: "Facebook",
+    channelInstagram: "Instagram",
     channelWebsite: "Website",
     reportEyebrow: "Ghi nhận hiện trường",
     reportTitle: "Bạn quan sát thấy điều gì trên cồn?",
@@ -634,14 +635,6 @@ export const vi = {
       "Nước lên bất thường, cây có dấu hiệu lạ, hay một thiết bị trông không ổn. Mỗi ghi nhận được lưu lại kèm thời điểm và vị trí.",
   },
 
-  /** The operator side of the system, introduced on Home. Not a login form. */
-  operator: {
-    eyebrow: "Vận hành",
-    title: "Quản trị mạng lưới.",
-    lead:
-      "Người phụ trách dự án dùng khu vực quản trị để xem báo cáo hiện trường, tình trạng thiết bị và cấu hình ngưỡng cảnh báo. Khu vực này yêu cầu đăng nhập.",
-    cta: "Vào khu vực quản trị",
-  },
 
   metricLabels: {
     salinity: "Độ mặn",

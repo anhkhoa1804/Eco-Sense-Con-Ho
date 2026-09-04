@@ -17,7 +17,8 @@ interface WordmarkProps {
 }
 
 /** The wordmark's real aspect ratio (829×301) — used only as the width/height CLS hint. */
-const LOGO_ASPECT_RATIO = 829 / 301;
+/* viewBox of logo.svg: 1522.5 x 552.75 — the same 2.754 ratio the PNG had. */
+const LOGO_ASPECT_RATIO = 1522.5 / 552.75;
 const LOGO_INTRINSIC_HEIGHT = 200;
 
 const markSizeClasses: Record<NonNullable<WordmarkProps["markSize"]>, string> = {
@@ -46,19 +47,16 @@ export function Wordmark({ href = "/", markSize = "fluid", className }: Wordmark
           a module-resolution error unrelated to the asset itself. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/assets/brand/horizon-logo.png"
+        src="/assets/brand/logo.svg"
         alt="HORIZON"
         width={Math.round(LOGO_INTRINSIC_HEIGHT * LOGO_ASPECT_RATIO)}
         height={LOGO_INTRINSIC_HEIGHT}
-        className={cn(
-          "w-auto shrink-0",
-          // Dark-mode keyline. Defined in globals.css rather than as a
-          // `dark:` utility because this project's dark mode is a three-way
-          // system (system preference, explicit light, explicit dark) and
-          // Tailwind's stock `dark:` variant only knows about the first.
-          "wordmark-mark",
-          markSizeClasses[markSize],
-        )}
+        // No `wordmark-mark` keyline any more. That class stacked four
+        // offset drop-shadows to trace a light edge around the PNG's alpha,
+        // because the PNG's dark outlines disappeared against a graphite
+        // background. This asset carries its own white keyline, so the
+        // synthetic one would double it into a thick halo.
+        className={cn("w-auto shrink-0", markSizeClasses[markSize])}
       />
     </Link>
   );

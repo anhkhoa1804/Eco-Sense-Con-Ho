@@ -384,7 +384,13 @@ function ObservatoryBento({
             where the digits actually are: the same two values now occupy
             304px of 355px, which is what lets the primary numerals be the
             size they should be instead of the size equal halves allowed. */}
-        <div className="mt-auto grid grid-cols-[auto_auto] justify-start gap-6 pt-[var(--bento-header-gap)] md:gap-8">
+        {/* The two values are conceptual CHILD ZONES of one 1x2 surface, so
+            they need real distance between them — at gap-6/8 they read as one
+            crowded pair rather than two separate readings. The gap now scales
+            with the viewport instead of being a fixed step, and the columns are
+            `1fr auto` so the first value anchors left and the second is pushed
+            clear of it rather than sitting immediately alongside. */}
+        <div className="mt-auto grid grid-cols-[1fr_auto] items-baseline gap-x-[clamp(2rem,5vw,5.5rem)] gap-y-2 pt-[var(--bento-header-gap)]">
           <Value label={dict.metricLabels.salinity} metric={salinity} dict={dict} size="primary" />
           <Value label={dict.metricLabels.waterLevel} metric={waterLevel} dict={dict} size="primary" />
         </div>
@@ -461,7 +467,13 @@ function ObservatoryBento({
           status={infraStatus}
           dict={dict}
         />
-        <div className="mt-auto grid grid-cols-[auto_auto] justify-start gap-6 pt-[var(--bento-header-gap)] md:gap-8">
+        {/* The two values are conceptual CHILD ZONES of one 1x2 surface, so
+            they need real distance between them — at gap-6/8 they read as one
+            crowded pair rather than two separate readings. The gap now scales
+            with the viewport instead of being a fixed step, and the columns are
+            `1fr auto` so the first value anchors left and the second is pushed
+            clear of it rather than sitting immediately alongside. */}
+        <div className="mt-auto grid grid-cols-[1fr_auto] items-baseline gap-x-[clamp(2rem,5vw,5.5rem)] gap-y-2 pt-[var(--bento-header-gap)]">
           {/* The contextual word comes from the SAME resolved status the box
               is tinted by, not from a second read of the raw value — so
               "Pin thấp" can never appear on a green surface. Both bands are

@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Facebook,
   Globe,
+  Instagram,
   LayoutDashboard,
   Mail,
   MessageCircle,
@@ -75,6 +76,7 @@ const CONTACT_CHANNELS = [
   { key: "channelPhone", icon: Phone, label: "0867 430 045", href: "tel:+84867430045" },
   { key: "channelZalo", icon: MessageCircle, label: "Zalo OA", href: "https://zalo.me/2851935006706412776" },
   { key: "channelFacebook", icon: Facebook, label: "facebook.com/frogsleapvn", href: "https://www.facebook.com/frogsleapvn" },
+  { key: "channelInstagram", icon: Instagram, label: "@frogsleap_vietnam", href: "https://www.instagram.com/frogsleap_vietnam/" },
   { key: "channelWebsite", icon: Globe, label: "frogsleap.com.vn", href: "https://frogsleap.com.vn" },
 ] as const satisfies readonly { key: keyof Dictionary["contact"]; icon: typeof Mail; label: string; href: string }[];
 
@@ -366,9 +368,25 @@ function WorkflowChapter() {
 // Where to go next
 // ---------------------------------------------------------------------------
 
+/**
+ * The three places a reader can go next — and they are exactly the three
+ * non-Home entries in the primary nav.
+ *
+ * Admin used to have its own "Vận hành" band directly above this list, which
+ * meant the page ended with two consecutive navigation blocks pointing at the
+ * same set of destinations. It is a row here instead: same rhythm, one block,
+ * and the operator entrance is no longer presented as a separate chapter of
+ * the story when it is really just another door.
+ */
 const EXPLORE = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Quan trắc", text: "Xem mạng lưới và dữ liệu hiện có." },
   { href: "/report", icon: ClipboardList, label: "Báo cáo", text: "Gửi một quan sát từ hiện trường." },
+  {
+    href: "/admin",
+    icon: Shield,
+    label: "Quản trị",
+    text: "Khu vực vận hành: báo cáo hiện trường, tình trạng thiết bị, ngưỡng cảnh báo. Yêu cầu đăng nhập.",
+  },
 ] as const;
 
 function ExploreChapter() {
@@ -725,36 +743,6 @@ export default async function HomePage() {
                   ))}
                 </ul>
               </div>
-            </div>
-          </Reveal>
-
-          {/* The operator side — deliberately unnumbered, same as the
-              illustration between chapters 02 and 03: an interstitial, not a
-              chapter in the count. Not a login form and not a second admin
-              entry point — Admin is already a primary nav tab. This exists
-              because a reader who has just been told the project publishes
-              everything openly should also be told that someone operates it,
-              and where that happens. Deliberately the quietest section on
-              the page. */}
-          <Reveal stagger as="section">
-            <div className="flex flex-col gap-6 border-t border-border pt-8 md:flex-row md:items-center md:justify-between md:gap-12">
-              <div className="max-w-2xl space-y-2">
-                <div className="flex items-center gap-2 text-foreground-subtle">
-                  <Shield className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
-                    {dict.operator.eyebrow}
-                  </span>
-                </div>
-                <h3 className="text-lg font-semibold tracking-tight">{dict.operator.title}</h3>
-                <p className="text-sm leading-relaxed text-muted">{dict.operator.lead}</p>
-              </div>
-              <Link
-                href="/admin"
-                className="inline-flex shrink-0 items-center gap-2 rounded-sm border border-border px-4 py-2.5 text-sm font-medium text-foreground-muted transition-colors duration-[var(--motion-base)] hover:bg-wash-hover hover:text-foreground"
-              >
-                {dict.operator.cta}
-                <ArrowRight className="h-4 w-4" aria-hidden />
-              </Link>
             </div>
           </Reveal>
 

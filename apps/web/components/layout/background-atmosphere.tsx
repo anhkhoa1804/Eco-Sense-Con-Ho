@@ -31,13 +31,6 @@
 export function BackgroundAtmosphere() {
   return (
     <div className="horizon-atmosphere" aria-hidden>
-      {/* The horizon band. Every other layer in this atmosphere is
-          featureless — a seamless graticule and soft radial pools — and a
-          featureless layer cannot be SEEN to move however fast it travels.
-          This one has a locatable edge and runs at roughly a third of content
-          speed, which is what makes the depth readable rather than merely
-          present in a transform. See globals.css. */}
-      <div className="horizon-band" />
     </div>
   );
 }

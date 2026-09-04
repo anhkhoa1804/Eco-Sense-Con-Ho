@@ -535,6 +535,7 @@ export const en: Dictionary = {
     channelPhone: "Phone",
     channelZalo: "Zalo",
     channelFacebook: "Facebook",
+    channelInstagram: "Instagram",
     channelWebsite: "Website",
     reportEyebrow: "Field observation",
     reportTitle: "Seen something on the islet?",
@@ -542,13 +543,6 @@ export const en: Dictionary = {
       "Unusual water levels, plants behaving oddly, or equipment that looks wrong. Every note is stored with its time and place.",
   },
 
-  operator: {
-    eyebrow: "Operations",
-    title: "Network administration.",
-    lead:
-      "The project team uses the admin area to read field reports, check device health and configure alert thresholds. It requires a sign-in.",
-    cta: "Open the admin area",
-  },
 
   metricLabels: {
     salinity: "Salinity",

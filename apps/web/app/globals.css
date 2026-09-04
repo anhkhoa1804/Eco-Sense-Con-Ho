@@ -148,10 +148,6 @@
   --h-atmos-green: rgba(25, 122, 63, 0.05);
   --h-atmos-lift: rgba(212, 231, 240, 0.5);
   --h-atmos-vignette: rgba(193, 180, 152, 0.2);
-  /* The horizon band — the one atmosphere layer with a locatable edge. Kept
-     just above the threshold of notice: it should register as light on water,
-     not as a shape. */
-  --h-atmos-band: rgba(12, 95, 125, 0.10);
 
   --h-selection: rgba(12, 95, 125, 0.18);
 }
@@ -230,7 +226,6 @@
     --h-atmos-vignette: rgba(10, 14, 20, 0.3);
     /* Brighter in dark mode: the band is doing more work here, standing in
        for the horizon a night sky would otherwise lose entirely. */
-    --h-atmos-band: rgba(79, 176, 212, 0.13);
 
     --h-selection: rgba(79, 176, 212, 0.26);
   }
@@ -773,50 +768,16 @@
 }
 
 /*
- * THE HORIZON BAND — a static light band at the horizon line.
+ * (The horizon band that used to sit here is gone.)
  *
- * Everything else in this atmosphere is featureless: a seamless graticule and
- * a set of soft radial pools. Both move, and neither can be SEEN to move,
- * because the eye needs an identifiable edge to measure displacement against.
- * That is why previous passes could truthfully report "the transform is
- * changing" while the page looked static.
- *
- * This is one wide, very low contrast band with a locatable soft edge, placed
- * around the lower third and travelling at 0.34 — roughly a third of content
- * speed, and more than double the graticule's rate. Against the content
- * scrolling past it, that difference is legible without becoming a moving
- * decoration competing for attention.
- *
- * It is a horizon line, which is the one piece of imagery this project can
- * draw without inventing anything: it is the name of the product and the
- * shape of a river seen from an islet. It is NOT photography and does not
- * pretend to be.
- *
- * Kept off the compositor's critical path the same way as the pools —
- * `translate3d` only, no layout, no paint per frame.
+ * It was a wide low-contrast gradient parked at 58% of the page, and it
+ * existed for exactly one reason: to give the scroll-driven parallax an
+ * identifiable edge to be measured against. Parallax was removed, so the band
+ * lost its only job — and what remained was its side effect: a soft horizontal
+ * shadow across the middle of every page, which is the "bóng ngang" reported
+ * against the background. Deleted rather than softened; the atmosphere is now
+ * the graticule and the gradient pools, neither of which has an edge.
  */
-.horizon-atmosphere .horizon-band {
-  position: absolute;
-  left: -20%;
-  right: -20%;
-  /* Sits low, so it is in view during the part of the page a reader actually
-     scrolls through rather than only behind the hero. */
-  top: 58%;
-  height: 46vh;
-  background-image: radial-gradient(
-    ellipse 62% 100% at 50% 0%,
-    var(--h-atmos-band) 0%,
-    transparent 72%
-  );
-  will-change: transform;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .horizon-atmosphere .horizon-band {
-    transform: none;
-  }
-}
 
 /*
  * LAYER 2: the dot field. Hero moments only — never a whole-page texture.
@@ -1118,34 +1079,18 @@
 }
 
 /* ===========================================================================
- * THE WORDMARK IN DARK MODE
+ * BRAND MARK
+ * ===========================================================================
  *
- * The supplied artwork carries fine dark linework in the frog's face, which
- * vanishes against a graphite canvas — the head reads as a solid blob. The
- * artwork is NOT redrawn and NOT replaced: it gets a keyline instead.
+ * The synthetic dark-mode keyline that lived here is gone. It stacked four
+ * offset `drop-shadow()` filters to trace the PNG's alpha, because that
+ * artwork's dark outlines vanished against a graphite canvas.
  *
- * Stacked `drop-shadow()` filters trace the image's own alpha channel, so the
- * outline follows the real silhouette rather than boxing the sprite. Four
- * offsets at 0.75px produce a continuous ~1px edge; one centred shadow would
- * only thicken the mark's own dark pixels, not outline them.
- *
- * Light mode gets nothing — the mark is already legible on paper, and an
- * outline there would make it look like a sticker.
+ * The mark is now `brand/logo.svg`, which carries its OWN white keyline. The
+ * filter would have doubled it into a thick halo — exactly the "sticker" look
+ * the original note warned about. One keyline, drawn by the designer, in the
+ * asset.
  * ======================================================================== */
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .wordmark-mark {
-    filter:
-      drop-shadow(0.75px 0 0 var(--h-surface)) drop-shadow(-0.75px 0 0 var(--h-surface))
-      drop-shadow(0 0.75px 0 var(--h-surface)) drop-shadow(0 -0.75px 0 var(--h-surface));
-  }
-}
-
-:root[data-theme="dark"] .wordmark-mark {
-  filter:
-    drop-shadow(0.75px 0 0 var(--h-surface)) drop-shadow(-0.75px 0 0 var(--h-surface))
-    drop-shadow(0 0.75px 0 var(--h-surface)) drop-shadow(0 -0.75px 0 var(--h-surface));
-}
 
 /* ===========================================================================
  * MAP ATTRIBUTION — moved to the footer
@@ -1311,24 +1256,37 @@ main {
    * be, in either theme — shows through. Continuity is structural rather than
    * something to be tuned.
    *
-   * Long and soft: the dissolve runs over the final ~26% of the viewport
-   * (~230px at 900, ~190px at 812), well past the point where it could read
-   * as an edge or a strip.
+   * Long and soft: the dissolve now begins at 40% and runs to the bottom —
+   * ~540px of travel at 900px tall — across nine stops rather than four. The
+   * earlier four-stop version started at 62% and, with big jumps between
+   * stops, the eye could still find the point where the falloff began. More
+   * stops over a longer distance means no single step is large enough to
+   * register as a boundary.
    */
   -webkit-mask-image: linear-gradient(
     to bottom,
     #000 0%,
-    #000 62%,
-    rgba(0, 0, 0, 0.86) 78%,
-    rgba(0, 0, 0, 0.45) 90%,
+    #000 40%,
+    rgba(0, 0, 0, 0.97) 52%,
+    rgba(0, 0, 0, 0.88) 62%,
+    rgba(0, 0, 0, 0.72) 71%,
+    rgba(0, 0, 0, 0.52) 79%,
+    rgba(0, 0, 0, 0.32) 86%,
+    rgba(0, 0, 0, 0.16) 92%,
+    rgba(0, 0, 0, 0.06) 96%,
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
     #000 0%,
-    #000 62%,
-    rgba(0, 0, 0, 0.86) 78%,
-    rgba(0, 0, 0, 0.45) 90%,
+    #000 40%,
+    rgba(0, 0, 0, 0.97) 52%,
+    rgba(0, 0, 0, 0.88) 62%,
+    rgba(0, 0, 0, 0.72) 71%,
+    rgba(0, 0, 0, 0.52) 79%,
+    rgba(0, 0, 0, 0.32) 86%,
+    rgba(0, 0, 0, 0.16) 92%,
+    rgba(0, 0, 0, 0.06) 96%,
     transparent 100%
   );
 }
