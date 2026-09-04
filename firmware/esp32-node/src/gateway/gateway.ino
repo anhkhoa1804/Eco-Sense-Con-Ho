@@ -91,13 +91,26 @@ static const int MODEM_TX_PIN = 18;   // ESP32 TX -> SIM RX.
 static const int MODEM_RX_PIN = 17;   // ESP32 RX <- SIM TX.
 static const int MODEM_PEN_PIN = 39;  // SIM 4G PEN / enable pin. Set to -1 if not used.
 
-// MOSFET outputs for the gateway tower light / buzzer. Active HIGH by default.
-static const int STATUS_GREEN_PIN = 45;
-static const int STATUS_YELLOW_PIN = 48;
-static const int STATUS_RED_PIN = 47;
-static const int BUZZER_PIN = 21;
-static const int BUZZER_MUTE_BUTTON_PIN = 14;  // Button to GND, uses INPUT_PULLUP.
-static const bool MOSFET_ACTIVE_LEVEL = HIGH;
+// 4-channel relay module for the gateway warning lamps.
+// IN1 -> IO45: GREEN (normal)
+// IN2 -> IO48: YELLOW (soil pH high)
+// IN3 -> IO47: RED (water surface <= 50 cm from ultrasonic sensor)
+// IN4 -> IO21: BUZZER relay (continuous alarm when water surface <= 5 cm).
+// Push button -> IO14 to GND: mute buzzer for the CURRENT critical-water event.
+static const int RELAY_GREEN_PIN = 45;
+static const int RELAY_YELLOW_PIN = 48;
+static const int RELAY_RED_PIN = 47;
+static const int BUZZER_RELAY_PIN = 21;
+static const int BUZZER_MUTE_BUTTON_PIN = 14;
+
+// Most common 4-channel relay boards are LOW-trigger.
+// Change to false if your module turns a relay ON when INx is HIGH.
+static const bool RELAY_ACTIVE_LOW = true;
+
+// Alarm thresholds. Distance is the S1 ultrasonic distance-to-water field.
+static const float WATER_RED_DISTANCE_CM = 50.0f;
+static const float WATER_CRITICAL_DISTANCE_CM = 5.0f;
+static const float SOIL_PH_HIGH_THRESHOLD = 7.0f;
 
 static const uint32_t MODEM_TIMEOUT_MS = 12000;
 static const uint32_t HTTP_TIMEOUT_MS = 30000;
@@ -177,13 +190,32 @@ static uint32_t lastConfigPollMs = 0;
 static uint32_t lastLoraWaitLogMs = 0;
 static uint32_t configPollIntervalMs = DEFAULT_CONFIG_POLL_INTERVAL_MS;
 static uint32_t gatewaySleepIntervalMs = 0;
+
+// Latest sensor values used by the local 4-relay warning logic.
+static bool relayWaterDistanceValid = false;
+static float relayWaterDistanceCm = NAN;
+static bool relaySoilPhValid = false;
+static float relaySoilPh = NAN;
+static bool lastRelayGreenOn = false;
+static bool lastRelayYellowOn = false;
+static bool lastRelayRedOn = false;
+static bool lastRelayBuzzerOn = false;
+static bool relayStateInitialized = false;
+
+// Buzzer mute latch. When the critical condition clears (> 5 cm), this resets
+// automatically so a future critical-water event will sound the buzzer again.
+static bool buzzerMutedForCurrentCritical = false;
+static bool buzzerCriticalWasActive = false;
+static bool buzzerButtonLastRawPressed = false;
+static bool buzzerButtonStablePressed = false;
+static uint32_t buzzerButtonLastChangeMs = 0;
+
+// Legacy remote-config flags are kept for compatibility with old helper code,
+// but the physical relay outputs are driven directly from S1/S2 sensor data.
 static bool tideHighAlert = false;
 static bool tideCriticalAlert = false;
 static bool soilSalinityAlert = false;
 static bool forcedBuzzerAlert = false;
-static bool buzzerMuted = false;
-static bool lastMuteButtonPressed = false;
-static uint32_t lastMuteButtonChangeMs = 0;
 static uint32_t ignoredLoraLineCount = 0;
 static uint32_t recoveredLoraJsonCount = 0;
 
@@ -236,40 +268,48 @@ void serviceWatchdog();
 void watchdogDelay(uint32_t ms);
 void readSimpleLoRaUart();
 void servicePairedBatchUpload();
+void serviceBuzzerMuteButton();
 
-void writeMosfet(int pin, bool on) {
-  digitalWrite(pin, on ? MOSFET_ACTIVE_LEVEL : !MOSFET_ACTIVE_LEVEL);
+void writeRelay(int pin, bool on) {
+  const int onLevel = RELAY_ACTIVE_LOW ? LOW : HIGH;
+  const int offLevel = RELAY_ACTIVE_LOW ? HIGH : LOW;
+  digitalWrite(pin, on ? onLevel : offLevel);
 }
 
 void setupStatusOutputs() {
-  pinMode(STATUS_GREEN_PIN, OUTPUT);
-  pinMode(STATUS_YELLOW_PIN, OUTPUT);
-  pinMode(STATUS_RED_PIN, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(RELAY_GREEN_PIN, OUTPUT);
+  pinMode(RELAY_YELLOW_PIN, OUTPUT);
+  pinMode(RELAY_RED_PIN, OUTPUT);
+  pinMode(BUZZER_RELAY_PIN, OUTPUT);
   pinMode(BUZZER_MUTE_BUTTON_PIN, INPUT_PULLUP);
 
-  writeMosfet(STATUS_GREEN_PIN, false);
-  writeMosfet(STATUS_YELLOW_PIN, false);
-  writeMosfet(STATUS_RED_PIN, false);
-  writeMosfet(BUZZER_PIN, false);
+  // Start safe: all relays OFF until valid S1/S2 data arrives.
+  writeRelay(RELAY_GREEN_PIN, false);
+  writeRelay(RELAY_YELLOW_PIN, false);
+  writeRelay(RELAY_RED_PIN, false);
+  writeRelay(BUZZER_RELAY_PIN, false);
 }
 
 void selfTestStatusOutputs() {
-  writeMosfet(STATUS_GREEN_PIN, true);
+  writeRelay(RELAY_GREEN_PIN, true);
   watchdogDelay(180);
-  writeMosfet(STATUS_GREEN_PIN, false);
-  writeMosfet(STATUS_YELLOW_PIN, true);
+  writeRelay(RELAY_GREEN_PIN, false);
+  writeRelay(RELAY_YELLOW_PIN, true);
   watchdogDelay(180);
-  writeMosfet(STATUS_YELLOW_PIN, false);
-  writeMosfet(STATUS_RED_PIN, true);
+  writeRelay(RELAY_YELLOW_PIN, false);
+  writeRelay(RELAY_RED_PIN, true);
   watchdogDelay(180);
-  writeMosfet(STATUS_RED_PIN, false);
-  writeMosfet(BUZZER_PIN, true);
+  writeRelay(RELAY_RED_PIN, false);
+  writeRelay(BUZZER_RELAY_PIN, true);
   watchdogDelay(120);
-  writeMosfet(BUZZER_PIN, false);
+  writeRelay(BUZZER_RELAY_PIN, false);
 }
 
 void serviceWatchdog() {
+  // Sample the mute button even during modem/HTTP waits where this function is
+  // called repeatedly, so the alarm can be silenced without waiting for loop().
+  serviceBuzzerMuteButton();
+
   if (esp_task_wdt_status(NULL) == ESP_OK) {
     esp_task_wdt_reset();
   }
@@ -283,35 +323,104 @@ void watchdogDelay(uint32_t ms) {
   }
 }
 
-void updateMuteButton() {
+void serviceBuzzerMuteButton() {
+  const bool rawPressed = digitalRead(BUZZER_MUTE_BUTTON_PIN) == LOW;
   const uint32_t now = millis();
-  const bool pressed = digitalRead(BUZZER_MUTE_BUTTON_PIN) == LOW;
-  if (pressed != lastMuteButtonPressed && now - lastMuteButtonChangeMs >= BUTTON_DEBOUNCE_MS) {
-    lastMuteButtonPressed = pressed;
-    lastMuteButtonChangeMs = now;
-    if (pressed) {
-      buzzerMuted = true;
-      Serial.println("[STATUS] Da tat coi bang nut nhan");
-    }
+
+  if (rawPressed != buzzerButtonLastRawPressed) {
+    buzzerButtonLastRawPressed = rawPressed;
+    buzzerButtonLastChangeMs = now;
   }
 
-  if (!tideCriticalAlert && !forcedBuzzerAlert) {
-    buzzerMuted = false;
+  if (now - buzzerButtonLastChangeMs < BUTTON_DEBOUNCE_MS) {
+    return;
+  }
+
+  if (rawPressed == buzzerButtonStablePressed) {
+    return;
+  }
+
+  buzzerButtonStablePressed = rawPressed;
+
+  // Act only on the press edge. Pressing while no critical alarm exists does
+  // not pre-mute the next alarm.
+  if (buzzerButtonStablePressed) {
+    const bool criticalNow = relayWaterDistanceValid &&
+                             relayWaterDistanceCm <= WATER_CRITICAL_DISTANCE_CM;
+    if (criticalNow && !buzzerMutedForCurrentCritical) {
+      buzzerMutedForCurrentCritical = true;
+      writeRelay(BUZZER_RELAY_PIN, false);
+      Serial.println("[BUZZER] Nut IO14 da nhan -> TAT COI cho lan canh bao hien tai");
+    }
   }
 }
 
+bool parseRelaySensorFloat(const String &wireValue, float &out) {
+  if (wireValue.length() == 0 || wireValue == "x" || wireValue == "X" || wireValue == "-") {
+    return false;
+  }
+
+  char *endPtr = nullptr;
+  const float value = strtof(wireValue.c_str(), &endPtr);
+  if (endPtr == wireValue.c_str() || *endPtr != '\0' || !isfinite(value)) {
+    return false;
+  }
+
+  out = value;
+  return true;
+}
+
 void updateStatusOutputs() {
-  updateMuteButton();
+  serviceBuzzerMuteButton();
 
-  const bool greenOn = true;
-  const bool yellowOn = soilSalinityAlert;
-  const bool redOn = tideHighAlert || tideCriticalAlert;
-  const bool buzzerOn = (tideCriticalAlert || forcedBuzzerAlert) && !buzzerMuted;
+  const bool redOn = relayWaterDistanceValid && relayWaterDistanceCm <= WATER_RED_DISTANCE_CM;
+  const bool criticalOn = relayWaterDistanceValid && relayWaterDistanceCm <= WATER_CRITICAL_DISTANCE_CM;
+  const bool yellowOn = relaySoilPhValid && relaySoilPh > SOIL_PH_HIGH_THRESHOLD;
 
-  writeMosfet(STATUS_GREEN_PIN, greenOn);
-  writeMosfet(STATUS_YELLOW_PIN, yellowOn);
-  writeMosfet(STATUS_RED_PIN, redOn);
-  writeMosfet(BUZZER_PIN, buzzerOn);
+  // Leaving the <=5 cm critical zone rearms the buzzer for the NEXT event.
+  if (!criticalOn && buzzerCriticalWasActive) {
+    buzzerMutedForCurrentCritical = false;
+    Serial.println("[BUZZER] Muc nuoc da thoat nguong <=5cm -> da ARM lai coi");
+  }
+  buzzerCriticalWasActive = criticalOn;
+
+  // IN4 is now a continuous buzzer relay. It remains ON throughout the
+  // critical event unless the IO14 mute button has been pressed.
+  const bool buzzerOn = criticalOn && !buzzerMutedForCurrentCritical;
+
+  // "Normal" is only declared after BOTH required measurements are valid.
+  const bool dataReady = relayWaterDistanceValid && relaySoilPhValid;
+  const bool greenOn = dataReady && !redOn && !yellowOn && !criticalOn;
+
+  writeRelay(RELAY_GREEN_PIN, greenOn);
+  writeRelay(RELAY_YELLOW_PIN, yellowOn);
+  writeRelay(RELAY_RED_PIN, redOn);
+  writeRelay(BUZZER_RELAY_PIN, buzzerOn);
+
+  if (!relayStateInitialized ||
+      greenOn != lastRelayGreenOn ||
+      yellowOn != lastRelayYellowOn ||
+      redOn != lastRelayRedOn ||
+      buzzerOn != lastRelayBuzzerOn) {
+    relayStateInitialized = true;
+    lastRelayGreenOn = greenOn;
+    lastRelayYellowOn = yellowOn;
+    lastRelayRedOn = redOn;
+    lastRelayBuzzerOn = buzzerOn;
+
+    Serial.printf("[RELAY] xanh=%s vang=%s do=%s coi=%s muted=%s | distance=%s",
+                  greenOn ? "ON" : "OFF",
+                  yellowOn ? "ON" : "OFF",
+                  redOn ? "ON" : "OFF",
+                  buzzerOn ? "ON" : "OFF",
+                  buzzerMutedForCurrentCritical ? "YES" : "NO",
+                  relayWaterDistanceValid ? String(relayWaterDistanceCm, 1).c_str() : "x");
+    if (relayWaterDistanceValid) Serial.print("cm");
+    Serial.print(" | pH=");
+    if (relaySoilPhValid) Serial.print(relaySoilPh, 1);
+    else Serial.print("x");
+    Serial.println();
+  }
 }
 
 void clearModemRx(uint32_t quietMs = 80) {
@@ -1435,6 +1544,8 @@ void updateDashboardSnapshot(const String &line, bool station1, uint32_t seq) {
   const uint32_t now = millis();
 
   if (station1) {
+    relayWaterDistanceValid = parseRelaySensorFloat(simpleField(line, 3), relayWaterDistanceCm);
+
     dashboardStation1.valid = true;
     dashboardStation1.sequence = seq;
     dashboardStation1.savedAtMs = now;
@@ -1449,10 +1560,12 @@ void updateDashboardSnapshot(const String &line, bool station1, uint32_t seq) {
     dashboardStation1.batteryVoltageV = dashboardWireText(simpleField(line, 9));
     dashboardStation1.batteryPercent = dashboardWireText(simpleField(line, 10));
   } else {
+    relaySoilPhValid = parseRelaySensorFloat(simpleField(line, 10), relaySoilPh);
+
     dashboardStation2.valid = true;
     dashboardStation2.sequence = seq;
     dashboardStation2.savedAtMs = now;
-dashboardStation2.lastSeenMs = now;
+    dashboardStation2.lastSeenMs = now;
     dashboardStation2.summaryMinutes = dashboardWireText(simpleField(line, 2));
     dashboardStation2.airTempC = dashboardWireText(simpleField(line, 3));
     dashboardStation2.airHumidityPct = dashboardWireText(simpleField(line, 4));
@@ -1465,6 +1578,9 @@ dashboardStation2.lastSeenMs = now;
     dashboardStation2.batteryVoltageV = dashboardWireText(simpleField(line, 11));
     dashboardStation2.batteryPercent = dashboardWireText(simpleField(line, 12));
   }
+
+  // Evaluate the new physical limits to trigger relays immediately
+  updateStatusOutputs();
 }
 
 void markDashboardStationSeen(bool station1) {
