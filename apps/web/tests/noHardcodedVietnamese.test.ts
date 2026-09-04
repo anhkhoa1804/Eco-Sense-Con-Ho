@@ -40,6 +40,10 @@ const ALLOWED = new Map<string, string>([
   ["lib/i18n/terminology.ts", "the VI↔EN scientific terminology contract"],
   ["app/page.tsx", "D — homepage chapter essays, disclosed by TranslationNotice"],
   ["app/admin/page.tsx", "operator-only console behind auth, single Vietnamese-speaking operator"],
+  [
+    "components/admin/network-overview.tsx",
+    "operator-only console behind auth — same audience and same reason as app/admin/page.tsx, which this panel was extracted from",
+  ],
   ["lib/stationProfile.ts", "B/D — station names and their descriptive prose"],
   ["lib/monitoring/buildObservatory.ts", "E — `label` fallbacks; every metric carries a labelKey the UI prefers"],
   ["lib/content/posts.ts", "D — field-note post content"],

@@ -23,6 +23,7 @@ import path from "node:path";
  * rule is about textures that span the viewport, not about styling a card.
  */
 
+const css = () => fs.readFileSync(CSS, "utf8");
 const CSS = path.join(process.cwd(), "app", "globals.css");
 
 function stripComments(css: string): string {
@@ -167,18 +168,27 @@ describe("hero geometry", () => {
     assert.match(css, /\.hero-canvas\s*\{[\s\S]*?height:\s*100svh/, "the hero canvas no longer covers the first screen");
   });
 
-  it("fades the hero canvas into the page ground rather than ending on an edge", () => {
-    // A full-bleed image that simply stops draws a hard rule the width of the
-    // viewport — the "horizontal band across the page" reported repeatedly.
-    const css = fs.readFileSync(CSS, "utf8");
-    // The scrim's LAST stop must be the page ground, so the picture resolves
-    // into the page instead of stopping on a hard edge. Read the whole rule
-    // rather than a fixed slice: the scrim is two stacked gradients and the
-    // terminating stop is not at a predictable offset.
-    const start = css.indexOf(".hero-canvas__scrim");
-    const rule = css.slice(start, css.indexOf("}", start));
-    assert.match(rule, /var\(--h-canvas\)\s*100%/, "the hero no longer fades into the page ground");
-    assert.ok(!/border/.test(rule), "the hero canvas grew a border - that is the seam");
+  it("puts NO gradient on any edge of the hero canvas", () => {
+    // THE "BÓNG MA". The scrim used to end with `var(--h-canvas) 100%` — a
+    // bottom fade meant to dissolve the picture into the page. In dark mode
+    // --h-canvas is graphite, so it rendered as a dark band across the bottom
+    // of the hero; in light mode, a muddy beige one. Several passes treated it
+    // as a tuning problem and moved the stop lower, which only made the band
+    // thinner.
+    //
+    // The separation from Section 01 is whitespace, not a gradient. This test
+    // fails if any edge-anchored fade comes back.
+    const start = css().indexOf(".hero-canvas__scrim");
+    const rule = css().slice(start, css().indexOf("}", start));
+    const decl = rule.slice(rule.indexOf("background:"));
+
+    assert.ok(!/linear-gradient/.test(decl), "an edge gradient is back on the hero scrim");
+    assert.ok(!/to bottom|to top/.test(decl), "a vertical fade is back on the hero scrim");
+    assert.ok(!/border|box-shadow/.test(rule), "the hero canvas grew a border or shadow");
+    // The one permitted treatment: a radial pool that is fully transparent
+    // before it reaches the frame.
+    assert.match(decl, /radial-gradient/, "the copy pool is gone");
+    assert.match(decl, /transparent\s*(8\d|9\d)%/, "the pool no longer clears the frame edge");
   });
 
   it("keeps the reveal slow enough to be perceived as motion", () => {

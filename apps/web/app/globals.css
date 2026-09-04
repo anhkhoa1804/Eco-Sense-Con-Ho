@@ -1318,50 +1318,44 @@ main {
 .hero-canvas__scrim {
   position: absolute;
   inset: 0;
-  /* MUCH lighter than the first attempt, which tinted the left 62% of the
-     frame at up to 88% canvas and turned a photograph into a pale wash — the
-     "large washed-out region" reported against the render. The picture has to
-     survive; the type is protected by a soft pool under the copy block, not
-     by flooding half the screen.
-
-     Bottom fade only in the last 12%, so the scene stays a scene and the hero
-     does not end on a beige band. */
-  background:
-    radial-gradient(
-      95% 78% at 20% 50%,
-      color-mix(in srgb, var(--h-canvas) 88%, transparent) 0%,
-      color-mix(in srgb, var(--h-canvas) 62%, transparent) 34%,
-      color-mix(in srgb, var(--h-canvas) 22%, transparent) 60%,
-      transparent 78%
-    ),
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--h-canvas) 30%, transparent) 0%,
-      transparent 12%,
-      transparent 90%,
-      var(--h-canvas) 100%
-    );
+  /*
+   * ONE radial pool under the copy. Nothing else.
+   *
+   * THIS RULE USED TO END WITH `var(--h-canvas) 100%` — a bottom fade meant to
+   * dissolve the picture into the page. That fade WAS the "bóng ma": in dark
+   * mode `--h-canvas` is graphite, so the bottom of the hero rendered as a
+   * dark band, and in light mode as a muddy beige one. Every previous pass
+   * treated it as a tuning problem and moved the stop lower, which only made
+   * the band thinner.
+   *
+   * It is deleted, not softened. The hero now ends on a clean edge and the
+   * separation from Section 01 comes from whitespace (the shell's
+   * margin-bottom), which is what an editorial layout should use anyway.
+   *
+   * No gradient touches the bottom or the top edge any more: this is a single
+   * ellipse behind the headline, fading to fully transparent well before it
+   * reaches any side of the frame.
+   */
+  background: radial-gradient(
+    92% 76% at 20% 48%,
+    color-mix(in srgb, var(--h-canvas) 86%, transparent) 0%,
+    color-mix(in srgb, var(--h-canvas) 60%, transparent) 36%,
+    color-mix(in srgb, var(--h-canvas) 20%, transparent) 62%,
+    transparent 80%
+  );
 }
 
-/* Below md the type spans the full measure, so the copy pool is centred and a
-   little stronger — there is nowhere for the text to sit clear of the image. */
+/* Below md the type spans the full measure, so the pool is centred. Still no
+   edge gradient of any kind. */
 @media (max-width: 767px) {
   .hero-canvas__scrim {
-    background:
-      radial-gradient(
-        140% 58% at 50% 44%,
-        color-mix(in srgb, var(--h-canvas) 88%, transparent) 0%,
-        color-mix(in srgb, var(--h-canvas) 62%, transparent) 46%,
-        color-mix(in srgb, var(--h-canvas) 20%, transparent) 72%,
-        transparent 90%
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--h-canvas) 34%, transparent) 0%,
-        transparent 14%,
-        transparent 92%,
-        var(--h-canvas) 100%
-      );
+    background: radial-gradient(
+      135% 56% at 50% 42%,
+      color-mix(in srgb, var(--h-canvas) 88%, transparent) 0%,
+      color-mix(in srgb, var(--h-canvas) 62%, transparent) 48%,
+      color-mix(in srgb, var(--h-canvas) 18%, transparent) 74%,
+      transparent 92%
+    );
   }
 }
 

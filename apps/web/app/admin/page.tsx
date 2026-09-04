@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getI18n } from "@/lib/i18n/server";
 import { revalidatePath } from "next/cache";
+import { NetworkOverview } from "@/components/admin/network-overview";
 import { redirect } from "next/navigation";
 import { Bell, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
@@ -431,6 +432,15 @@ export default async function AdminPage({
     loadAdminAllowedEmailEntries(),
   ]);
   const snapshots = await loadAdminSnapshots(repos, scope, stations);
+  // STATION_02 records its time on soil_readings, not environmental_readings —
+  // reading only the snapshot would report the soil node as silent while it is
+  // in fact reporting. Same asymmetry the public page handles.
+  const soilTimestamp = repos
+    ? await repos.readings
+        .getLatestSoilReadingByStation("STATION_02", scope)
+        .then((row) => row?.timestamp ?? null)
+        .catch(() => null)
+    : null;
   const unreadReports = reports.filter((report) => !report.viewed_at).length;
   const errorMessage = adminErrorMessage(params.error);
   const isDemoMode = stationsAreDemo || metrics.demo;
@@ -518,6 +528,11 @@ export default async function AdminPage({
           hình và kết nối.
         </Alert>
       ) : null}
+
+      {/* The operator's first question — is the network up, and which node is
+          not? Above the settings forms, because "what is wrong right now" is
+          needed before "what can I configure". */}
+      <NetworkOverview snapshots={snapshots} soilTimestamp={soilTimestamp} />
 
       <div className="grid gap-4 sm:grid-cols-2">
           <Card>
@@ -631,9 +646,12 @@ export default async function AdminPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Điều chỉnh sleep mode</CardTitle>
+            <CardTitle>Cấu hình vận hành</CardTitle>
             <CardDescription>
-              Khi mưa kéo dài, tăng thời gian ngủ để ba trạm tiết kiệm pin. Gateway sẽ lấy cấu hình này và gửi xuống từng trạm.
+              Khi mưa kéo dài, tăng thời gian ngủ để ba trạm tiết kiệm pin. Lưu ở đây là{" "}
+              <strong className="font-semibold text-foreground">đã ghi vào cơ sở dữ liệu</strong> — gateway sẽ nhận
+              cấu hình mới ở lần hỏi tiếp theo. Hệ thống hiện chưa có đường phản hồi từ thiết bị, nên không thể xác
+              nhận thiết bị đã áp dụng hay chưa.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-3">
