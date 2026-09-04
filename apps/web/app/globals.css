@@ -1294,6 +1294,43 @@ main {
   overflow: hidden;
   z-index: 0;
   pointer-events: none;
+
+  /*
+   * THE TRANSITION, and why it is a MASK rather than a gradient overlay.
+   *
+   * Every previous attempt painted a gradient that faded to `var(--h-canvas)`
+   * on top of the picture. That can never be continuous, because the page
+   * below the hero is not flat canvas — it is canvas PLUS the atmosphere
+   * layers (graticule, gradient pools, vignette). So the fade always resolved
+   * to a slightly different surface than the thing underneath it, and the
+   * mismatch read as a band: dark in dark mode, muddy beige in light.
+   *
+   * Masking the image's own alpha instead means there is no destination
+   * colour to match. The picture simply becomes transparent over the last
+   * quarter of the hero and the REAL page background — whatever it happens to
+   * be, in either theme — shows through. Continuity is structural rather than
+   * something to be tuned.
+   *
+   * Long and soft: the dissolve runs over the final ~26% of the viewport
+   * (~230px at 900, ~190px at 812), well past the point where it could read
+   * as an edge or a strip.
+   */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 62%,
+    rgba(0, 0, 0, 0.86) 78%,
+    rgba(0, 0, 0, 0.45) 90%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 62%,
+    rgba(0, 0, 0, 0.86) 78%,
+    rgba(0, 0, 0, 0.45) 90%,
+    transparent 100%
+  );
 }
 
 .hero-canvas__image {

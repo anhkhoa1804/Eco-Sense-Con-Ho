@@ -41,6 +41,10 @@ const ALLOWED = new Map<string, string>([
   ["app/page.tsx", "D — homepage chapter essays, disclosed by TranslationNotice"],
   ["app/admin/page.tsx", "operator-only console behind auth, single Vietnamese-speaking operator"],
   [
+    "components/admin/operations-panels.tsx",
+    "operator-only console behind auth — same audience and reason as app/admin/page.tsx",
+  ],
+  [
     "components/admin/network-overview.tsx",
     "operator-only console behind auth — same audience and same reason as app/admin/page.tsx, which this panel was extracted from",
   ],

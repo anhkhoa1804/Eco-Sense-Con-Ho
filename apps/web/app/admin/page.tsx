@@ -2,6 +2,23 @@ import Link from "next/link";
 import { getI18n } from "@/lib/i18n/server";
 import { revalidatePath } from "next/cache";
 import { NetworkOverview } from "@/components/admin/network-overview";
+import {
+  AlertConfigPanel,
+  AuditPanel,
+  CalibrationPanel,
+  DataExportPanel,
+  MaintenancePanel,
+} from "@/components/admin/operations-panels";
+import {
+  asManagedStationId,
+  loadAlertConfigs,
+  loadAuditEvents,
+  loadCalibrationRecords,
+  loadMaintenanceLogs,
+  optionalNumber,
+  optionalText,
+  recordAuditEvent,
+} from "@/lib/admin/operations";
 import { redirect } from "next/navigation";
 import { Bell, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
@@ -348,6 +365,140 @@ async function markReportViewed(formData: FormData) {
   revalidatePath("/admin");
 }
 
+
+/**
+ * Operator-workflow writes (migration 022).
+ *
+ * Each one persists to Postgres and appends an audit line. None of them sends
+ * anything to a device: the firmware has no command or acknowledgement path,
+ * so these record what an operator DID or DECIDED, never what a node applied.
+ */
+async function saveAlertConfig(formData: FormData) {
+  "use server";
+
+  const { user } = await requireAdmin();
+  const stationId = asManagedStationId(formData.get("station_id"));
+  const metric = optionalText(formData.get("metric"));
+  if (!stationId || !metric) redirect("/admin?error=invalid-alert");
+
+  const supabase = createServiceClient();
+  if (!supabase) redirect("/admin?error=missing-supabase");
+
+  const row = {
+    station_id: stationId,
+    metric,
+    comparison: formData.get("comparison") === "below" ? "below" : "above",
+    warning_threshold: optionalNumber(formData.get("warning_threshold")),
+    critical_threshold: optionalNumber(formData.get("critical_threshold")),
+    unit: optionalText(formData.get("unit")),
+    enabled: formData.get("enabled") === "on",
+    note: optionalText(formData.get("note")),
+    updated_by: nullableUuid(user.id),
+  };
+
+  await supabase.from("alert_configs").upsert(row, { onConflict: "station_id,metric" });
+  await recordAuditEvent({
+    actor: user.email,
+    action: "alert.config.saved",
+    entity: "alert_configs",
+    entityId: `${stationId}:${metric}`,
+    metadata: {
+      comparison: row.comparison,
+      warning: row.warning_threshold,
+      critical: row.critical_threshold,
+      enabled: row.enabled,
+    },
+  });
+
+  revalidatePath("/admin");
+}
+
+async function addMaintenanceLog(formData: FormData) {
+  "use server";
+
+  const { user } = await requireAdmin();
+  const stationId = asManagedStationId(formData.get("station_id"));
+  const kind = optionalText(formData.get("kind"));
+  if (!stationId || !kind) redirect("/admin?error=invalid-maintenance");
+
+  const supabase = createServiceClient();
+  if (!supabase) redirect("/admin?error=missing-supabase");
+
+  await supabase.from("maintenance_logs").insert({
+    station_id: stationId,
+    kind,
+    operator: optionalText(formData.get("operator")) ?? user.email,
+    note: optionalText(formData.get("note")),
+    next_due_at: optionalText(formData.get("next_due_at")),
+  });
+
+  await recordAuditEvent({
+    actor: user.email,
+    action: "maintenance.recorded",
+    entity: "maintenance_logs",
+    entityId: stationId,
+    metadata: { kind },
+  });
+
+  revalidatePath("/admin");
+}
+
+async function addCalibrationRecord(formData: FormData) {
+  "use server";
+
+  const { user } = await requireAdmin();
+  const stationId = asManagedStationId(formData.get("station_id"));
+  const sensor = optionalText(formData.get("sensor"));
+  if (!stationId || !sensor) redirect("/admin?error=invalid-calibration");
+
+  const supabase = createServiceClient();
+  if (!supabase) redirect("/admin?error=missing-supabase");
+
+  await supabase.from("calibration_records").insert({
+    station_id: stationId,
+    sensor,
+    reference_value: optionalNumber(formData.get("reference_value")),
+    measured_value: optionalNumber(formData.get("measured_value")),
+    unit: optionalText(formData.get("unit")),
+    operator: optionalText(formData.get("operator")) ?? user.email,
+    note: optionalText(formData.get("note")),
+  });
+
+  await recordAuditEvent({
+    actor: user.email,
+    action: "calibration.recorded",
+    entity: "calibration_records",
+    entityId: `${stationId}:${sensor}`,
+    metadata: { sensor },
+  });
+
+  revalidatePath("/admin");
+}
+
+async function resolveReport(formData: FormData) {
+  "use server";
+
+  const { user } = await requireAdmin();
+  const reportId = String(formData.get("report_id") ?? "");
+  if (!reportId || reportId.startsWith("demo-")) redirect("/admin");
+
+  const supabase = createServiceClient();
+  if (!supabase) redirect("/admin?error=missing-supabase");
+
+  // The existing damage_logs row is UPDATED, never copied into a parallel
+  // store: the public submission stays the source of record.
+  await supabase.from("damage_logs").update({ status: "resolved" }).eq("id", reportId);
+
+  await recordAuditEvent({
+    actor: user.email,
+    action: "report.resolved",
+    entity: "damage_logs",
+    entityId: reportId,
+  });
+
+  revalidatePath("/admin");
+}
+
 function modeLabel(mode: string): string {
   switch (mode) {
     case "rain_saver":
@@ -435,6 +586,12 @@ export default async function AdminPage({
   // STATION_02 records its time on soil_readings, not environmental_readings —
   // reading only the snapshot would report the soil node as silent while it is
   // in fact reporting. Same asymmetry the public page handles.
+  const [alertConfigs, maintenanceLogs, calibrationRecords, auditEvents] = await Promise.all([
+    loadAlertConfigs(),
+    loadMaintenanceLogs(),
+    loadCalibrationRecords(),
+    loadAuditEvents(),
+  ]);
   const soilTimestamp = repos
     ? await repos.readings
         .getLatestSoilReadingByStation("STATION_02", scope)
@@ -533,6 +690,16 @@ export default async function AdminPage({
           not? Above the settings forms, because "what is wrong right now" is
           needed before "what can I configure". */}
       <NetworkOverview snapshots={snapshots} soilTimestamp={soilTimestamp} />
+
+      {/* Operator workflows, all persisted by migration 022. Each panel states
+          in its own lead what its rows do and do not mean — none of them
+          reaches a device, because the firmware has no command or
+          acknowledgement path. */}
+      <AlertConfigPanel configs={alertConfigs} action={saveAlertConfig} />
+      <MaintenancePanel logs={maintenanceLogs} action={addMaintenanceLog} />
+      <CalibrationPanel records={calibrationRecords} action={addCalibrationRecord} />
+      <DataExportPanel />
+      <AuditPanel events={auditEvents} />
 
       <div className="grid gap-4 sm:grid-cols-2">
           <Card>
