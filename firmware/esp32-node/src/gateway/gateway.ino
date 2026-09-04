@@ -5,7 +5,6 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include "gateway_secrets.h"
-
 /*
   HORIZON - Gateway node
 
@@ -44,8 +43,11 @@ static const IPAddress WIFI_AP_SUBNET(255, 255, 255, 0);
 static const uint32_t DASHBOARD_ONLINE_WINDOW_MS = 60000;
 
 // Replace with your endpoint. It should accept JSON POST bodies.
-static const char *WEB_SERVER_URL = "https://horizon-frogsleap.vercel.app/api/public/gateway";
+static const char *WEB_SERVER_URL = "https://eojvszriud4okpq.m.pipedream.net";
 static const char *CONFIG_URL = "https://horizon-frogsleap.vercel.app/api/public/gateway/configs";
+#ifndef GATEWAY_INGEST_TOKEN_VALUE
+#define GATEWAY_INGEST_TOKEN_VALUE ""
+#endif
 static const char *GATEWAY_INGEST_TOKEN = GATEWAY_INGEST_TOKEN_VALUE;
 // CONFIG endpoint is currently returning HTTP 403. Keep runtime config polling disabled
 // so the modem cannot steal receive time from LoRa. Re-enable after server auth is ready.
@@ -679,14 +681,14 @@ String httpGet(const char *url) {
   // so do not send that unsupported command.
   (void)url;
 
-  sendAt("AT+HTTPPARA=\"UA\",\"HORIZON-Gateway/1.0\"", "OK", 3000);
-
+  String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"User-Agent: HORIZON-Gateway/1.0\\r\\n";
   if (strlen(GATEWAY_INGEST_TOKEN) > 0) {
-    String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
+    headerCommand += "x-gateway-token: ";
     headerCommand += GATEWAY_INGEST_TOKEN;
-    headerCommand += "\"";
-    sendAt(headerCommand, "OK", 3000);
+    headerCommand += "\\r\\n";
   }
+  headerCommand += "\"";
+  sendAt(headerCommand, "OK", 3000);
 
   clearModemRx(30);
   modemSerial.print("AT+HTTPACTION=0\r\n");
@@ -917,14 +919,14 @@ bool httpPostJson(const String &payload) {
   // This modem firmware accepts https:// URLs directly. AT+HTTPSSL=1 is unsupported
   // on the tested firmware and only creates log noise, so it is intentionally skipped.
 
-  sendAt("AT+HTTPPARA=\"UA\",\"HORIZON-Gateway/1.0\"", "OK", 3000);
-
+  String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"User-Agent: HORIZON-Gateway/1.0\\r\\n";
   if (strlen(GATEWAY_INGEST_TOKEN) > 0) {
-    String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
+    headerCommand += "x-gateway-token: ";
     headerCommand += GATEWAY_INGEST_TOKEN;
-    headerCommand += "\"";
-    sendAt(headerCommand, "OK", 3000);
+    headerCommand += "\\r\\n";
   }
+  headerCommand += "\"";
+  sendAt(headerCommand, "OK", 3000);
 
   if (!sendAt("AT+HTTPPARA=\"CONTENT\",\"application/json\"", "OK", 5000)) {
     Serial.println("[HTTP FAIL] CONTENT application/json");
