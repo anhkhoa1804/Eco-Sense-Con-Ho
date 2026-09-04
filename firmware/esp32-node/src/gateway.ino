@@ -42,10 +42,39 @@ static const IPAddress WIFI_AP_GATEWAY(192, 168, 4, 1);
 static const IPAddress WIFI_AP_SUBNET(255, 255, 255, 0);
 static const uint32_t DASHBOARD_ONLINE_WINDOW_MS = 60000;
 
-// Replace with your endpoint. It should accept JSON POST bodies.
-static const char *WEB_SERVER_URL = "https://horizon-frogsleap.vercel.app/api/public/gateway";
-static const char *CONFIG_URL = "https://horizon-frogsleap.vercel.app/api/public/gateway/configs";
-static const char *GATEWAY_INGEST_TOKEN = "";
+/*
+  Ingest endpoints.
+
+  These point at the project's OWN domain, not at the *.vercel.app deployment
+  host. A QR code or a flashed gateway cannot be re-issued cheaply, and the
+  vercel.app address is a deployment detail that changes when hosting does —
+  the custom domain is the stable one.
+*/
+static const char *WEB_SERVER_URL = "https://horizon.frogsleap.com.vn/api/public/gateway";
+static const char *CONFIG_URL = "https://horizon.frogsleap.com.vn/api/public/gateway/configs";
+
+/*
+  Shared secret for POST /api/public/gateway, sent as `x-gateway-token`.
+
+  THE REAL VALUE IS NEVER COMMITTED. It lives in `gateway_secrets.h`, which is
+  gitignored; `gateway_secrets.example.h` beside it shows the shape. Provision
+  a board by copying the example, filling in the token issued for that
+  deployment, and flashing.
+
+  The server FAILS CLOSED: with no token configured there it answers 503 and
+  ingests nothing, and with a token configured it rejects any request whose
+  header does not match. So a gateway flashed without this value will not
+  silently deliver unauthenticated telemetry — it will simply be refused,
+  which is the intended behaviour rather than a fault to work around.
+*/
+#if __has_include("gateway_secrets.h")
+#include "gateway_secrets.h"
+#else
+#warning "gateway_secrets.h not found - building with an empty ingest token; the server will reject this gateway."
+#define GATEWAY_INGEST_TOKEN_VALUE ""
+#endif
+
+static const char *GATEWAY_INGEST_TOKEN = GATEWAY_INGEST_TOKEN_VALUE;
 static const char *SIM_APN = "internet";
 static const char *SIM_USER = "";
 static const char *SIM_PASS = "";

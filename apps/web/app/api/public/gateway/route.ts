@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { authorizeGatewayRequest } from "@/lib/gateway/ingestAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,12 +38,6 @@ async function readLocalStore() {
 async function writeLocalStore(payload: unknown) {
   await ensureLocalStore();
   await fs.writeFile(localStoragePath, JSON.stringify({ latest: payload }, null, 2), "utf8");
-}
-
-function isAuthorizedGatewayRequest(request: Request) {
-  const expectedToken = process.env.GATEWAY_INGEST_TOKEN;
-  if (!expectedToken) return true;
-  return request.headers.get("x-gateway-token") === expectedToken;
 }
 
 function summarizeGatewayPayload(payload: Record<string, unknown>) {
@@ -142,7 +137,26 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    if (!isAuthorizedGatewayRequest(request)) {
+    const auth = authorizeGatewayRequest(
+      request.headers.get("x-gateway-token"),
+      process.env.GATEWAY_INGEST_TOKEN,
+    );
+
+    if (auth === "not_configured") {
+      // Deliberately distinct from 401: this is the SERVER being wrong, and
+      // an operator reading logs needs to tell "the gateway sent a bad token"
+      // apart from "this deployment has no token". The response body names
+      // the variable but never a value.
+      console.error(
+        "[gateway-ingest] refusing ingest: GATEWAY_INGEST_TOKEN is not set on this deployment",
+      );
+      return NextResponse.json(
+        { ok: false, error: "ingest_not_configured" },
+        { status: 503 },
+      );
+    }
+
+    if (auth === "unauthorized") {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 

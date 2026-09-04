@@ -30,3 +30,5 @@ Thumbs.db
 # Archived documentation
 docs/archive/*
 !docs/archive/HORIZON_AUDIT_REPORT.md
+# Firmware per-deployment secrets (see gateway_secrets.example.h)
+firmware/**/gateway_secrets.h
