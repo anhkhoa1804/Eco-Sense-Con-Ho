@@ -281,9 +281,20 @@ export function StationNetworkMap({
           // `permanent` with a small offset keeps each label clear of its own
           // marker; the three nodes are ~150 m apart at z14, which is enough
           // separation that the labels do not collide.
+          // The three nodes sit ~150 m apart on a diagonal, which inside a
+          // Bento cell puts them within a few dozen pixels of each other. All
+          // three labels anchored "top" therefore overlapped into an unreadable
+          // stack. Fanning them — above, right, below — separates the text
+          // without moving a single marker off its surveyed position.
+          const placement = [
+            { direction: "top" as const, offset: [0, -11] as [number, number] },
+            { direction: "right" as const, offset: [11, 0] as [number, number] },
+            { direction: "bottom" as const, offset: [0, 11] as [number, number] },
+          ][records.length % 3];
+
           marker.bindTooltip(station.name, {
-            direction: "top",
-            offset: [0, -10],
+            direction: placement.direction,
+            offset: placement.offset,
             permanent: true,
             className: "horizon-marker-label",
           });

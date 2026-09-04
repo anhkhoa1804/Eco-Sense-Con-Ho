@@ -10,6 +10,8 @@ import type { Dictionary } from "@/lib/i18n/vi";
 import { buildSignalGroups, type SignalGroup } from "@/lib/monitoring/signals";
 import { contextLine, deviceContext, type ContextMetricKey } from "@/lib/monitoring/context";
 import { mergeWeather24hSeries, weatherHistoryToObservationSeries } from "@/lib/monitoring/weatherSeries";
+import { STATION_COORDS } from "@/lib/geo";
+import type { PilotStationId } from "@/lib/publicStations";
 import { statusFor, worstStatus, STATUS_SURFACE, type MetricStatus } from "@/lib/monitoring/status";
 import { cn } from "@/lib/utils";
 import type {
@@ -117,6 +119,7 @@ const STATUS_LABEL: Record<MetricStatus["level"], keyof Dictionary["alerts"]> = 
 };
 
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
+const GATEWAY_REFRESH_MS = 60 * 1000;
 
 /** A box's surface: its own status tint, or plain white.
  *
@@ -384,13 +387,14 @@ function ObservatoryBento({
             where the digits actually are: the same two values now occupy
             304px of 355px, which is what lets the primary numerals be the
             size they should be instead of the size equal halves allowed. */}
-        {/* The two values are conceptual CHILD ZONES of one 1x2 surface, so
-            they need real distance between them — at gap-6/8 they read as one
-            crowded pair rather than two separate readings. The gap now scales
-            with the viewport instead of being a fixed step, and the columns are
-            `1fr auto` so the first value anchors left and the second is pushed
-            clear of it rather than sitting immediately alongside. */}
-        <div className="mt-auto grid grid-cols-[1fr_auto] items-baseline gap-x-[clamp(2rem,5vw,5.5rem)] gap-y-2 pt-[var(--bento-header-gap)]">
+        {/* TWO EQUAL HALVES, matching the two square cells this 1x2 region is
+            made of. Each value sits at the start of its own half, so the pair
+            lines up with the grid the box is built on.
+            `grid-cols-2`, not `1fr auto`: that variant pushed the second value
+            to the far right edge, which detached it from its own square and
+            made the box read as two things flung apart rather than two
+            readings side by side. */}
+        <div className="mt-auto grid grid-cols-2 items-baseline gap-x-4 gap-y-2 pt-[var(--bento-header-gap)]">
           <Value label={dict.metricLabels.salinity} metric={salinity} dict={dict} size="primary" />
           <Value label={dict.metricLabels.waterLevel} metric={waterLevel} dict={dict} size="primary" />
         </div>
@@ -467,13 +471,14 @@ function ObservatoryBento({
           status={infraStatus}
           dict={dict}
         />
-        {/* The two values are conceptual CHILD ZONES of one 1x2 surface, so
-            they need real distance between them — at gap-6/8 they read as one
-            crowded pair rather than two separate readings. The gap now scales
-            with the viewport instead of being a fixed step, and the columns are
-            `1fr auto` so the first value anchors left and the second is pushed
-            clear of it rather than sitting immediately alongside. */}
-        <div className="mt-auto grid grid-cols-[1fr_auto] items-baseline gap-x-[clamp(2rem,5vw,5.5rem)] gap-y-2 pt-[var(--bento-header-gap)]">
+        {/* TWO EQUAL HALVES, matching the two square cells this 1x2 region is
+            made of. Each value sits at the start of its own half, so the pair
+            lines up with the grid the box is built on.
+            `grid-cols-2`, not `1fr auto`: that variant pushed the second value
+            to the far right edge, which detached it from its own square and
+            made the box read as two things flung apart rather than two
+            readings side by side. */}
+        <div className="mt-auto grid grid-cols-2 items-baseline gap-x-4 gap-y-2 pt-[var(--bento-header-gap)]">
           {/* The contextual word comes from the SAME resolved status the box
               is tinted by, not from a second read of the raw value — so
               "Pin thấp" can never appear on a green surface. Both bands are
@@ -662,14 +667,26 @@ export function ObservatoryCanvas({
         const response = await fetch("/api/public/gateway", { cache: "no-store" });
         if (!response.ok) return;
         const payload = await response.json();
-        if (active) setLocalGatewayReading(payload.latest ?? null);
+        const next = payload.latest ?? null;
+        // Only re-render when the reading ACTUALLY changed. This effect used
+        // to setState unconditionally every 3s, and because that re-runs the
+        // whole canvas it rebuilt the map's `stations` array identity on every
+        // tick — which the map reads as new input and re-initialises against.
+        // That is the "map reloads every few seconds" symptom.
+        if (active) {
+          setLocalGatewayReading((prev) =>
+            JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
+          );
+        }
       } catch {
         // Keep the observatory on its existing data source if the local endpoint is unavailable.
       }
     }
 
     refreshLocalGatewayReading();
-    const id = window.setInterval(refreshLocalGatewayReading, 3000);
+    // 3s was a bench-testing cadence. The gateway reports on a duty cycle
+    // measured in minutes, so polling that fast only burns requests.
+    const id = window.setInterval(refreshLocalGatewayReading, GATEWAY_REFRESH_MS);
     return () => {
       active = false;
       window.clearInterval(id);
@@ -748,12 +765,30 @@ export function ObservatoryCanvas({
   // Guinea — plotting three markers there would be inventing geography, not
   // reporting it. Filtering here keeps the map's own honest empty state as
   // the thing a reader sees until real coordinates arrive.
-  const mapStations: MapStation[] =
-    model.mode === "real"
-      ? model.stations
-          .filter((s) => s.lat !== 0 && s.lng !== 0)
-          .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, freshness: s.freshness }))
-      : [];
+  // Positions come from lib/geo.ts, NOT from the station rows.
+  //
+  // That file is explicit that it is the authority: a database row is
+  // operational state that can be edited, seeded, or left at a 0,0 default —
+  // and 0,0 is a real place in the Gulf of Guinea. The previous version read
+  // `s.lat`/`s.lng` off the row and then filtered out 0,0, so on a database
+  // whose rows carry no coordinates the map correctly refused to invent
+  // geography and drew nothing at all. Home already read from geo.ts; this is
+  // the same fix applied to the observatory, so both surfaces plot the same
+  // three surveyed points.
+  //
+  // Memoised so the array identity is stable across the polling re-renders
+  // above; without that the map re-initialises on every tick.
+  const mapStations: MapStation[] = useMemo(
+    () =>
+      model.mode === "real"
+        ? model.stations.flatMap((s) => {
+            const point = STATION_COORDS[s.id as PilotStationId];
+            if (!point) return [];
+            return [{ id: s.id, name: s.name, lat: point.lat, lng: point.lng, freshness: s.freshness }];
+          })
+        : [],
+    [model.mode, model.stations],
+  );
 
   return (
     <div className="space-y-10 md:space-y-14">

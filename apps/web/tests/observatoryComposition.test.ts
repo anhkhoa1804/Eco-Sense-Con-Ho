@@ -228,14 +228,23 @@ describe("observatory Bento grid", () => {
     );
   });
 
-  it("never plots a station at the 0,0 coordinate fallback", () => {
-    // buildObservatory falls back to lat/lng 0 when a station has no
-    // snapshot row, and 0,0 is a real place in the Gulf of Guinea.
+  it("plots the surveyed coordinates, not editable database rows", () => {
+    // The map used to read lat/lng off the station row and then filter out
+    // 0,0, because buildObservatory falls back to zero when a station has no
+    // snapshot — and 0,0 is a real place in the Gulf of Guinea. The effect on
+    // a database whose rows carry no coordinates was that the map correctly
+    // refused to invent geography and therefore drew NOTHING: three nodes,
+    // no markers.
+    //
+    // Positions now come from lib/geo.ts, which is documented as the
+    // authority precisely because a row can be edited, seeded or left at a
+    // default. That is a stronger guarantee than the old filter: 0,0 is not
+    // rejected after the fact, it is unreachable.
     const src = source();
-    assert.match(
-      src,
-      /\.filter\(\(s\) => s\.lat !== 0 && s\.lng !== 0\)/,
-      "real-mode map stations must be filtered to genuine coordinates",
+    assert.match(src, /STATION_COORDS\[/, "the map no longer reads the surveyed coordinates");
+    assert.ok(
+      !/lat: s\.lat|lng: s\.lng/.test(src),
+      "the map is reading coordinates off the station row again",
     );
   });
 
