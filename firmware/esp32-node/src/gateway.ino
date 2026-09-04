@@ -633,7 +633,7 @@ String httpGet(const char *url) {
   if (strlen(GATEWAY_INGEST_TOKEN) > 0) {
     String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
     headerCommand += GATEWAY_INGEST_TOKEN;
-    headerCommand += "\"";
+    headerCommand += "\\r\\n\"";
     sendAt(headerCommand, "OK", 3000);
   }
 
@@ -874,7 +874,7 @@ bool httpPostJson(const String &payload) {
   if (strlen(GATEWAY_INGEST_TOKEN) > 0) {
     String headerCommand = "AT+HTTPPARA=\"USERDATA\",\"x-gateway-token: ";
     headerCommand += GATEWAY_INGEST_TOKEN;
-    headerCommand += "\"";
+    headerCommand += "\\r\\n\"";
     sendAt(headerCommand, "OK", 3000);
   }
 
