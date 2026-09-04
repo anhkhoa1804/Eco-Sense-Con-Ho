@@ -28,21 +28,37 @@ are not photographs of installed hardware, and nothing in the product
 presents them as such. No deployment photography exists, because no
 deployment has happened.
 
-### Supplied but NOT shipped
+### Third-party press photography — used with credit
 
-These files were supplied by the owner, are present in the working tree, and
-are deliberately **not committed or published**:
+At the owner's direction these are published, each carrying its outlet credit
+in the gallery entry's `source` field (rendered small, beneath the caption):
 
-| File | Why it is held back |
+| File | Credit | Note |
+| --- | --- | --- |
+| `field/erosion-riverbank.jpg` | Báo Tiền Phong | Regional context, not Cồn Hô |
+| `field/erosion-sandbags.jpg` | Báo Tiền Phong | Regional context, not Cồn Hô |
+| `field/con-ho-visitors.jpg` | Phụ nữ Online | Cồn Hô entrance |
+
+Each is captioned `status: illustrative`, and the two erosion frames say in
+their caption that they show the region rather than the islet, so neither can
+be read as HORIZON field documentation.
+
+**Standing caveat, recorded rather than argued:** these carry visible outlet
+watermarks and no reuse licence has been established. Credit is attribution,
+not permission. If any outlet objects the file should be removed — which is
+why they are isolated in `field/` and referenced from exactly one gallery
+entry each.
+
+### Supplied but not used
+
+| File | Why |
 | --- | --- |
-| `1-3727.avif`, `35-6637.avif`, `1080.avif` | Visibly watermarked "Tiền Phong" — press photographs. No reuse licence has been established. |
-| `1911.du-lich-con-ho1.jpg`, `1911.du-lich-con-ho2.jpg` | Visibly watermarked "Fonline" — press photographs. Same reason. |
-| `technical stuffs/*` | **Now converted and in use.** These are the owner's HEIC originals. An earlier pass wrongly concluded they were unusable — ffmpeg decodes an HEIF tile grid one 512px tile at a time, which looked like corruption. `pillow-heif` reads them correctly at full 3024x4032, and all seven are now committed as web JPEGs under `hardware/` with EXIF rotation applied. The originals are kept here, uncommitted, as the masters. |
-| `sequence-…webp`, `Thiết kế chưa có tên.png`, `brand/frogsleap-logo-*.png`, `brand/logo.svg`, `qr-dashboard.svg` | Unreferenced by any page. Held pending a decision on where, or whether, they belong. |
-
-Publishing a watermarked press photograph on the project's own domain is a
-licensing problem regardless of intent, so the rule below applies to them
-exactly as it applies to anything found on the web.
+| `1911.du-lich-con-ho2.jpg` | Near-duplicate of the visitors frame already used |
+| `1080.avif`, `Thiết kế chưa có tên.png` | Source files; their converted outputs (`landscape/con-ho-aerial.jpg`, `map/con-ho-network-illustration.png`) are what ship |
+| `technical stuffs/*` | HEIC masters; converted into `hardware/*.jpg`, which is what ships |
+| `brand/frogsleap-logo-*.png` | Partner marks, no placement decided |
+| `qr-dashboard.svg` | Encodes a pre-`/observe` URL; regenerate before printing |
+| `sequence-…webp` | Provenance unknown |
 
 ### If field imagery is added later
 
