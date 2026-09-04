@@ -32,18 +32,21 @@ export async function Hero() {
       eyebrow={dict.home.eyebrow}
       title={dict.home.title}
       subtitle={dict.home.subtitle}
+      // ONE action, not two.
+      //
+      // The secondary "Về dự án" button scrolled to the chapter immediately
+      // below the fold — an action the reader already has by scrolling, which
+      // is what made it worth removing rather than restyling. A single
+      // primary CTA also lets the opening scene stay a scene: two buttons
+      // side by side under a cinematic headline read as a product landing
+      // page, which is the thing this hero is deliberately not.
       actions={
-        <>
-          <Button asChild size="lg" className="gap-2">
-            <Link href="/dashboard">
-              {dict.home.ctaPrimary}
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="lg">
-            <Link href="#horizon">{dict.home.ctaSecondary}</Link>
-          </Button>
-        </>
+        <Button asChild size="lg" className="gap-2">
+          <Link href="/dashboard">
+            {dict.home.ctaPrimary}
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </Link>
+        </Button>
       }
     />
   );

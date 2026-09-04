@@ -1318,36 +1318,50 @@ main {
 .hero-canvas__scrim {
   position: absolute;
   inset: 0;
+  /* MUCH lighter than the first attempt, which tinted the left 62% of the
+     frame at up to 88% canvas and turned a photograph into a pale wash — the
+     "large washed-out region" reported against the render. The picture has to
+     survive; the type is protected by a soft pool under the copy block, not
+     by flooding half the screen.
+
+     Bottom fade only in the last 12%, so the scene stays a scene and the hero
+     does not end on a beige band. */
   background:
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--h-canvas) 55%, transparent) 0%,
-      color-mix(in srgb, var(--h-canvas) 18%, transparent) 18%,
-      color-mix(in srgb, var(--h-canvas) 10%, transparent) 55%,
-      color-mix(in srgb, var(--h-canvas) 62%, transparent) 86%,
-      var(--h-canvas) 100%
+    radial-gradient(
+      95% 78% at 20% 50%,
+      color-mix(in srgb, var(--h-canvas) 88%, transparent) 0%,
+      color-mix(in srgb, var(--h-canvas) 62%, transparent) 34%,
+      color-mix(in srgb, var(--h-canvas) 22%, transparent) 60%,
+      transparent 78%
     ),
     linear-gradient(
-      to right,
-      color-mix(in srgb, var(--h-canvas) 88%, transparent) 0%,
-      color-mix(in srgb, var(--h-canvas) 72%, transparent) 34%,
-      color-mix(in srgb, var(--h-canvas) 28%, transparent) 62%,
-      transparent 92%
+      to bottom,
+      color-mix(in srgb, var(--h-canvas) 30%, transparent) 0%,
+      transparent 12%,
+      transparent 90%,
+      var(--h-canvas) 100%
     );
 }
 
-/* Below md the type spans the full measure, so a left-to-right wash would
-   cover exactly the part of the picture a phone can see. Vertical only. */
+/* Below md the type spans the full measure, so the copy pool is centred and a
+   little stronger — there is nowhere for the text to sit clear of the image. */
 @media (max-width: 767px) {
   .hero-canvas__scrim {
-    background: linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--h-canvas) 62%, transparent) 0%,
-      color-mix(in srgb, var(--h-canvas) 38%, transparent) 22%,
-      color-mix(in srgb, var(--h-canvas) 55%, transparent) 58%,
-      color-mix(in srgb, var(--h-canvas) 88%, transparent) 84%,
-      var(--h-canvas) 100%
-    );
+    background:
+      radial-gradient(
+        140% 58% at 50% 44%,
+        color-mix(in srgb, var(--h-canvas) 88%, transparent) 0%,
+        color-mix(in srgb, var(--h-canvas) 62%, transparent) 46%,
+        color-mix(in srgb, var(--h-canvas) 20%, transparent) 72%,
+        transparent 90%
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--h-canvas) 34%, transparent) 0%,
+        transparent 14%,
+        transparent 92%,
+        var(--h-canvas) 100%
+      );
   }
 }
 

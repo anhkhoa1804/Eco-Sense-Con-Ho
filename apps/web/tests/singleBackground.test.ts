@@ -171,8 +171,14 @@ describe("hero geometry", () => {
     // A full-bleed image that simply stops draws a hard rule the width of the
     // viewport — the "horizontal band across the page" reported repeatedly.
     const css = fs.readFileSync(CSS, "utf8");
-    const scrim = css.slice(css.indexOf(".hero-canvas__scrim"));
-    assert.match(scrim.slice(0, 700), /var\(--h-canvas\)\s*100%/, "the hero no longer fades into the page ground");
+    // The scrim's LAST stop must be the page ground, so the picture resolves
+    // into the page instead of stopping on a hard edge. Read the whole rule
+    // rather than a fixed slice: the scrim is two stacked gradients and the
+    // terminating stop is not at a predictable offset.
+    const start = css.indexOf(".hero-canvas__scrim");
+    const rule = css.slice(start, css.indexOf("}", start));
+    assert.match(rule, /var\(--h-canvas\)\s*100%/, "the hero no longer fades into the page ground");
+    assert.ok(!/border/.test(rule), "the hero canvas grew a border - that is the seam");
   });
 
   it("keeps the reveal slow enough to be perceived as motion", () => {

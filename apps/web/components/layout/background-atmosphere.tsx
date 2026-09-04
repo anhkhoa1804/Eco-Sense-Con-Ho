@@ -7,7 +7,6 @@
  *   · the survey grid        (::before — 64px minor / 256px major graticule)
  *   · the atmospheric pools  (::after  — cool / warm / green / centre lift)
  *   · the vignette           (::after  — edge falloff, closes the composition)
- *   · the parallax drift     (both, driven by the single `--parallax` var)
  *
  * WHY THIS IS A COMPONENT RATHER THAN A BARE DIV.
  *
