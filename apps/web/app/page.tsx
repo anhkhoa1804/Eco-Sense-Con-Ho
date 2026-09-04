@@ -19,6 +19,7 @@ import { MapStation, StationNetworkMap } from "@/components/dashboard/station-ne
 import { GalleryStrip } from "@/components/about/gallery-strip";
 import { FieldNotesCarousel } from "@/components/home/field-notes-carousel";
 import { Hero } from "@/components/home/hero";
+import { HeroBackdrop } from "@/components/home/hero-backdrop";
 import { Reveal } from "@/components/ui/reveal";
 import { PublicShell } from "@/components/layout/public-shell";
 import { TranslationNotice } from "@/components/layout/translation-notice";
@@ -404,7 +405,7 @@ export default async function HomePage() {
   const { dict } = await getI18n();
 
   return (
-    <PublicShell activePath="/">
+    <PublicShell activePath="/" backdrop={<HeroBackdrop />}>
       <Hero />
 
       <div className="h-flow-large">
@@ -467,14 +468,26 @@ export default async function HomePage() {
           <section className="full-bleed">
             <Reveal className="h-spatial">
               <figure className="space-y-4">
+                {/* THE BRANDED NETWORK ILLUSTRATION.
+                    Replaces con-ho-station-map.png, which had "TRẠM 1 / TRẠM 2
+                    / TRẠM 3" baked into its pixels — obsolete station-number
+                    semantics that contradicted the role model everywhere else
+                    in the product, and unfixable in code because it was raster
+                    text. This is the owner's own HORIZON/FrogsLeap illustration
+                    and labels the three nodes correctly: Nước, Đất, Gateway.
+
+                    No border. A bordered full-bleed image draws a hard rule the
+                    width of the viewport, which is one of the "horizontal line"
+                    reports; the illustration has its own soft edges and needs
+                    no frame. */}
                 {/* eslint-disable-next-line @next/next/no-img-element -- local static asset with known aspect ratio; next/image has previously failed to resolve in this project (see wordmark.tsx) */}
                 <img
-                  src="/assets/illustrations/con-ho-station-map.png"
-                  alt="Bản đồ minh họa vị trí ba điểm quan trắc trên Cồn Hô: trạm nước gần sông, trạm đất giữa cồn, gateway cuối cồn"
-                  width={1614}
-                  height={974}
+                  src="/assets/map/con-ho-network-illustration.png"
+                  alt="Minh họa Cồn Hô với ba điểm quan trắc: Nước (quan trắc nước), Đất (quan trắc đất) và Gateway (truyền dữ liệu)"
+                  width={2000}
+                  height={1414}
                   loading="lazy"
-                  className="w-full rounded-lg border border-border"
+                  className="w-full rounded-lg"
                 />
                 <figcaption className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 text-sm text-muted">
                   <span>Bản đồ minh họa, không phải ảnh vệ tinh — thể hiện vị trí tương đối của ba điểm quan trắc.</span>

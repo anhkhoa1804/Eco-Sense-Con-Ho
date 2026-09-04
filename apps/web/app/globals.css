@@ -148,10 +148,9 @@
   --h-atmos-green: rgba(25, 122, 63, 0.05);
   --h-atmos-lift: rgba(212, 231, 240, 0.5);
   --h-atmos-vignette: rgba(193, 180, 152, 0.2);
-  /* The horizon band — the one atmosphere layer with a locatable edge, and
-     therefore the only one whose parallax can actually be seen. Kept just
-     above the threshold of notice: it should register as light on water, not
-     as a shape. */
+  /* The horizon band — the one atmosphere layer with a locatable edge. Kept
+     just above the threshold of notice: it should register as light on water,
+     not as a shape. */
   --h-atmos-band: rgba(12, 95, 125, 0.10);
 
   --h-selection: rgba(12, 95, 125, 0.18);
@@ -473,10 +472,9 @@
    *
    * These are the page's breathing, and they are fluid rather than
    * breakpoint-stepped: a story transition should grow smoothly with the
-   * viewport instead of jumping at 768px. Scrolling past a `chapter` gap on
-   * a wide screen is what gives the atmosphere room to visibly drift — the
-   * parallax needs distance to be felt, and the previous fixed 96px ceiling
-   * did not provide it.
+   * viewport instead of jumping at 768px. The chapter tier is what separates
+   * one movement of the story from the next; without it the page reads as
+   * stacked cards rather than as an edited document.
    *
    *   tight    — related blocks inside one idea
    *   normal   — between ideas in the same section
@@ -487,9 +485,10 @@
   --rhythm-normal: clamp(2.5rem, 2rem + 2.4vw, 4rem);
   --rhythm-large: clamp(4rem, 3rem + 4.8vw, 7rem);
   /* Raised from clamp(6rem, …, 11rem) after the owner reported chapters
-     still reading as compressed in the browser. Only the CHAPTER tier moves:
-     the smaller tiers were not the problem, and scaling all four would just
-     make the page long without making the story structure any clearer. */
+     reading as compressed. Only the CHAPTER tier moves: the smaller tiers
+     were not the problem, and scaling all four would just make the page long
+     without making the story structure any clearer. At 1440 this resolves to
+     ~208px between major movements. */
   --rhythm-chapter: clamp(7rem, 4.5rem + 10vw, 13rem);
 
   /* Inner padding for any bordered / tinted / framed block. One token, so a
@@ -696,7 +695,7 @@
  * element behind every page.
  *
  * Pure CSS, fixed position: no JS, no canvas, no image request, and nothing
- * per-frame. Because it is fixed, it also *is* the hero parallax — content
+ * per-frame. Because it is fixed, content
  * scrolls over a stationary surface, which is the cheapest correct way to
  * express spatial depth.
  *
@@ -717,12 +716,10 @@
 
 /* Layer 1 — the graticule. 64px minor module, 256px major.
  *
- * PARALLAX: the graticule drifts against the scroll via `background-position`
- * rather than `transform`. On a repeating pattern a position shift is exactly
- * seamless — there is no layer edge to expose, so the drift can run the whole
- * length of the page instead of being clamped to the hero. All four gradients
- * shift at ONE rate: the minor and major modules are one drawing, and sliding
- * them at different rates would read as a rendering fault rather than depth.
+ * Static. This layer used to drift against the scroll; the whole scroll-driven
+ * system was removed because the effect read as either invisible or wrong, and
+ * the page is stronger as a still composition. All four gradients therefore sit
+ * at one fixed position — the minor and major modules are one drawing.
  *
  * The mask fades the grid toward the edges so it reads as a survey sheet laid
  * on the page rather than wallpaper running under it.
@@ -741,19 +738,11 @@
     64px 64px,
     256px 256px,
     256px 256px;
-  /* WHY 0.16 IS NOT ENOUGH ON ITS OWN, and why it stays anyway.
-     A seamless 64px tile displaced by any distance is pixel-identical to
-     itself — the eye has no landmark to measure against, so the graticule
-     could travel 400px and read as perfectly still. That is the actual
-     reason the parallax on this site was reported as invisible, and no
-     amount of raising this factor fixes it. The rate is kept because it
-     softens the grid's relationship to the content; the PERCEPTIBLE layer is
-     `.horizon-atmosphere .horizon-band` below, which is not tiled. */
   background-position:
-    center calc(50% + var(--parallax, 0px) * 0.16),
-    center calc(50% + var(--parallax, 0px) * 0.16),
-    center calc(50% + var(--parallax, 0px) * 0.16),
-    center calc(50% + var(--parallax, 0px) * 0.16);
+    center,
+    center,
+    center,
+    center;
   -webkit-mask-image: radial-gradient(ellipse 96% 80% at 50% 42%, #000 42%, transparent 100%);
   mask-image: radial-gradient(ellipse 96% 80% at 50% 42%, #000 42%, transparent 100%);
 }
@@ -770,13 +759,7 @@
 .horizon-atmosphere::after {
   content: "";
   position: absolute;
-  /* Slack on every side so the layer can translate for parallax without ever
-     exposing an edge.
-     BUDGET: --parallax is clamped to 3 viewports and the factor below is
-     0.09, so peak displacement is 0.27vh. At -25% the slack was 0.25vh —
-     less than the travel, which would have dragged the layer edge into view
-     near the bottom of a long page. -32% restores the margin. Raise this
-     again if the factor ever increases. */
+  /* Slack on every side so the layer never exposes an edge. */
   inset: -32%;
   background-image:
     /* Painted top-down. Vignette first so it sits ON TOP and closes the
@@ -786,12 +769,11 @@
     radial-gradient(ellipse 70% 50% at 12% 2%, var(--h-atmos-warm), transparent 58%),
     radial-gradient(ellipse 80% 55% at 28% 88%, var(--h-atmos-green), transparent 60%),
     radial-gradient(ellipse 110% 75% at 50% 46%, var(--h-atmos-lift), transparent 68%);
-  transform: translate3d(0, calc(var(--parallax, 0px) * -0.09), 0);
   will-change: transform;
 }
 
 /*
- * THE HORIZON BAND — the layer that makes the parallax visible.
+ * THE HORIZON BAND — a static light band at the horizon line.
  *
  * Everything else in this atmosphere is featureless: a seamless graticule and
  * a set of soft radial pools. Both move, and neither can be SEEN to move,
@@ -826,7 +808,6 @@
     var(--h-atmos-band) 0%,
     transparent 72%
   );
-  transform: translate3d(0, calc(var(--parallax, 0px) * -0.34), 0);
   will-change: transform;
   pointer-events: none;
 }
@@ -855,21 +836,6 @@
  * survey grid, over the gradient atmosphere. If a sparse dot texture is ever
  * wanted again it belongs inside BackgroundAtmosphere, scoped to a region,
  * and never simultaneously with the grid over that same region.
- */
-
-/*
- * Hero parallax — driven by `--parallax`, a single scroll-derived offset set
- * once per animation frame (components/ui/parallax-root.tsx).
- *
- * This replaces `background-attachment: fixed`, which a previous pass used
- * here and described as "composited". That was wrong, and it was the main
- * cause of the violent scroll shake: a fixed-attachment background is one of
- * the few things a browser genuinely cannot composite, so every scroll frame
- * forced a full repaint of a viewport-sized gradient. Translating the layer
- * instead keeps the work on the compositor.
- *
- * Still scoped away from reduced-motion, where parallax is exactly the
- * vestibular trigger the setting exists for.
  */
 
 /* A hairline brand rule — the green→orange sweep of the mark, used to open
@@ -1270,7 +1236,7 @@ body {
  * `html, body { background: var(--h-canvas) }` looked symmetric and
  * harmless, body's opaque fill covered the atmosphere completely: the
  * graticule, all five gradient layers, the vignette and every pixel of
- * parallax displacement were being painted and then hidden.
+ * displacement were being painted and then hidden.
  *
  * That — not insufficiently strong gradients — is why the page read as flat
  * warm white in light mode and flat graphite in dark. Computed styles were
@@ -1303,154 +1269,122 @@ main {
 
 /*
  * ---------------------------------------------------------------------------
- * HOME HERO BACKDROP
+ * HOME HERO — THE OPENING SCENE
  * ---------------------------------------------------------------------------
  *
- * The islet illustration behind the homepage title
- * (components/home/hero-backdrop.tsx).
+ * One continuous canvas from the top of the document. The header sits ON this
+ * rather than above it, so there is no seam between "navigation" and "hero" —
+ * which is what previously made the page open on a pale strip with a picture
+ * pasted underneath.
  *
- * THIS IS THE PAGE'S ONLY PERCEPTIBLE PARALLAX LAYER. The three atmosphere
- * layers above it have been reading `--parallax` for several passes, but all
- * three are low-contrast gradients: their motion is real, measurable in the
- * transform, and invisible on screen. Repeated review kept calling parallax
- * "technically present but not perceptible", and that is exactly why — there
- * was nothing with an edge to see moving.
- *
- * This layer has a horizon line and hard silhouettes, so 0.22 is enough to
- * read as depth without anyone noticing a technique. It also moves DOWN as
- * the page scrolls up (positive factor), which is the direction that reads as
- * "further away" rather than as a sticky element failing.
- *
- * The plate is oversized 18% and offset -9% so the translation never drags an
- * edge into frame: at the clamp (3 viewports) the layer travels ~0.22 × 3vh,
- * which the overshoot absorbs.
+ * `position: absolute` from the document top (not `fixed`) so it scrolls away
+ * normally; the hero section is the positioning context's full width via the
+ * viewport-width trick, because the page's own measure is capped by `.h-wide`.
  */
-.hero-backdrop {
-  /* Full-bleed by its own arithmetic. The `.full-bleed` helper cannot be
-     reused here: it declares `position: relative`, and this layer has to be
-     absolutely placed inside the hero section. */
+.hero-canvas {
+  /* Rendered as a sibling of the header inside PublicShell, so `top: 0` is
+     literally the top of the page — no header height or main padding to
+     compensate for, which is what the previous negative-margin version got
+     wrong (--header-h is 5.5rem while the header renders at 65px). */
   position: absolute;
   top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 100vw;
-  transform: translateX(-50%);
+  left: 0;
+  width: 100%;
+  height: 100svh;
   overflow: hidden;
-  /* Behind the hero copy (z-10), above the page atmosphere. */
   z-index: 0;
   pointer-events: none;
 }
 
-.hero-backdrop__plate {
-  top: -9%;
-  bottom: -9%;
-  height: auto;
-  will-change: transform;
-  transform: translate3d(0, calc(var(--parallax, 0px) * 0.22), 0);
+.hero-canvas__image {
+  object-fit: cover;
+  /* Bottom-biased: keep the waterline and islet as the frame shortens. */
+  object-position: center 62%;
 }
 
 /*
- * The scrim. Vertical pass first so the title column always has contrast,
- * then a bottom fade into the page ground so the hero does not end on a
- * horizontal edge — the "line across the page" that review has flagged more
- * than once is exactly what an unfaded full-bleed image draws.
+ * The scrim. Two passes, both static.
  *
- * `--h-canvas` rather than a literal: this has to land on the page ground in
- * both themes, and dark mode's ground is not a dimmer version of light's.
+ * Vertical first: a soft darkening at the very top so the header's own text
+ * and logo stay legible over whatever part of the sky lands behind them, then
+ * clear through the middle, then a fade into the page ground at the bottom so
+ * the hero ENDS WITHOUT AN EDGE. That bottom fade is the fix for the
+ * "horizontal band across the page" — an image that simply stops draws a hard
+ * line the width of the viewport.
+ *
+ * Horizontal second: protects the type column on wide screens without
+ * flattening the whole picture, which is what a full-frame dark overlay does.
  */
-.hero-backdrop__scrim {
+.hero-canvas__scrim {
+  position: absolute;
+  inset: 0;
   background:
     linear-gradient(
-      to right,
-      var(--h-canvas) 0%,
-      color-mix(in srgb, var(--h-canvas) 82%, transparent) 38%,
-      color-mix(in srgb, var(--h-canvas) 40%, transparent) 62%,
-      color-mix(in srgb, var(--h-canvas) 25%, transparent) 100%
-    ),
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--h-canvas) 70%, transparent) 0%,
-      color-mix(in srgb, var(--h-canvas) 20%, transparent) 30%,
-      color-mix(in srgb, var(--h-canvas) 55%, transparent) 78%,
-      var(--h-canvas) 100%
-    );
-}
-
-/* Dark mode needs a heavier hand: the illustration is a bright daylight scene
-   and sits far louder on a graphite ground than on a paper one. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .hero-backdrop__plate {
-    opacity: 0.42;
-  }
-}
-:root[data-theme="dark"] .hero-backdrop__plate {
-  opacity: 0.42;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-backdrop__plate {
-    transform: none;
-  }
-}
-
-/*
- * The horizontal pass of the scrim assumes a desktop composition: type in a
- * left column, illustration breathing on the right. Below the `md` breakpoint
- * the title spans the full measure, so that same left-to-right wash covers
- * the part of the image the reader can actually see — the islet ends up
- * behind the darkest part of the scrim.
- *
- * On narrow screens the protection therefore comes from a vertical pass only:
- * strongest through the middle band where the title and buttons sit, easing
- * off at the top so the sky stays open. Same image, same legibility, image
- * still visible.
- */
-@media (max-width: 767px) {
-  .hero-backdrop__scrim {
-    background: linear-gradient(
       to bottom,
       color-mix(in srgb, var(--h-canvas) 55%, transparent) 0%,
-      color-mix(in srgb, var(--h-canvas) 78%, transparent) 28%,
-      color-mix(in srgb, var(--h-canvas) 82%, transparent) 62%,
+      color-mix(in srgb, var(--h-canvas) 18%, transparent) 18%,
+      color-mix(in srgb, var(--h-canvas) 10%, transparent) 55%,
+      color-mix(in srgb, var(--h-canvas) 62%, transparent) 86%,
+      var(--h-canvas) 100%
+    ),
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--h-canvas) 88%, transparent) 0%,
+      color-mix(in srgb, var(--h-canvas) 72%, transparent) 34%,
+      color-mix(in srgb, var(--h-canvas) 28%, transparent) 62%,
+      transparent 92%
+    );
+}
+
+/* Below md the type spans the full measure, so a left-to-right wash would
+   cover exactly the part of the picture a phone can see. Vertical only. */
+@media (max-width: 767px) {
+  .hero-canvas__scrim {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--h-canvas) 62%, transparent) 0%,
+      color-mix(in srgb, var(--h-canvas) 38%, transparent) 22%,
+      color-mix(in srgb, var(--h-canvas) 55%, transparent) 58%,
+      color-mix(in srgb, var(--h-canvas) 88%, transparent) 84%,
       var(--h-canvas) 100%
     );
   }
 }
 
-/*
- * Map node labels — the permanent role names beside each marker
- * (components/dashboard/station-network-map.tsx).
- *
- * Leaflet's default tooltip is a white box with a border, a drop shadow and a
- * pointer arrow, which on a light basemap reads as three floating cards
- * competing with the markers they annotate. What is wanted is a caption: the
- * name, set small and tight, legible over both the basemap and the water,
- * with no chrome of its own.
- *
- * The halo is a text-shadow rather than a filled background, so the label
- * never occludes the geography underneath it.
- */
-.leaflet-tooltip.horizon-marker-label {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--h-foreground);
-  text-shadow:
-    0 0 3px var(--h-canvas),
-    0 0 3px var(--h-canvas),
-    0 0 6px var(--h-canvas);
-  white-space: nowrap;
+/* The illustration is a bright daylight scene and sits far louder on a
+   graphite ground than on paper. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hero-canvas__image {
+    opacity: 0.5;
+  }
+}
+:root[data-theme="dark"] .hero-canvas__image {
+  opacity: 0.5;
 }
 
-/* Leaflet draws the arrow as a ::before on the tooltip; with no bubble to
-   point at it is just a stray triangle. */
-.leaflet-tooltip.horizon-marker-label::before {
-  display: none;
+/*
+ * THE HEADER OVER THE HERO.
+ *
+ * On Home only, while the reader is still on the first screen, the header has
+ * no background and no bottom border — it reads as part of the picture. The
+ * scrolled/compact state (`.site-header` picks up its own classes) restores
+ * the surface, because over page content the header does need to separate
+ * itself from what it overlaps.
+ */
+.home-hero-shell {
+  /* The opening screen: a full viewport minus the chrome above it. The canvas
+     behind it (`.hero-canvas`, painted at shell level) covers the whole 100svh
+     including the header, so the two edges line up without either knowing the
+     other's height. */
+  position: relative;
+  min-height: calc(100svh - var(--header-h) - 2rem);
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  /* Breathing room before the story starts. The rhythm utilities space a
+     container's CHILDREN, and the hero is a sibling ahead of that container,
+     so without this the first chapter began at the exact pixel the hero
+     ended — measured at 0px, which is what made the opening feel cramped.
+     ~112px at desktop, ~64px on a phone. */
+  margin-bottom: var(--rhythm-large);
 }

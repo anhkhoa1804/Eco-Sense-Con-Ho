@@ -3,7 +3,6 @@ import { Geist_Mono } from "next/font/google";
 import { QueryProvider } from "@/providers/query-provider";
 import { BackgroundAtmosphere } from "@/components/layout/background-atmosphere";
 import { Analytics } from "@vercel/analytics/next";
-import { ParallaxRoot } from "@/components/ui/parallax-root";
 import { isIndexable, siteUrl } from "@/lib/siteUrl";
 import { LocaleProvider } from "@/lib/i18n/client";
 import { HTML_LANG } from "@/lib/i18n/config";
@@ -131,11 +130,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
       <body>
-        {/* The one global background. Grid, gradient, vignette and parallax
+        {/* The one global background. Grid, gradient and vignette
             all live inside it — see the component for why nothing else may
             add a viewport-spanning texture. */}
         <BackgroundAtmosphere />
-        {/* Publishes --parallax once per frame for every depth layer. */}
         {/* ANALYTICS — one tool, deliberately.
             Vercel Analytics because this deploys on Vercel, it is cookieless
             and stores no personal data, and it ships a script small enough
@@ -147,7 +145,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             No second analytics tool. Two is how a small site ends up with
             two disagreeing numbers and twice the script weight. */}
         <Analytics />
-        <ParallaxRoot />
         {/* Locale is resolved once here and handed down, so no client
             component re-reads the cookie and risks a hydration mismatch. */}
         <LocaleProvider locale={locale}>

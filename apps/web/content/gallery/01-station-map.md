@@ -1,8 +1,8 @@
 ---
-title: Sơ đồ vị trí ba điểm quan trắc
-caption: Bản đồ minh họa vị trí tương đối của ba điểm quan trắc trên Cồn Hô. Không phải ảnh vệ tinh.
+title: Ba điểm quan trắc trên Cồn Hô
+caption: Vị trí tương đối của trạm nước, trạm đất và gateway trên cù lao. Hình minh họa, không phải ảnh vệ tinh.
 category: Thiết kế dự án
 status: illustrative
-image: /assets/illustrations/con-ho-station-map.png
+image: /assets/map/con-ho-network-illustration.png
 source: Minh họa do dự án tự dựng
 ---

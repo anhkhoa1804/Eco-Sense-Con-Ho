@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { HeroBackdrop } from "@/components/home/hero-backdrop";
 import { PageHero } from "@/components/layout/page-hero";
 import { getI18n } from "@/lib/i18n/server";
 
@@ -30,7 +29,6 @@ export async function Hero() {
   return (
     <PageHero
       scale="display"
-      backdrop={<HeroBackdrop />}
       eyebrow={dict.home.eyebrow}
       title={dict.home.title}
       subtitle={dict.home.subtitle}

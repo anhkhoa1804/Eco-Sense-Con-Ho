@@ -102,14 +102,21 @@ export function PageHero({
     <section
       className={cn(
         "relative",
-        isDisplay ? "" : scale === "observatory" ? "py-[var(--rhythm-normal)]" : "h-hero",
+        // The display tier is the OPENING SCENE: it pulls itself up under the
+        // header, runs a full viewport, and carries the backdrop edge to edge.
+        // `.home-hero-shell` owns that geometry so the negative offset and the
+        // 100svh stay in one place rather than being restated per page.
+        isDisplay
+          ? "home-hero-shell"
+          : scale === "observatory"
+            ? "py-[var(--rhythm-normal)]"
+            : "h-hero",
       )}
     >
-      {backdrop ? (
-        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
-          {backdrop}
-        </div>
-      ) : null}
+      {/* The backdrop is NOT wrapped in an inset-0 box any more: it positions
+          itself from the document top and spans the viewport width, so the
+          picture starts at pixel zero and the header sits on it. */}
+      {backdrop}
 
       <div
         className={
@@ -132,7 +139,10 @@ export function PageHero({
               // `justify-center` with generous padding puts the title block
               // slightly above optical centre, which is where a headline sits
               // in an editorial layout rather than floating mid-frame.
-              "relative z-10 flex min-h-[calc(88svh-var(--header-h))] flex-col justify-center py-[clamp(2rem,6vh,5rem)]"
+              // The shell already declares the viewport height; this just
+              // centres the copy within whatever is left under the header and
+              // keeps it off both edges.
+              "relative z-10 flex flex-1 flex-col justify-center py-[clamp(2rem,7vh,5.5rem)]"
             : "relative z-10"
         }
       >

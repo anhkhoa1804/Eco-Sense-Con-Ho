@@ -15,7 +15,7 @@ import path from "node:path";
  * These tests pin the convention that replaced it:
  *
  *   1. `.horizon-atmosphere` is the SINGLE owner of whole-page background
- *      layers — grid, gradient pools, vignette, parallax drift.
+ *      layers — grid, gradient pools, vignette.
  *   2. No other rule may paint a repeating/viewport-spanning texture.
  *   3. Exactly one BackgroundAtmosphere is mounted, in the root layout.
  *
@@ -118,20 +118,61 @@ describe("hero geometry", () => {
   const heroSrc = () =>
     fs.readFileSync(path.join(process.cwd(), "components", "layout", "page-hero.tsx"), "utf8");
 
-  it("gives the display hero a viewport-proportional height with no fixed cap", () => {
-    const src = heroSrc();
-    assert.match(src, /min-h-\[calc\(88svh-var\(--header-h\)\)\]/, "display hero lost its 88svh height");
-    assert.ok(!/min-h-\[clamp\([^)]*40rem\)\]/.test(src), "the 40rem cap is back — it is what made the hero short");
+  it("gives the display hero a full-viewport opening shell", () => {
+    // The hero is now the OPENING SCENE: 100svh, starting at the document top
+    // with the header sitting on it, rather than 88svh starting below the
+    // header. The geometry lives in `.home-hero-shell` so the negative offset
+    // and the height stay in one place.
+    const css = fs.readFileSync(CSS, "utf8");
+    assert.match(heroSrc(), /home-hero-shell/, "the display hero lost its opening shell");
+    assert.match(
+      css,
+      /\.home-hero-shell\s*\{[\s\S]*?min-height:\s*calc\(100svh/,
+      "the shell is no longer sized against the viewport",
+    );
+    assert.ok(
+      !/min-h-\[clamp\([^)]*40rem\)\]/.test(heroSrc()),
+      "the 40rem cap is back - it is what made the hero short",
+    );
   });
 
   it("uses svh rather than vh, so mobile browser chrome cannot clip it", () => {
-    assert.ok(!/min-h-\[calc\(88vh/.test(heroSrc()), "vh lets mobile toolbars clip the hero");
+    const css = fs.readFileSync(CSS, "utf8");
+    assert.ok(!/min-height:\s*100vh/.test(css.split(".home-hero-shell")[1]?.slice(0, 400) ?? ""),
+      "vh lets mobile toolbars clip the hero");
   });
 
-  it("subtracts the header, so header + hero stay inside one screen", () => {
-    // Without the subtraction the hero's own 88svh sits BELOW an ~64px header
-    // and the composition overflows the first viewport.
-    assert.match(heroSrc(), /88svh-var\(--header-h\)/);
+  it("paints the hero canvas as a sibling of the header, not inside the page", () => {
+    // The canvas must sit at SHELL level. An earlier attempt rendered it
+    // inside <main> and clawed back the header height and main's padding with
+    // a negative margin — but --header-h is 5.5rem while the header actually
+    // renders at 65px, so the hero over-pulled and left a bare strip at the
+    // bottom of the first screen. At shell level `top: 0` is simply the top of
+    // the page and there is nothing to compensate for.
+    const shell = fs.readFileSync(
+      path.join(process.cwd(), "components", "layout", "public-shell.tsx"),
+      "utf8",
+    );
+    assert.match(shell, /backdrop/, "PublicShell lost its backdrop slot");
+    const css = fs.readFileSync(CSS, "utf8");
+    assert.ok(
+      !/\.home-hero-shell\s*\{[\s\S]*?margin-top:\s*calc\(\(var\(--header-h\)/.test(css),
+      "the fragile negative-margin offset is back",
+    );
+  });
+
+  it("carries the hero canvas full-bleed from the document top", () => {
+    const css = fs.readFileSync(CSS, "utf8");
+    assert.match(css, /\.hero-canvas\s*\{[\s\S]*?top:\s*0/, "the hero canvas no longer starts at the page top");
+    assert.match(css, /\.hero-canvas\s*\{[\s\S]*?height:\s*100svh/, "the hero canvas no longer covers the first screen");
+  });
+
+  it("fades the hero canvas into the page ground rather than ending on an edge", () => {
+    // A full-bleed image that simply stops draws a hard rule the width of the
+    // viewport — the "horizontal band across the page" reported repeatedly.
+    const css = fs.readFileSync(CSS, "utf8");
+    const scrim = css.slice(css.indexOf(".hero-canvas__scrim"));
+    assert.match(scrim.slice(0, 700), /var\(--h-canvas\)\s*100%/, "the hero no longer fades into the page ground");
   });
 
   it("keeps the reveal slow enough to be perceived as motion", () => {
@@ -142,14 +183,21 @@ describe("hero geometry", () => {
     assert.ok(ms >= 500 && ms <= 900, `reveal at ${ms}ms is outside the perceptible-but-not-theatrical range`);
   });
 
-  it("keeps the parallax layer's travel inside its slack", () => {
-    // If the pool factor ever outgrows the inset, the layer's edge drags into
-    // view near the bottom of a long page.
+  it("has no scroll-driven parallax anywhere in the background system", () => {
+    // The whole `--parallax` system — a scroll listener publishing a variable
+    // that three atmosphere layers and the hero multiplied by their own
+    // factors — was removed. It was repeatedly reported as either invisible
+    // or wrong, and the owner asked for it gone rather than retuned.
+    //
+    // This guards against it being reintroduced piecemeal: a stray transform
+    // reading the variable would start the same cycle again, and a partial
+    // implementation left in CSS is the specific thing that was asked not to
+    // happen.
     const css = fs.readFileSync(CSS, "utf8");
-    const factor = Number(css.match(/var\(--parallax, 0px\) \* -([\d.]+)\)/)?.[1]);
-    const slack = Number(css.match(/inset: -(\d+)%/)?.[1]) / 100;
-    assert.ok(factor > 0 && slack > 0, "could not read the parallax budget");
-    // --parallax is clamped to 3 viewports in parallax-root.tsx.
-    assert.ok(factor * 3 < slack, `travel ${(factor * 3).toFixed(2)}vh exceeds slack ${slack.toFixed(2)}vh`);
+    assert.ok(!/var\(--parallax/.test(css), "a layer is reading --parallax again");
+    assert.ok(
+      !fs.existsSync(path.join(process.cwd(), "components", "ui", "parallax-root.tsx")),
+      "parallax-root.tsx is back",
+    );
   });
 });

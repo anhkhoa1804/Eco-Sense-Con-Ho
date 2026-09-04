@@ -10,9 +10,22 @@ import { isPublicNavActive, PRIMARY_NAV_LINKS } from "@/lib/publicNav";
 export function PublicShell({
   children,
   activePath,
+  backdrop,
 }: {
   children: React.ReactNode;
   activePath?: string;
+  /**
+   * A full-bleed canvas painted behind the header AND the first screen.
+   *
+   * It belongs HERE rather than inside the page, because only the shell knows
+   * where the document actually starts. Rendering it inside <main> meant
+   * clawing back the header height and main's padding with a negative margin,
+   * and that arithmetic was wrong: `--header-h` is 5.5rem while the header
+   * actually renders at 65px, so the hero over-pulled and left a bare strip
+   * at the bottom of the first screen. As a sibling of the header, top: 0 is
+   * simply the top of the page and there is nothing to compensate for.
+   */
+  backdrop?: React.ReactNode;
 }) {
   const dict = useDict();
 
@@ -20,7 +33,9 @@ export function PublicShell({
     // No background of its own: the drafting-grid canvas painted in
     // RootLayout sits behind every page, and giving the shell an opaque
     // background here would hide it and reintroduce the stacked-layers look.
-    <div className="min-h-dvh text-foreground">
+    <div className="relative min-h-dvh text-foreground">
+      {backdrop}
+
       <SiteHeader register="public" activePath={activePath} />
 
       {/* `h-wide` is the single outer measure for every public page — the
