@@ -32,7 +32,7 @@
 */
 
 static const char *GATEWAY_ID = "GATEWAY";
-static const char *FIRMWARE_VERSION = "gateway-lora-0.8.3-s2-immediate-upload";
+static const char *FIRMWARE_VERSION = "gateway-lora-0.8.5-s2-strict-cycle";
 
 // Local Wi-Fi dashboard.
 static const char *WIFI_AP_SSID = "HORIZON";
@@ -225,12 +225,20 @@ static uint32_t recoveredLoraJsonCount = 0;
 // stealing the normal LoRa receive window.
 static String pendingUploadStation1;
 static String pendingUploadStation2;
+// S2 FIFO queue. While one payload is being uploaded/retried, newer S2 packets
+// are queued instead of being discarded. Capacity reuses WEB_QUEUE_CAPACITY.
+static String station2UploadQueue[WEB_QUEUE_CAPACITY];
+static uint8_t station2QueueHead = 0;
+static uint8_t station2QueueTail = 0;
+static uint8_t station2QueueCount = 0;
+static uint32_t station2QueueDropped = 0;
 static bool pendingStation1Ready = false;
 static bool pendingStation2Ready = false;
 static bool pairedBatchTriggered = false;
 static bool batchStation1Uploaded = false;
 static bool batchStation2Uploaded = false;
 static bool modemHttpBusy = false;
+static bool loraPausedForUpload = false;  // STRICT CYCLE: do not receive LoRa while 4G/HTTP is running.
 static uint32_t lastBatchUploadAttemptMs = 0;
 static uint32_t lastSimpleLoRaActivityMs = 0;
 static uint32_t completedBatchCount = 0;
@@ -672,6 +680,53 @@ void powerOffModem() {
   watchdogDelay(MODEM_POWER_OFF_SETTLE_MS);
 }
 
+String modemCommandCapture(const String &command, uint32_t timeoutMs = MODEM_TIMEOUT_MS) {
+  if (activeModemBaud == 0) return "";
+  clearModemRx(30);
+  modemSerial.print(command);
+  modemSerial.print("\r\n");
+  String response = modemReadUntil(timeoutMs);
+  String compact = response;
+  compact.replace("\r", " ");
+  compact.replace("\n", " ");
+  compact.trim();
+  if (compact.length() > 220) compact = compact.substring(0, 220) + "...";
+  Serial.printf("[MODEM AT] %s -> %s\n", command.c_str(), compact.length() ? compact.c_str() : "no-response");
+  return response;
+}
+
+bool modemIsRegistered(const String &response, const char *prefix) {
+  const int p = response.indexOf(prefix);
+  if (p < 0) return false;
+  const int lineEnd = response.indexOf('\n', p);
+  const String line = response.substring(p, lineEnd < 0 ? response.length() : lineEnd);
+  // Registered home=1 or roaming=5. Handles +CREG: 0,1 / +CEREG: 0,5 etc.
+  return line.endsWith(",1\r") || line.endsWith(",1") ||
+         line.endsWith(",5\r") || line.endsWith(",5") ||
+         line.indexOf(": 1") >= 0 || line.indexOf(": 5") >= 0;
+}
+
+bool waitForPacketAttach(uint32_t timeoutMs) {
+  const uint32_t startedAt = millis();
+  uint32_t lastQuery = 0;
+  while (millis() - startedAt < timeoutMs) {
+    serviceWatchdog();
+    readSimpleLoRaUart();
+    const uint32_t now = millis();
+    if (lastQuery == 0 || now - lastQuery >= 3000) {
+      lastQuery = now;
+      const String r = modemCommandCapture("AT+CGATT?", 4000);
+      if (r.indexOf("+CGATT: 1") >= 0) {
+        Serial.println("[MODEM] Packet service ATTACHED (CGATT=1)");
+        return true;
+      }
+    }
+    watchdogDelay(100);
+  }
+  Serial.println("[MODEM FAIL] Het thoi gian cho CGATT=1");
+  return false;
+}
+
 bool initModem() {
   if (!MODEM_ENABLED) {
     Serial.println("[MODEM] Dang tat de gateway uu tien nhan LoRa");
@@ -696,21 +751,30 @@ bool initModem() {
     return false;
   }
 
-  sendAt("AT+IPR?", "OK", 2500);
-  sendAt("AT+SIMCOMATI", "OK", 3000);   // diagnostic: modem/firmware family
-  if (!sendAt("AT+CPIN?", "READY", 5000)) {
+  modemCommandCapture("AT+IPR?", 2500);
+  modemCommandCapture("AT+SIMCOMATI", 3000);
+
+  const String cpin = modemCommandCapture("AT+CPIN?", 5000);
+  if (cpin.indexOf("READY") < 0) {
     Serial.println("[MODEM FAIL] SIM chua READY / PIN / SIM khong nhan");
     return false;
   }
-  sendAt("AT+COPS?", "OK", 5000);
-  sendAt("AT+CPSI?", "OK", 5000);
-  if (!sendAt("AT+CSQ", "OK", 3000)) {
-Serial.println("[MODEM FAIL] Khong doc duoc CSQ");
+
+  modemCommandCapture("AT+COPS?", 5000);
+  modemCommandCapture("AT+CPSI?", 5000);
+  const String csq = modemCommandCapture("AT+CSQ", 3000);
+  if (csq.indexOf("+CSQ:") < 0) {
+    Serial.println("[MODEM FAIL] Khong doc duoc CSQ");
     return false;
   }
-  sendAt("AT+CREG?", "OK", 3000);
-  sendAt("AT+CGREG?", "OK", 3000);
-  sendAt("AT+CEREG?", "OK", 3000);
+
+  const String creg  = modemCommandCapture("AT+CREG?", 3000);
+  const String cgreg = modemCommandCapture("AT+CGREG?", 3000);
+  const String cereg = modemCommandCapture("AT+CEREG?", 3000);
+  const bool registered = modemIsRegistered(creg, "+CREG:") ||
+                          modemIsRegistered(cgreg, "+CGREG:") ||
+                          modemIsRegistered(cereg, "+CEREG:");
+  Serial.printf("[MODEM] Dang ky mang=%s\n", registered ? "YES" : "CHUA/CHUA XAC DINH");
 
   String apnCommand = "AT+CGDCONT=1,\"IP\",\"";
   apnCommand += SIM_APN;
@@ -719,14 +783,23 @@ Serial.println("[MODEM FAIL] Khong doc duoc CSQ");
     Serial.printf("[MODEM FAIL] Khong set duoc APN '%s'\n", SIM_APN);
     return false;
   }
+  modemCommandCapture("AT+CGDCONT?", 5000);
 
-  // Attach packet service. If already attached this returns +CGATT: 1.
-  if (!sendAt("AT+CGATT?", "+CGATT: 1", 4000)) {
-    Serial.println("[MODEM] Chua attach data -> thu AT+CGATT=1");
-    if (!sendAt("AT+CGATT=1", "OK", 15000)) {
-      Serial.println("[MODEM FAIL] CGATT=1 that bai");
+  String cgatt = modemCommandCapture("AT+CGATT?", 4000);
+  if (cgatt.indexOf("+CGATT: 1") < 0) {
+    Serial.println("[MODEM] CGATT=0 -> yeu cau attach packet service");
+    const String attachResponse = modemCommandCapture("AT+CGATT=1", 20000);
+    if (attachResponse.indexOf("OK") < 0) {
+      Serial.println("[MODEM FAIL] Lenh CGATT=1 khong OK");
       return false;
     }
+    // Some SIMCom modules return OK before the network attachment is complete.
+    if (!waitForPacketAttach(30000)) {
+      Serial.println("[MODEM FAIL] Modem van CGATT=0; kiem tra SIM, song, APN va dang ky mang");
+      return false;
+    }
+  } else {
+    Serial.println("[MODEM] Packet service da attach CGATT=1");
   }
 
   // Activate PDP context. This is the important data-session step for HTTP on A76xx/SIM76xx.
@@ -1819,34 +1892,92 @@ json += ",\"salinity_ppt\":"; json += jsonNumberOrNullFromWire(salPpt);
   return json;
 }
 
+bool enqueueStation2Upload(const String &payload) {
+  if (station2QueueCount >= WEB_QUEUE_CAPACITY) {
+    station2QueueDropped += 1;
+    Serial.printf("[UPLOAD QUEUE] DAY %u/%u -> bo S2 moi (dropped=%lu)\n",
+                  station2QueueCount,
+                  WEB_QUEUE_CAPACITY,
+                  static_cast<unsigned long>(station2QueueDropped));
+    return false;
+  }
+  station2UploadQueue[station2QueueTail] = payload;
+  station2QueueTail = (station2QueueTail + 1) % WEB_QUEUE_CAPACITY;
+  station2QueueCount += 1;
+  Serial.printf("[UPLOAD QUEUE] Da xep S2 moi, cho=%u/%u\n", station2QueueCount, WEB_QUEUE_CAPACITY);
+  return true;
+}
+
+void pauseLoRaForUpload() {
+  if (loraPausedForUpload) return;
+  loraPausedForUpload = true;
+
+  // Finish any outgoing ACK first, then stop UART1 completely. Packets arriving
+  // during the 4G/HTTP cycle are intentionally ignored instead of being queued.
+  loraSerial.flush();
+  delay(20);
+  loraSerial.end();
+  simpleRxLine = "";
+  Serial.println("[LORA] TAM DUNG RX/TX -> khoa chu trinh 4G/HTTP");
+}
+
+void resumeLoRaAfterUpload() {
+  // Re-open UART exactly like the proven LoRa test setup.
+  loraSerial.setRxBufferSize(LORA_RX_BUFFER_BYTES);
+  pinMode(LORA_UART_RX_PIN, INPUT_PULLUP);
+  pinMode(LORA_UART_TX_PIN, OUTPUT);
+  digitalWrite(LORA_UART_TX_PIN, HIGH);
+  delay(20);
+  loraSerial.begin(LORA_UART_BAUD, SERIAL_8N1, LORA_UART_RX_PIN, LORA_UART_TX_PIN);
+  gpio_pullup_en(static_cast<gpio_num_t>(LORA_UART_RX_PIN));
+  gpio_pulldown_dis(static_cast<gpio_num_t>(LORA_UART_RX_PIN));
+  simpleRxLine = "";
+  loraPausedForUpload = false;
+  lastSimpleLoRaActivityMs = millis();
+  Serial.printf("[LORA] MO LAI SAU UPLOAD RX=%d TX=%d baud=%lu -> san sang nhan goi ke tiep\n",
+                LORA_UART_RX_PIN,
+                LORA_UART_TX_PIN,
+                static_cast<unsigned long>(LORA_UART_BAUD));
+}
+
+bool promoteNextStation2Upload() {
+  if (pendingStation2Ready || station2QueueCount == 0) return false;
+  pendingUploadStation2 = station2UploadQueue[station2QueueHead];
+  station2UploadQueue[station2QueueHead] = "";
+  station2QueueHead = (station2QueueHead + 1) % WEB_QUEUE_CAPACITY;
+  station2QueueCount -= 1;
+  pendingStation2Ready = true;
+  pairedBatchTriggered = true;
+  batchStation2Uploaded = false;
+  lastBatchUploadAttemptMs = 0;
+  Serial.printf("[UPLOAD QUEUE] Dua S2 ke tiep len gui, con=%u/%u\n", station2QueueCount, WEB_QUEUE_CAPACITY);
+  return true;
+}
+
 void stagePairedUpload(const String &payload, bool station1) {
-  // S2-only upload policy:
-  // - STATION_01 is still accepted/ACKed and can update the local dashboard,
-  //   but it does NOT gate web upload anymore.
-  // - Every fresh STATION_02 payload is enough to trigger a 4G upload by itself.
   if (station1) {
     Serial.println("[UPLOAD] STATION_01 da nhan/ACK, khong cho S1 de upload web");
     return;
   }
 
-  // Do not overwrite the S2 payload while the current upload/retry is active.
-  if (pairedBatchTriggered || modemHttpBusy) {
-    Serial.println("[UPLOAD] Dang gui S2 hien tai -> bo qua S2 moi de tranh ghi de payload dang retry");
+  // If no S2 is active, make this payload active immediately.
+  if (!pendingStation2Ready && !modemHttpBusy && !pairedBatchTriggered) {
+    pendingUploadStation2 = payload;
+    pendingStation2Ready = true;
+    pairedBatchTriggered = true;
+    batchStation2Uploaded = false;
+    lastBatchUploadAttemptMs = 0;
+    Serial.println("[UPLOAD] DA NHAN S2 -> xep gui ngay, KHONG CAN S1");
     return;
   }
 
-  pendingUploadStation2 = payload;
-  pendingStation2Ready = true;
-  pairedBatchTriggered = true;   // legacy flag reused as: S2 upload pending
-  batchStation2Uploaded = false;
-  lastBatchUploadAttemptMs = 0;
-
-  Serial.println("[UPLOAD] DA NHAN S2 -> se bat 4G va upload ngay, KHONG CAN S1");
+  // A packet can only reach here in the tiny interval before LoRa is paused. Keep
+  // the queue as a safety net; during the actual 4G/HTTP cycle UART1 is OFF.
+  enqueueStation2Upload(payload);
 }
 
 void finishPairedBatchIfDone() {
-  if (!pairedBatchTriggered) return;
-  if (!batchStation2Uploaded) return;
+  if (!pairedBatchTriggered || !batchStation2Uploaded) return;
 
   pendingUploadStation2 = "";
   pendingStation2Ready = false;
@@ -1855,12 +1986,19 @@ void finishPairedBatchIfDone() {
   lastBatchUploadAttemptMs = 0;
   completedBatchCount += 1;
 
-  Serial.printf("[UPLOAD] HOAN TAT S2 #%lu -> quay lai LoRa-only\n",
-                static_cast<unsigned long>(completedBatchCount));
+  Serial.printf("[UPLOAD] HOAN TAT S2 #%lu | queue=%u/%u dropped=%lu\n",
+                static_cast<unsigned long>(completedBatchCount),
+                station2QueueCount,
+                WEB_QUEUE_CAPACITY,
+                static_cast<unsigned long>(station2QueueDropped));
+
+  // If packets arrived while 4G was busy, immediately promote the oldest queued S2.
+  promoteNextStation2Upload();
 }
 
 void servicePairedBatchUpload() {
   // Function name kept to minimize changes elsewhere; behavior is now S2-only.
+  if (!pendingStation2Ready && station2QueueCount > 0) promoteNextStation2Upload();
   if (!MODEM_ENABLED || !pairedBatchTriggered || !pendingStation2Ready || modemHttpBusy) return;
   if (loraSerial.available() > 0) return;
   if (lastSimpleLoRaActivityMs != 0 && millis() - lastSimpleLoRaActivityMs < BATCH_LORA_SETTLE_MS) return;
@@ -1869,7 +2007,8 @@ void servicePairedBatchUpload() {
   lastBatchUploadAttemptMs = millis();
   modemHttpBusy = true;
 
-  Serial.println("[UPLOAD] ===== BAT 4G SAU KHI NHAN STATION_02 =====");
+  Serial.println("[UPLOAD] ===== BAT DAU CHU TRINH DOC LAP S2 -> 4G -> HTTP =====");
+  pauseLoRaForUpload();
   powerOnModem();
   lastModemInitAttemptMs = 0;
   modemReady = initModem();
@@ -1878,10 +2017,9 @@ void servicePairedBatchUpload() {
     Serial.println("[UPLOAD] Modem khoi tao that bai -> tat 4G, GIU S2 de thu lai");
     powerOffModem();
     modemHttpBusy = false;
+    resumeLoRaAfterUpload();
     return;
   }
-
-  readSimpleLoRaUart();
 
   Serial.println("[UPLOAD] Upload STATION_02...");
   batchStation2Uploaded = httpPostJson(pendingUploadStation2);
@@ -1894,9 +2032,14 @@ void servicePairedBatchUpload() {
   if (batchStation2Uploaded) {
     finishPairedBatchIfDone();
   } else {
-    Serial.printf("[UPLOAD] S2 upload FAIL -> giu payload, thu lai sau %lus\n",
+    Serial.printf("[UPLOAD] S2 upload FAIL -> giu payload hien tai, queue=%u/%u; thu lai sau %lus\n",
+                  station2QueueCount,
+                  WEB_QUEUE_CAPACITY,
                   static_cast<unsigned long>(BATCH_UPLOAD_RETRY_MS / 1000UL));
   }
+
+  resumeLoRaAfterUpload();
+  Serial.println("[UPLOAD] ===== KET THUC CHU TRINH -> MO LAI LORA =====");
 }
 
 void handleSimpleLoRaLine(String line) {
@@ -2211,6 +2354,9 @@ const bool storm = garbageDelta >= LORA_GARBAGE_STORM_BYTES_PER_WINDOW &&
 }
 
 void readSimpleLoRaUart() {
+  // STRICT CYCLE: while 4G/HTTP is active, LoRa UART is intentionally paused.
+  if (loraPausedForUpload) return;
+
   // Intentionally mirrors the proven RX test: collect printable UART bytes until '\n',
   // then validate/process the complete SIMPLE frame. This avoids the old fast
   // marker/pipe state machine changing otherwise-good transparent-LoRa traffic.
@@ -2230,6 +2376,14 @@ void readSimpleLoRaUart() {
     if (c == '\n') {
       simpleRxLine.trim();
       if (simpleRxLine.length() > 0) {
+        // Transparent LoRa modules / wiring may echo our own ACK back to RX.
+        // It is expected traffic, not garbage; ignore it quietly.
+        if (simpleRxLine.startsWith("A1|") || simpleRxLine.startsWith("A2|")) {
+          Serial.printf("[LORA ACK ECHO] %s -> bo qua\n", simpleRxLine.c_str());
+          simpleRxLine = "";
+          continue;
+        }
+
         String body;
         if ((simpleRxLine.startsWith("S1|") || simpleRxLine.startsWith("S2|")) &&
             validateSimplePacket(simpleRxLine, body)) {
