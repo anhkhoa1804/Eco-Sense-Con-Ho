@@ -32,7 +32,7 @@
 */
 
 static const char *GATEWAY_ID = "GATEWAY";
-static const char *FIRMWARE_VERSION = "gateway-lora-wifi-0.8.1-v5-rx-pair-then-4g";
+static const char *FIRMWARE_VERSION = "gateway-lora-0.8.3-s2-immediate-upload";
 
 // Local Wi-Fi dashboard.
 static const char *WIFI_AP_SSID = "HORIZON";
@@ -119,7 +119,7 @@ static const uint32_t WATCHDOG_TIMEOUT_MS = 20000;
 static const size_t LORA_LINE_MAX_CHARS = 1400;
 static const uint32_t BUTTON_DEBOUNCE_MS = 80;
 static const uint32_t LORA_WAIT_LOG_INTERVAL_MS = 15000;
-static const bool DEBUG_LORA_RAW_UART = false;
+static const bool DEBUG_LORA_RAW_UART = true;
 static const uint32_t BATCH_UPLOAD_RETRY_MS = 60000;
 static const uint32_t BATCH_LORA_SETTLE_MS = 700;
 static const uint32_t MODEM_POWER_OFF_SETTLE_MS = 300;
@@ -887,7 +887,7 @@ void applyGatewayConfig(int sampleSeconds, int sleepSeconds, int tideLevel, int 
                 tideLevel,
                 salinityAlert,
                 buzzerAlert,
-                buzzerMuted ? "yes" : "no");
+                buzzerMutedForCurrentCritical ? "yes" : "no");
 }
 
 void parseAndForwardConfigs(const String &body) {
@@ -1820,53 +1820,48 @@ json += ",\"salinity_ppt\":"; json += jsonNumberOrNullFromWire(salPpt);
 }
 
 void stagePairedUpload(const String &payload, bool station1) {
-  // Do not overwrite a payload that already belongs to an active batch. Newer
-  // readings are still ACKed/displayed and will form the next batch after this one.
-  if (pairedBatchTriggered) {
-    Serial.printf("[BATCH] Dang gui cap hien tai -> %s moi se doi cap tiep theo\n",
-                  station1 ? "S1" : "S2");
+  // S2-only upload policy:
+  // - STATION_01 is still accepted/ACKed and can update the local dashboard,
+  //   but it does NOT gate web upload anymore.
+  // - Every fresh STATION_02 payload is enough to trigger a 4G upload by itself.
+  if (station1) {
+    Serial.println("[UPLOAD] STATION_01 da nhan/ACK, khong cho S1 de upload web");
     return;
   }
 
-  if (station1) {
-    pendingUploadStation1 = payload;
-    pendingStation1Ready = true;
-  } else {
-    pendingUploadStation2 = payload;
-    pendingStation2Ready = true;
+  // Do not overwrite the S2 payload while the current upload/retry is active.
+  if (pairedBatchTriggered || modemHttpBusy) {
+    Serial.println("[UPLOAD] Dang gui S2 hien tai -> bo qua S2 moi de tranh ghi de payload dang retry");
+    return;
   }
 
-  Serial.printf("[BATCH] da_co_S1=%s da_co_S2=%s\n",
-                pendingStation1Ready ? "YES" : "NO",
-                pendingStation2Ready ? "YES" : "NO");
+  pendingUploadStation2 = payload;
+  pendingStation2Ready = true;
+  pairedBatchTriggered = true;   // legacy flag reused as: S2 upload pending
+  batchStation2Uploaded = false;
+  lastBatchUploadAttemptMs = 0;
 
-  if (pendingStation1Ready && pendingStation2Ready) {
-    pairedBatchTriggered = true;
-    batchStation1Uploaded = false;
-batchStation2Uploaded = false;
-    lastBatchUploadAttemptMs = 0;
-    Serial.println("[BATCH] DU S1 + S2 -> se bat 4G va upload 2 goi");
-  }
+  Serial.println("[UPLOAD] DA NHAN S2 -> se bat 4G va upload ngay, KHONG CAN S1");
 }
 
 void finishPairedBatchIfDone() {
   if (!pairedBatchTriggered) return;
-  if (!batchStation1Uploaded || !batchStation2Uploaded) return;
+  if (!batchStation2Uploaded) return;
 
-  pendingUploadStation1 = "";
   pendingUploadStation2 = "";
-  pendingStation1Ready = false;
   pendingStation2Ready = false;
   pairedBatchTriggered = false;
-  batchStation1Uploaded = false;
   batchStation2Uploaded = false;
+  lastBatchUploadAttemptMs = 0;
   completedBatchCount += 1;
-  Serial.printf("[BATCH] HOAN TAT cap #%lu -> quay lai LoRa-only\n",
+
+  Serial.printf("[UPLOAD] HOAN TAT S2 #%lu -> quay lai LoRa-only\n",
                 static_cast<unsigned long>(completedBatchCount));
 }
 
 void servicePairedBatchUpload() {
-  if (!MODEM_ENABLED || !pairedBatchTriggered || modemHttpBusy) return;
+  // Function name kept to minimize changes elsewhere; behavior is now S2-only.
+  if (!MODEM_ENABLED || !pairedBatchTriggered || !pendingStation2Ready || modemHttpBusy) return;
   if (loraSerial.available() > 0) return;
   if (lastSimpleLoRaActivityMs != 0 && millis() - lastSimpleLoRaActivityMs < BATCH_LORA_SETTLE_MS) return;
   if (lastBatchUploadAttemptMs != 0 && millis() - lastBatchUploadAttemptMs < BATCH_UPLOAD_RETRY_MS) return;
@@ -1874,44 +1869,32 @@ void servicePairedBatchUpload() {
   lastBatchUploadAttemptMs = millis();
   modemHttpBusy = true;
 
-  Serial.println("[BATCH] ===== BAT 4G SAU KHI DA NHAN DU S1 + S2 =====");
+  Serial.println("[UPLOAD] ===== BAT 4G SAU KHI NHAN STATION_02 =====");
   powerOnModem();
-  lastModemInitAttemptMs = 0;  // this is an intentional fresh power-up
+  lastModemInitAttemptMs = 0;
   modemReady = initModem();
 
   if (!modemReady) {
-    Serial.println("[BATCH] Modem khoi tao that bai -> tat 4G, giu cap du lieu de thu lai");
+    Serial.println("[UPLOAD] Modem khoi tao that bai -> tat 4G, GIU S2 de thu lai");
     powerOffModem();
     modemHttpBusy = false;
     return;
   }
 
-  if (!batchStation1Uploaded) {
-    Serial.println("[BATCH] Upload STATION_01...");
-    batchStation1Uploaded = httpPostJson(pendingUploadStation1);
-    Serial.printf("[BATCH] S1 upload=%s\n", batchStation1Uploaded ? "OK" : "FAIL");
-  }
-
-  // Give LoRa parser a chance between the two HTTP transactions.
   readSimpleLoRaUart();
 
-  if (!batchStation2Uploaded) {
-    Serial.println("[BATCH] Upload STATION_02...");
-    batchStation2Uploaded = httpPostJson(pendingUploadStation2);
-    Serial.printf("[BATCH] S2 upload=%s\n", batchStation2Uploaded ? "OK" : "FAIL");
-  }
+  Serial.println("[UPLOAD] Upload STATION_02...");
+  batchStation2Uploaded = httpPostJson(pendingUploadStation2);
+  Serial.printf("[UPLOAD] S2 upload=%s\n", batchStation2Uploaded ? "OK" : "FAIL");
 
-  Serial.println("[BATCH] Tat 4G sau phien upload");
+  Serial.println("[UPLOAD] Tat 4G sau phien upload");
   powerOffModem();
   modemHttpBusy = false;
 
-  if (batchStation1Uploaded && batchStation2Uploaded) {
+  if (batchStation2Uploaded) {
     finishPairedBatchIfDone();
-    lastBatchUploadAttemptMs = 0;
   } else {
-    Serial.printf("[BATCH] Con loi S1=%s S2=%s -> giu du lieu, thu lai sau %lus\n",
-                  batchStation1Uploaded ? "OK" : "PENDING",
-                  batchStation2Uploaded ? "OK" : "PENDING",
+    Serial.printf("[UPLOAD] S2 upload FAIL -> giu payload, thu lai sau %lus\n",
                   static_cast<unsigned long>(BATCH_UPLOAD_RETRY_MS / 1000UL));
   }
 }
@@ -2228,31 +2211,69 @@ const bool storm = garbageDelta >= LORA_GARBAGE_STORM_BYTES_PER_WINDOW &&
 }
 
 void readSimpleLoRaUart() {
+  // Intentionally mirrors the proven RX test: collect printable UART bytes until '\n',
+  // then validate/process the complete SIMPLE frame. This avoids the old fast
+  // marker/pipe state machine changing otherwise-good transparent-LoRa traffic.
   bool gotByte = false;
-  if (simpleCapturingFrame && simpleLastFrameByteMs != 0 &&
-      millis() - simpleLastFrameByteMs > SIMPLE_FRAME_IDLE_TIMEOUT_MS) {
-    simpleAbortedFrames += 1;
-    resetSimpleStreamCapture();
-  }
 
   while (loraSerial.available() > 0) {
     serviceWatchdog();
     gotByte = true;
+    const char c = static_cast<char>(loraSerial.read());
     loraPhysicalRxBytes += 1;
     lastSimpleLoRaActivityMs = millis();
-    consumeSimpleLoRaByte(static_cast<char>(loraSerial.read()));
+
+    if (DEBUG_LORA_RAW_UART) {
+      Serial.write(c);
+    }
+
+    if (c == '\n') {
+      simpleRxLine.trim();
+      if (simpleRxLine.length() > 0) {
+        String body;
+        if ((simpleRxLine.startsWith("S1|") || simpleRxLine.startsWith("S2|")) &&
+            validateSimplePacket(simpleRxLine, body)) {
+          simpleFastCompletedFrames += 1;
+          loraLastGoodFrameMs = millis();
+          loraGarbageBadWindows = 0;
+          const String completed = simpleRxLine;
+          simpleRxLine = "";
+          handleSimpleLoRaLine(completed);
+        } else {
+          Serial.printf("[LORA LINE BAD] %s\n", simpleRxLine.c_str());
+          simpleGarbageBytes += simpleRxLine.length();
+          simpleRxLine = "";
+        }
+      }
+      continue;
+    }
+
+    if (c == '\r') {
+      continue;
+    }
+
+    const uint8_t raw = static_cast<uint8_t>(c);
+    if (raw >= 32 && raw <= 126) {
+      simpleRxLine += c;
+      if (simpleRxLine.length() > LORA_LINE_MAX_CHARS) {
+        Serial.println("[LORA] Dong qua dai -> xoa bo dem");
+        simpleGarbageBytes += simpleRxLine.length();
+        simpleRxLine = "";
+      }
+    } else {
+      // At the correct 9600 baud SIMPLE frames are printable ASCII. A binary byte
+      // indicates noise/wrong baud; discard only the current line and resync at '\n'.
+      simpleGarbageBytes += 1;
+      simpleRxLine = "";
+    }
   }
 
-  serviceLoRaRxHealth();
   if (!gotByte && millis() - lastLoraWaitLogMs >= LORA_WAIT_LOG_INTERVAL_MS) {
     lastLoraWaitLogMs = millis();
-    Serial.printf("[LORA] nghe rac=%lu hong=%lu fast_ok=%lu rx=%lu AUX=%s restart=%lu S1=%s S2=%s batch=%s\n",
+    Serial.printf("[LORA] nghe rac=%lu ok=%lu rx=%lu S1=%s S2=%s batch=%s\n",
                   static_cast<unsigned long>(simpleGarbageBytes),
-                  static_cast<unsigned long>(simpleAbortedFrames),
                   static_cast<unsigned long>(simpleFastCompletedFrames),
                   static_cast<unsigned long>(loraPhysicalRxBytes),
-                  digitalRead(LORA_AUX_PIN) == HIGH ? "HIGH" : "LOW",
-                  static_cast<unsigned long>(loraUartRestartCount),
                   pendingStation1Ready ? "YES" : "NO",
                   pendingStation2Ready ? "YES" : "NO",
                   pairedBatchTriggered ? "READY" : "WAIT");
@@ -2270,12 +2291,13 @@ void setup() {
   Serial.println();
   Serial.println("[HORIZON] Gateway dang khoi dong");
   Serial.printf("[HORIZON] Gateway: %s\n", GATEWAY_ID);
+  Serial.printf("[HORIZON] Firmware: %s\n", FIRMWARE_VERSION);
   Serial.printf("[STATUS] green=%d yellow=%d red=%d buzzer=%d active=%s\n",
-                STATUS_GREEN_PIN,
-                STATUS_YELLOW_PIN,
-                STATUS_RED_PIN,
-                BUZZER_PIN,
-                MOSFET_ACTIVE_LEVEL == HIGH ? "HIGH" : "LOW");
+                RELAY_GREEN_PIN,
+                RELAY_YELLOW_PIN,
+                RELAY_RED_PIN,
+                BUZZER_RELAY_PIN,
+                RELAY_ACTIVE_LOW ? "LOW" : "HIGH");
   Serial.printf("[STATUS] Nut tat coi IO%d, nhan xuong GND\n", BUZZER_MUTE_BUTTON_PIN);
 loraSerial.setRxBufferSize(LORA_RX_BUFFER_BYTES);
   loraSerial.begin(LORA_UART_BAUD, SERIAL_8N1, LORA_UART_RX_PIN, LORA_UART_TX_PIN);
@@ -2287,7 +2309,7 @@ loraSerial.setRxBufferSize(LORA_RX_BUFFER_BYTES);
                 static_cast<unsigned int>(LORA_RX_BUFFER_BYTES));
   Serial.printf("[DEBUG] lora_raw_uart=%s\n", DEBUG_LORA_RAW_UART ? "on" : "off");
   pinMode(LORA_AUX_PIN, INPUT_PULLUP);
-  Serial.println("[LORA] SIMPLE QoS1 V11: V5 receiver unchanged + S1+S2 -> 4G");
+  Serial.println("[LORA] SIMPLE LINE RX 9600: newline -> CRC -> ACK -> S1+S2 -> 4G");
   Serial.printf("[LORA] AUX IO%d=%s\n", LORA_AUX_PIN, digitalRead(LORA_AUX_PIN) == HIGH ? "HIGH" : "LOW");
   Serial.printf("[CONFIG] runtime_poll=%s (server hien dang tra 403)\n", CONFIG_POLL_ENABLED ? "BAT" : "TAT");
 
@@ -2311,7 +2333,7 @@ loraSerial.setRxBufferSize(LORA_RX_BUFFER_BYTES);
     gpio_pulldown_dis(static_cast<gpio_num_t>(MODEM_RX_PIN));
     gpio_pullup_dis(static_cast<gpio_num_t>(MODEM_TX_PIN));
     gpio_pulldown_dis(static_cast<gpio_num_t>(MODEM_TX_PIN));
-    Serial.printf("[MODEM] CHO CAP S1+S2; PEN LOW, UART modem high-Z TX=%d RX=%d PEN=%d\n", MODEM_TX_PIN, MODEM_RX_PIN, MODEM_PEN_PIN);
+    Serial.printf("[MODEM] CHO STATION_02; S2 hop le se bat 4G/upload. PEN LOW, UART modem high-Z TX=%d RX=%d PEN=%d\n", MODEM_TX_PIN, MODEM_RX_PIN, MODEM_PEN_PIN);
   } else {
     Serial.println("[MODEM] MODEM_ENABLED=false");
   }
@@ -2329,7 +2351,7 @@ void loop() {
   }
   readSimpleLoRaUart();
 
-  // Only after one fresh packet from BOTH stations do we power 4G and upload.
+  // A fresh STATION_02 packet alone is enough to power 4G and upload.
   servicePairedBatchUpload();
   // Runtime CONFIG GET remains disabled while the endpoint returns 403.
   if (CONFIG_POLL_ENABLED) pollRuntimeConfigs();
